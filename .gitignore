@@ -64,3 +64,10 @@ llm_models/
 llama.cpp/build/
 llama.cpp/bin/
 *.exe
+
+# Backend
+backend/.env
+backend/.venv/
+backend/venv/
+backend/**/__pycache__/
+backend/**/*.pyc
