@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "127681494264",
+    "project_id": "learnobot-1a624",
+    "storage_bucket": "learnobot-1a624.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:127681494264:android:c110725daaed0e07dbcf0d",
+        "android_client_info": {
+          "package_name": "com.learnobot.learnobotapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBq9QjI2tj-4w9B-0oHRT20z2QNVhbZ4h8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
