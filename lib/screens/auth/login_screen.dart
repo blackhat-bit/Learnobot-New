@@ -17,7 +17,6 @@ class LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isTeacher = true; // Default to teacher login
   bool _isLoading = false;
 
   @override
@@ -35,28 +34,42 @@ class LoginScreenState extends State<LoginScreen> {
 
       try {
         final authService = Provider.of<AuthService>(context, listen: false);
-        final username = await authService.loginAndCheckRole(
+        final loginResult = await authService.loginWithAutoRole(
           email: _emailController.text.trim(),
           password: _passwordController.text,
-          role: _isTeacher ? 'Teacher' : 'Student',
         );
 
-        if (username != null) {
-          // Navigate to the appropriate screen based on user type
-          if (_isTeacher) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const TeacherPanelScreen(),
-              ),
-            );
-          } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const StudentHomeScreen(),
-              ),
-            );
+        if (loginResult != null) {
+          final userRole = loginResult['role'] as String;
+          
+          // Navigate based on actual user role
+          switch (userRole) {
+            case 'Student':
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const StudentHomeScreen(),
+                ),
+              );
+              break;
+            case 'Teacher':
+            case 'Admin':
+              // Both teachers and admins go to teacher panel
+              // Admins will have access to additional features (analytics)
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TeacherPanelScreen(),
+                ),
+              );
+              break;
+            default:
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('סוג משתמש לא מזוהה'),
+                  backgroundColor: Colors.red,
+                ),
+              );
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(

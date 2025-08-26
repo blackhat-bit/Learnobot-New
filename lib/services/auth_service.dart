@@ -29,6 +29,13 @@ class AuthService {
           'username': 'תלמיד דוגמא',
           'role': 'Student',
         },
+        {
+          'uid': 'admin_test_1',
+          'email': 'admin@test.com',
+          'password': '123456',
+          'username': 'מנהל פרויקט',
+          'role': 'Admin',
+        },
       ];
       
       await prefs.setString(_usersKey, json.encode(testUsers));
@@ -115,6 +122,27 @@ class AuthService {
   Future<String?> getCurrentUserRole() async {
     final userData = await getCurrentUserData();
     return userData?['role'] as String?;
+  }
+
+  // Universal login method that returns user role
+  Future<Map<String, dynamic>?> loginWithAutoRole({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final user = await loginWithEmail(email: email, password: password);
+      if (user != null) {
+        return {
+          'username': user['username'],
+          'role': user['role'],
+          'email': user['email'],
+          'uid': user['uid'],
+        };
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 
   // Get current user's data

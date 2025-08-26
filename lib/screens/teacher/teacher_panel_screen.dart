@@ -23,6 +23,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
   List<Student> _recentStudents = [];
   bool _isLoading = true;
   String _username = 'המורה';
+  String? _userRole;
   
   // Local state
 
@@ -33,6 +34,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
       _loadUsername();
+      _loadUserRole();
     });
   }
   
@@ -48,6 +50,16 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
     if (username != null && mounted) {
       setState(() {
         _username = username;
+      });
+    }
+  }
+
+  Future<void> _loadUserRole() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final role = await authService.getCurrentUserRole();
+    if (role != null && mounted) {
+      setState(() {
+        _userRole = role;
       });
     }
   }
@@ -253,14 +265,16 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                                   ),
                                   
                                   // Menu Items
-                                  _buildProfessionalMenuItem(
-                                    icon: Icons.analytics_outlined,
-                                    title: 'ייצוא נתונים ומחקר',
-                                    subtitle: 'לוגים, דוחות וניתוחים למנהלי פרויקט',
-                                    color: Colors.blue,
-                                    onTap: () => _showDataExportAndAnalyticsDialog(context),
-                                    isFirst: true,
-                                  ),
+                                  // Analytics menu item - only for admins
+                                  if (_userRole == 'Admin')
+                                    _buildProfessionalMenuItem(
+                                      icon: Icons.analytics_outlined,
+                                      title: 'ייצוא נתונים ומחקר',
+                                      subtitle: 'לוגים, דוחות וניתוחים למנהלי פרויקט',
+                                      color: Colors.blue,
+                                      onTap: () => _showDataExportAndAnalyticsDialog(context),
+                                      isFirst: true,
+                                    ),
                                   
                                   _buildProfessionalMenuItem(
                                     icon: Icons.people_outline,
@@ -273,6 +287,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                                         builder: (context) => const StudentListScreen(),
                                       ),
                                     ),
+                                    isFirst: _userRole != 'Admin', // First item if analytics is not shown
                                   ),
                                   
                                   _buildProfessionalMenuItem(
