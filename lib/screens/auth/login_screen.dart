@@ -143,50 +143,16 @@ class LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // User type selector
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Teacher Button
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                _isTeacher = true;
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _isTeacher
-                                  ? AppColors.primary
-                                  : Colors.grey.shade300,
-                              foregroundColor:
-                                  _isTeacher ? Colors.white : Colors.black,
-                            ),
-                            child: const Text(AppStrings.teacherLogin),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        // Student Button
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                _isTeacher = false;
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: !_isTeacher
-                                  ? AppColors.primary
-                                  : Colors.grey.shade300,
-                              foregroundColor:
-                                  !_isTeacher ? Colors.white : Colors.black,
-                            ),
-                            child: const Text(AppStrings.studentLogin),
-                          ),
-                        ),
-                      ],
+                    // Welcome text
+                    const Text(
+                      'ברוכים הבאים למערכת הלמידה',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 30),
 
                     // Email Field
                     TextFormField(
