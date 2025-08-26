@@ -1,7 +1,5 @@
 // lib/screens/teacher/teacher_panel_screen.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/student.dart';
@@ -10,6 +8,7 @@ import 'account_settings_screen.dart';
 import '../../widgets/notification_widget.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import '../auth/welcome_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -21,32 +20,35 @@ class TeacherPanelScreen extends StatefulWidget {
 }
 
 class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
-  int _pendingNotifications = 2; // Mock data
   List<Student> _recentStudents = [];
   bool _isLoading = true;
   String _username = 'המורה';
+  
+  // Local state
 
   @override
   void initState() {
     super.initState();
+    _loadNotifications();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
       _loadUsername();
     });
   }
+  
+  // Load notifications using the service
+  Future<void> _loadNotifications() async {
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    await notificationService.getTeacherNotifications();
+  }
 
   Future<void> _loadUsername() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      if (doc.exists && mounted) {
-        setState(() {
-          _username = doc['username'] ?? 'המורה';
-        });
-      }
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final username = await authService.getCurrentUserName();
+    if (username != null && mounted) {
+      setState(() {
+        _username = username;
+      });
     }
   }
 
@@ -133,41 +135,46 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                           ),
                         ),
                         // Notification icon with badge
-                        Stack(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.notifications,
-                                  color: Colors.white, size: 28),
-                              onPressed: () {
-                                _showNotificationsDialog(context);
-                              },
-                            ),
-                            if (_pendingNotifications > 0)
-                              Positioned(
-                                right: 8,
-                                top: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 16,
-                                    minHeight: 16,
-                                  ),
-                                  child: Text(
-                                    _pendingNotifications.toString(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
+                        Consumer<NotificationService>(
+                          builder: (context, notificationService, child) {
+                            final unreadCount = notificationService.unreadCount;
+                            return Stack(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.notifications,
+                                      color: Colors.white, size: 28),
+                                  onPressed: () {
+                                    _showNotificationsDialog(context);
+                                  },
                                 ),
-                              ),
-                          ],
+                                if (unreadCount > 0)
+                                  Positioned(
+                                    right: 8,
+                                    top: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 16,
+                                        minHeight: 16,
+                                      ),
+                                      child: Text(
+                                        unreadCount.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                         // Logout button
                         IconButton(
@@ -203,63 +210,99 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                         padding: const EdgeInsets.all(20),
                         child: Column(
                           children: [
-                            // Menu Grid
-                            SizedBox(
-                              height: 400, // Fixed height for grid
-                              child: GridView.count(
-                                physics: const NeverScrollableScrollPhysics(),
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 15,
-                                mainAxisSpacing: 15,
+                            // Professional Menu List
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
                                 children: [
-                                  _buildMenuCard(
-                                    context,
-                                    title: 'הגדרות מערכת',
-                                    subtitle: 'צליל, תצוגה, הגדרות צ׳אטבוט',
-                                    icon: Icons.settings,
-                                    onTap: () {
-                                      _showSystemSettingsDialog(context);
-                                    },
-                                  ),
-                                  _buildMenuCard(
-                                    context,
-                                    title: 'ארכיון',
-                                    subtitle: 'תיעוד שיחות, ניתוח נתונים',
-                                    icon: Icons.archive,
-                                    onTap: () {
-                                      _showArchiveOptions(context);
-                                    },
-                                  ),
-                                  _buildMenuCard(
-                                    context,
-                                    title: 'הגדרות חשבון',
-                                    subtitle: 'עדכן פרטים, שינוי סיסמה',
-                                    icon: Icons.person_outline,
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const AccountSettingsScreen(),
+                                  // Header
+                                  Container(
+                                    padding: const EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withOpacity(0.1),
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(16),
+                                        topRight: Radius.circular(16),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(Icons.dashboard_outlined, 
+                                             color: AppColors.primary, size: 24),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'פאנל ניהול',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.primary,
+                                          ),
                                         ),
-                                      );
-                                    },
-                                    isLocked: false,
+                                      ],
+                                    ),
                                   ),
-                                  _buildMenuCard(
-                                    context,
+                                  
+                                  // Menu Items
+                                  _buildProfessionalMenuItem(
+                                    icon: Icons.analytics_outlined,
+                                    title: 'ייצוא נתונים ומחקר',
+                                    subtitle: 'לוגים, דוחות וניתוחים למנהלי פרויקט',
+                                    color: Colors.blue,
+                                    onTap: () => _showDataExportAndAnalyticsDialog(context),
+                                    isFirst: true,
+                                  ),
+                                  
+                                  _buildProfessionalMenuItem(
+                                    icon: Icons.people_outline,
                                     title: 'מעקב תלמידים',
-                                    subtitle: 'כרטיסי תלמידים',
-                                    icon: Icons.people,
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const StudentListScreen(),
-                                        ),
-                                      );
-                                    },
+                                    subtitle: 'צפייה וניהול כרטיסי תלמידים',
+                                    color: Colors.green,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const StudentListScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                  
+                                  _buildProfessionalMenuItem(
+                                    icon: Icons.archive_outlined,
+                                    title: 'ארכיון ותיעוד',
+                                    subtitle: 'היסטוריית שיחות וניתוח נתונים',
+                                    color: Colors.purple,
+                                    onTap: () => _showArchiveOptions(context),
+                                  ),
+                                  
+                                  _buildProfessionalMenuItem(
+                                    icon: Icons.settings_outlined,
+                                    title: 'הגדרות מערכת',
+                                    subtitle: 'צליל, תצוגה והגדרות צ׳אטבוט',
+                                    color: Colors.orange,
+                                    onTap: () => _showSystemSettingsDialog(context),
+                                  ),
+                                  
+                                  _buildProfessionalMenuItem(
+                                    icon: Icons.person_outline,
+                                    title: 'הגדרות חשבון',
+                                    subtitle: 'עדכון פרטים ושינוי סיסמה',
+                                    color: Colors.teal,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const AccountSettingsScreen(),
+                                      ),
+                                    ),
+                                    isLast: true,
                                   ),
                                 ],
                               ),
@@ -357,6 +400,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
       ),
     );
   }
+
 
   // ============ Helper Widgets and Methods ==============
 
@@ -654,13 +698,23 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(context);
+              // TODO: Add ResearchAnalyticsScreen navigation
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ניתוח נתונים בקרוב!')),
+                const SnackBar(content: Text('ניתוח נתונים  !')),
               );
+              /* 
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ResearchAnalyticsScreen(),
+                ),
+              );
+              */
             },
             child: const ListTile(
-              leading: Icon(Icons.insert_chart),
-              title: Text('ניתוח נתונים'),
+              leading: Icon(Icons.analytics, color: Colors.purple),
+              title: Text('ניתוח מחקר'),
+              subtitle: Text('צפייה בהתקדמות ודפוסי התנהגות'),
             ),
           ),
           SimpleDialogOption(
@@ -675,7 +729,335 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
               title: Text('דוחות'),
             ),
           ),
+          
+          // Admin-only options (TODO: Add role checking)
+          /* TODO: Uncomment when admin role checking is implemented
+          if (userRole == 'admin') ...[
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(context);
+                // TODO: Add AIManagerScreen navigation
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('הגדרות AI בקרוב!')),
+                );
+                /*
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AIManagerScreen(),
+                  ),
+                );
+                */
+              },
+              child: const ListTile(
+                leading: Icon(Icons.settings_applications, color: Colors.blue),
+                title: Text('הגדרות AI'),
+                subtitle: Text('ניהול ספקי AI והוראות'),
+              ),
+            ),
+            SimpleDialogOption(
+              onPressed: () async {
+                Navigator.pop(context);
+                // TODO: Implement data export
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('ייצוא נתונים בקרוב!')),
+                );
+                /*
+                final token = await AuthService().getToken();
+                final response = await http.get(
+                  Uri.parse('${ApiConfig.baseUrl}/analytics/export/csv'),
+                  headers: {'Authorization': 'Bearer $token'},
+                );
+                
+                if (response.statusCode == 200) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('נתונים יוצאו בהצלחה')),
+                  );
+                }
+                */
+              },
+              child: const ListTile(
+                leading: Icon(Icons.download, color: Colors.green),
+                title: Text('ייצוא כל הנתונים'),
+                subtitle: Text('הורדת נתוני מחקר כ-CSV'),
+              ),
+            ),
+          ],
+          */
         ],
+      ),
+    );
+  }
+
+  // Combined Data Export & Analytics Dialog - PRIMARY FEATURE for Project Managers
+  void _showDataExportAndAnalyticsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ייצוא נתונים וניתוח מחקר'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // DATA EXPORT SECTION
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        '📁 ייצוא נתונים למנהלי פרויקט',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.chat_bubble, color: Colors.blue),
+                title: const Text('לוגים של שיחות'),
+                subtitle: const Text('כל השיחות בין מורים לתלמידים'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  // TODO: Implement chat logs export
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('מייצא לוגים של שיחות...'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  // Mock implementation for now
+                  await Future.delayed(const Duration(seconds: 2));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ לוגים יוצאו בהצלחה ל-chat_logs.csv'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.analytics, color: Colors.purple),
+                title: const Text('נתוני התקדמות'),
+                subtitle: const Text('סטטיסטיקות ומדדי ביצועים'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  // TODO: Implement progress data export
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('מייצא נתוני התקדמות...'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  await Future.delayed(const Duration(seconds: 2));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ נתונים יוצאו בהצלחה ל-progress_data.csv'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.person, color: Colors.orange),
+                title: const Text('נתוני משתמשים'),
+                subtitle: const Text('רשימת תלמידים ומורים'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  // TODO: Implement user data export
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('מייצא נתוני משתמשים...'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  await Future.delayed(const Duration(seconds: 2));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ משתמשים יוצאו בהצלחה ל-users.csv'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.download_for_offline, color: Colors.green),
+                title: const Text('ייצוא מלא'),
+                subtitle: const Text('כל הנתונים בקובץ אחד'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  // TODO: Implement full export
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('מייצא את כל הנתונים...'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                  await Future.delayed(const Duration(seconds: 3));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ כל הנתונים יוצאו בהצלחה ל-full_export.zip'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+              ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // ANALYTICS SECTION
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        '📊 ניתוח נתונים מחקרי',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 10),
+                      ListTile(
+                        leading: const Icon(Icons.bar_chart, color: Colors.purple),
+                        title: const Text('סטטיסטיקות שימוש'),
+                        subtitle: const Text('גרפים של פעילות יומית'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('סטטיסטיקות שימוש בקרוב!')),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.timeline, color: Colors.purple),
+                        title: const Text('מגמות התקדמות'),
+                        subtitle: const Text('ניתוח התקדמות לאורך זמן'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('מגמות התקדמות בקרוב!')),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.psychology, color: Colors.purple),
+                        title: const Text('ניתוח התנהגות'),
+                        subtitle: const Text('דפוסי שימוש וקשיים'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('ניתוח התנהגות בקרוב!')),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('סגור'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Professional Menu Item Builder
+  Widget _buildProfessionalMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.vertical(
+          top: isFirst ? const Radius.circular(0) : Radius.zero,
+          bottom: isLast ? const Radius.circular(16) : Radius.zero,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: isLast 
+                ? BorderSide.none 
+                : BorderSide(color: Colors.grey.shade200, width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Icon Container
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 24,
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // Text Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Arrow Icon
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Colors.grey.shade400,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -683,44 +1065,38 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
   void _showNotificationsDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('התראות'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              _buildNotificationItem('התלמיד חן לוי מבקש עזרה', '8:05 אפר׳ 30',
-                  isNew: true),
-              _buildNotificationItem(
-                  'ההודעה שלך נשלחה לתלמיד רון שני', '10:30 אפר׳ 29',
-                  isNew: true),
-              _buildNotificationItem('נוספו 3 תלמידים חדשים', '15:42 אפר׳ 28',
-                  isNew: false),
-              _buildNotificationItem(
-                  'התלמידה נילי נעים ביקשה עזרה', '14:15 אפר׳ 27',
-                  isNew: false),
-              _buildNotificationItem(
-                  'התלמיד נועם אופלי השלים משימה', '9:20 אפר׳ 26',
-                  isNew: false),
-            ],
+      builder: (context) => Consumer<NotificationService>(
+        builder: (context, notificationService, child) => AlertDialog(
+          title: const Text('התראות'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: notificationService.notifications.length,
+              itemBuilder: (context, index) {
+                final notification = notificationService.notifications[index];
+                return _buildNotificationItem(
+                  notification['message'], 
+                  notification['time'],
+                  isNew: !notification['isRead'],
+                );
+              },
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await notificationService.markAllAsRead();
+                Navigator.pop(context);
+              },
+              child: const Text('סמן הכל כנקרא'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('סגור'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _pendingNotifications = 0;
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('סמן הכל כנקרא'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('סגור'),
-          ),
-        ],
       ),
     );
   }

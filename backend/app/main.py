@@ -1,95 +1,91 @@
-from fastapi import FastAPI, HTTPException
+# app/main.py
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
-import uvicorn
-
-from app.config import settings
-from app.api import auth, chat, teacher, student, llm_management
+from app.api import auth, chat, teacher, student
 from app.core.database import engine
-from app.models import user, chat as chat_model, task, llm_config
+from app.models import user, chat as chat_models, task
+from app.config import settings
 
+# Create database tables
+user.Base.metadata.create_all(bind=engine)
+chat_models.Base.metadata.create_all(bind=engine)
+task.Base.metadata.create_all(bind=engine)
 
-def create_app() -> FastAPI:
-    """Create and configure the FastAPI application."""
-    
-    app = FastAPI(
-        title=settings.app_name,
-        version=settings.version,
-        description="A comprehensive AI-powered educational platform backend",
-        debug=settings.debug,
-        docs_url="/docs" if settings.debug else None,
-        redoc_url="/redoc" if settings.debug else None,
-    )
-    
-    # CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-    
-    # Trusted host middleware for production
-    if not settings.debug:
-        app.add_middleware(
-            TrustedHostMiddleware,
-            allowed_hosts=["learnobot.com", "*.learnobot.com"]
-        )
-    
-    # Include routers
-    app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-    app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
-    app.include_router(teacher.router, prefix="/api/v1/teacher", tags=["Teacher"])
-    app.include_router(student.router, prefix="/api/v1/student", tags=["Student"])
-    app.include_router(llm_management.router, prefix="/api/v1/llm", tags=["LLM Management"])
-    
-    @app.on_event("startup")
-    async def startup_event():
-        """Application startup event."""
-        print(f"Starting {settings.app_name} v{settings.version}")
-        print(f"Environment: {settings.environment}")
-        print(f"Debug mode: {settings.debug}")
-    
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        """Application shutdown event."""
-        print("Shutting down Learnobot Backend")
-    
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request, exc):
-        """Global HTTP exception handler."""
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail, "status_code": exc.status_code}
-        )
-    
-    @app.get("/", tags=["Root"])
-    async def root():
-        """Root endpoint."""
-        return {
-            "message": f"Welcome to {settings.app_name}",
-            "version": settings.version,
-            "status": "running"
-        }
-    
-    @app.get("/health", tags=["Health"])
-    async def health_check():
-        """Health check endpoint."""
-        return {"status": "healthy", "service": settings.app_name}
-    
-    return app
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.VERSION,
+    openapi_url=f"{settings.API_PREFIX}/openapi.json"
+)
 
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Create the app instance
-app = create_app()
+# Include routers
+app.include_router(auth.router, prefix=f"{settings.API_PREFIX}/auth", tags=["auth"])
+app.include_router(chat.router, prefix=f"{settings.API_PREFIX}/chat", tags=["chat"])
+app.include_router(teacher.router, prefix=f"{settings.API_PREFIX}/teacher", tags=["teacher"])
+app.include_router(student.router, prefix=f"{settings.API_PREFIX}/student", tags=["student"])
 
-if __name__ == "__main__":
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.debug,
-        log_level="debug" if settings.debug else "info"
-    )
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to LearnoBot API"}
+
+# app/schemas/chat.py
+from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional, List
+from enum import Enum
+
+class MessageRole(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+
+class InteractionMode(str, Enum):
+    PRACTICE = "practice"
+    TEST = "test"
+
+class AssistanceType(str, Enum):
+    BREAKDOWN = "breakdown"
+    EXAMPLE = "example"
+    EXPLAIN = "explain"
+
+class ChatMessageBase(BaseModel):
+    content: str
+    role: MessageRole
+
+class ChatMessageCreate(ChatMessageBase):
+    assistance_type: Optional[AssistanceType] = None
+
+class ChatMessage(ChatMessageBase):
+    id: int
+    timestamp: datetime
+    satisfaction_rating: Optional[int] = None
+    
+    class Config:
+        orm_mode = True
+
+class ChatSessionCreate(BaseModel):
+    mode: InteractionMode = InteractionMode.PRACTICE
+
+class ChatSession(BaseModel):
+    id: int
+    mode: InteractionMode
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    
+    class Config:
+        orm_mode = True
+
+class TaskUpload(BaseModel):
+    image_base64: str
+    session_id: int
+
+class RatingSatisfaction(BaseModel):
+    message_id: int
+    rating: int  # 1-5

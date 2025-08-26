@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'constants/app_colors.dart';
@@ -10,8 +9,8 @@ import 'screens/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/chat_service.dart';
 import 'services/database_service.dart';
+import 'services/notification_service.dart';
 import 'utils/router.dart';
-import 'firebase_options.dart';
 
 // Global SharedPreferences instance
 late SharedPreferences prefs;
@@ -19,9 +18,7 @@ late SharedPreferences prefs;
 void main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  
   // Load SharedPreferences
   prefs = await SharedPreferences.getInstance();
 
@@ -46,6 +43,7 @@ class MyApp extends StatelessWidget {
         Provider(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => ChatService()),
         ChangeNotifierProvider(create: (_) => DatabaseService()),
+        ChangeNotifierProvider(create: (_) => NotificationService()),
       ],
       child: MaterialApp(
         title: 'LearnoBot',

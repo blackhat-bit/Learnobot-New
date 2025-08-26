@@ -1,50 +1,34 @@
-from typing import List, Optional
-from pydantic_settings import BaseSettings
-from pydantic import validator
-
+# app/config.py
+from pydantic import BaseSettings
+from typing import Optional
 
 class Settings(BaseSettings):
-    # App
-    app_name: str = "Learnobot Backend"
-    version: str = "1.0.0"
-    debug: bool = False
-    environment: str = "development"
+    # App settings
+    APP_NAME: str = "LearnoBot"
+    VERSION: str = "1.0.0"
+    API_PREFIX: str = "/api/v1"
     
     # Database
-    database_url: str
+    DATABASE_URL: str = "postgresql://learnobot:password@localhost:5432/learnobot_db"
     
     # Security
-    secret_key: str
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    SECRET_KEY: str = "your-secret-key-here-change-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # OpenAI
-    openai_api_key: str
-    openai_model: str = "gpt-4"
+    # LLM Settings (for local model)
+    LLM_MODEL_PATH: str = "./models/llama-2-7b-chat-hf"  # Or other local model
+    LLM_TYPE: str = "llamacpp"  # Options: llamacpp, gpt4all, ollama
+    LLM_MAX_TOKENS: int = 2048
+    LLM_TEMPERATURE: float = 0.7
     
-    # Redis
-    redis_url: str = "redis://localhost:6379"
+    # OCR Settings
+    OCR_LANGUAGE: str = "heb+eng"
     
-    # CORS
-    allowed_origins: str = "http://localhost:3000"
-    
-    # File Storage
-    upload_dir: str = "uploads"
-    max_file_size: int = 10485760  # 10MB
-    
-    # OCR
-    tesseract_path: str = "/usr/bin/tesseract"
-    
-    # Translation
-    google_translate_api_key: Optional[str] = None
-    
-    @validator('allowed_origins')
-    def parse_cors_origins(cls, v: str) -> List[str]:
-        return [origin.strip() for origin in v.split(',')]
+    # File upload
+    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
     
     class Config:
         env_file = ".env"
-        case_sensitive = False
-
 
 settings = Settings()

@@ -37,16 +37,14 @@ dependencies:
   # State management
   provider: ^6.0.5
 
-  # Firebase
-  firebase_core: ^3.8.0
-  firebase_auth: ^5.3.3
-  cloud_firestore: ^5.6.8
-
   # Storage and preferences
   shared_preferences: ^2.1.1
 
   # Camera and image related
   image_picker: ^0.8.7+5
+
+  # Charts for analytics
+  fl_chart: ^0.63.0
 
   # Date and time formatting
   intl: ^0.19.0 # Updated to match Flutter's localization requirement

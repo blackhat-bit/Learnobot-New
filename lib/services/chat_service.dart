@@ -27,7 +27,7 @@ class ChatService extends ChangeNotifier {
     if (!_activeChats.containsKey(studentId)) {
       // If database service is provided, load chat history from database
       if (databaseService != null) {
-        final messages = databaseService.getChatHistory(studentId);
+        final messages = await databaseService.getChatHistory(studentId);
         _activeChats[studentId] = List.from(messages);
       } else {
         _activeChats[studentId] = [];
@@ -57,7 +57,7 @@ class ChatService extends ChangeNotifier {
     
     // Save to database if provided
     if (databaseService != null) {
-      await databaseService.addChatMessage(studentId, message);
+      await databaseService.addMessageToChat(studentId, message);
     }
     
     notifyListeners();
@@ -84,7 +84,7 @@ class ChatService extends ChangeNotifier {
     
     // Save to database if provided
     if (databaseService != null) {
-      await databaseService.addChatMessage(studentId, botResponse);
+      await databaseService.addMessageToChat(studentId, botResponse);
     }
 
     _isProcessing = false;
@@ -192,7 +192,7 @@ class ChatService extends ChangeNotifier {
   }
 
   // Submit feedback for a bot response
-  void submitFeedback(String studentId, String messageId, int rating, {DatabaseService? databaseService}) {
+  Future<void> submitFeedback(String studentId, String messageId, int rating, {DatabaseService? databaseService}) async {
     if (_activeChats.containsKey(studentId)) {
       final index = _activeChats[studentId]!.indexWhere((msg) => msg.id == messageId);
       
@@ -214,7 +214,7 @@ class ChatService extends ChangeNotifier {
         
         // Update in database if provided
         if (databaseService != null) {
-          databaseService.addChatMessage(studentId, updatedMessage);
+          await databaseService.addMessageToChat(studentId, updatedMessage);
         }
         
         notifyListeners();

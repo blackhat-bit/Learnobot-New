@@ -39,10 +39,11 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     super.dispose();
   }
   
-  void _loadChatHistory() {
+  void _loadChatHistory() async {
     final databaseService = Provider.of<DatabaseService>(context, listen: false);
+    final messages = await databaseService.getChatHistory(widget.student.id);
     setState(() {
-      _messages = databaseService.getChatHistory(widget.student.id);
+      _messages = messages;
       
       // If no chat history exists, add a welcome message
       if (_messages.isEmpty) {
@@ -96,7 +97,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     
     // Save the message to the database
     final databaseService = Provider.of<DatabaseService>(context, listen: false);
-    await databaseService.addChatMessage(widget.student.id, newMessage);
+    await databaseService.addMessageToChat(widget.student.id, newMessage);
     
     // Simulate the student's response after a short delay
     await Future.delayed(const Duration(seconds: 1));
@@ -126,7 +127,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     });
     
     // Save the student's response
-    await databaseService.addChatMessage(widget.student.id, studentResponse);
+    await databaseService.addMessageToChat(widget.student.id, studentResponse);
     
     // Scroll to show the response
     _scrollToBottom();

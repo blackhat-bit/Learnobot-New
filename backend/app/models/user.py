@@ -1,44 +1,54 @@
-from sqlalchemy import Boolean, Column, Integer, String, DateTime, Enum, Text
-from sqlalchemy.sql import func
+# app/models/user.py
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, ForeignKey, Text
 from sqlalchemy.orm import relationship
+from datetime import datetime
 import enum
-
 from app.core.database import Base
 
-
-class UserRole(enum.Enum):
+class UserRole(str, enum.Enum):
     STUDENT = "student"
     TEACHER = "teacher"
-    ADMIN = "admin"
-
 
 class User(Base):
     __tablename__ = "users"
-
+    
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    full_name = Column(String(255), nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    role = Column(Enum(UserRole), nullable=False, default=UserRole.STUDENT)
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(Enum(UserRole), nullable=False)
     is_active = Column(Boolean, default=True)
-    is_verified = Column(Boolean, default=False)
-    
-    # Profile information
-    bio = Column(Text, nullable=True)
-    avatar_url = Column(String(255), nullable=True)
-    language_preference = Column(String(10), default="en")
-    timezone = Column(String(50), default="UTC")
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_login = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    chats = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
-    tasks = relationship("Task", back_populates="teacher", foreign_keys="Task.teacher_id")
-    task_submissions = relationship("TaskSubmission", back_populates="student")
+    teacher_profile = relationship("TeacherProfile", back_populates="user", uselist=False)
+    student_profile = relationship("StudentProfile", back_populates="user", uselist=False)
+    chat_messages = relationship("ChatMessage", back_populates="user")
+
+class TeacherProfile(Base):
+    __tablename__ = "teacher_profiles"
     
-    def __repr__(self):
-        return f"<User(id={self.id}, username='{self.username}', role='{self.role.value}')>"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    full_name = Column(String, nullable=False)
+    school = Column(String)
+    
+    # Relationships
+    user = relationship("User", back_populates="teacher_profile")
+    students = relationship("StudentProfile", back_populates="teacher")
+
+class StudentProfile(Base):
+    __tablename__ = "student_profiles"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    teacher_id = Column(Integer, ForeignKey("teacher_profiles.id"))
+    full_name = Column(String, nullable=False)
+    grade = Column(String)
+    difficulty_level = Column(Integer, default=3)  # 1-5 scale
+    difficulties_description = Column(Text)
+    
+    # Relationships
+    user = relationship("User", back_populates="student_profile")
+    teacher = relationship("TeacherProfile", back_populates="students")
+    tasks = relationship("Task", back_populates="student")

@@ -1,20 +1,16 @@
 // lib/services/database_service.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../models/student.dart';
 import '../models/chat_message.dart';
 import '../models/teacher.dart';
 
 class DatabaseService extends ChangeNotifier {
-  // Firestore instance
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
-  // Collection references
-  final CollectionReference _usersCollection = FirebaseFirestore.instance.collection('users');
-  final CollectionReference _studentsCollection = FirebaseFirestore.instance.collection('students');
-  final CollectionReference _teachersCollection = FirebaseFirestore.instance.collection('teachers');
-  final CollectionReference _chatsCollection = FirebaseFirestore.instance.collection('chats');
+  static const String _studentsKey = 'local_students';
+  static const String _teachersKey = 'local_teachers';
+  static const String _chatsKey = 'local_chats';
   
   // Mock data for development/demo
   final List<Student> _students = [
@@ -109,328 +105,262 @@ class DatabaseService extends ChangeNotifier {
     }
   }
   
-  // Add a new student
+  // Add new student
   Future<void> addStudent(Student student) async {
     try {
-      // Try to add to Firestore first
-      try {
-        await _studentsCollection.doc(student.id).set(student.toMap());
-      } catch (e) {
-        debugPrint('Firestore add student error: $e');
-      }
-      
-      // Always update local cache
       _students.add(student);
+      await _saveStudentsToLocal();
       notifyListeners();
     } catch (e) {
-      throw Exception('Error adding student: $e');
+      debugPrint('Error adding student: $e');
+      rethrow;
     }
   }
   
-  // Update a student
+  // Update student
   Future<void> updateStudent(Student updatedStudent) async {
     try {
-      // Try to update in Firestore first
-      try {
-        await _studentsCollection.doc(updatedStudent.id).update(updatedStudent.toMap());
-      } catch (e) {
-        debugPrint('Firestore update student error: $e');
-      }
-      
-      // Always update local cache
-      final index = _students.indexWhere((student) => student.id == updatedStudent.id);
+      final index = _students.indexWhere((s) => s.id == updatedStudent.id);
       if (index != -1) {
         _students[index] = updatedStudent;
+        await _saveStudentsToLocal();
         notifyListeners();
       }
     } catch (e) {
-      throw Exception('Error updating student: $e');
+      debugPrint('Error updating student: $e');
+      rethrow;
     }
   }
   
-  // Delete a student
+  // Delete student
   Future<void> deleteStudent(String id) async {
     try {
-      // Try to delete from Firestore first
-      try {
-        await _studentsCollection.doc(id).delete();
-      } catch (e) {
-        debugPrint('Firestore delete student error: $e');
-      }
-      
-      // Always update local cache
       _students.removeWhere((student) => student.id == id);
+      _chatHistory.remove(id);
+      await _saveStudentsToLocal();
+      await _saveChatsToLocal();
       notifyListeners();
     } catch (e) {
-      throw Exception('Error deleting student: $e');
+      debugPrint('Error deleting student: $e');
+      rethrow;
     }
   }
   
   // TEACHER MANAGEMENT METHODS
   
-  // Get teacher by ID
-  Teacher? getTeacherById(String id) {
-    try {
-      return _teachers.firstWhere((teacher) => teacher.id == id);
-    } catch (e) {
-      return null;
-    }
+  // Get all teachers
+  List<Teacher> getAllTeachers() {
+    return List.from(_teachers);
   }
   
-  // Update a teacher
+  // Update teacher
   Future<void> updateTeacher(Teacher updatedTeacher) async {
     try {
-      // Try to update in Firestore first
-      try {
-        await _teachersCollection.doc(updatedTeacher.id).update(updatedTeacher.toMap());
-      } catch (e) {
-        debugPrint('Firestore update teacher error: $e');
-      }
-      
-      // Always update local cache
-      final index = _teachers.indexWhere((teacher) => teacher.id == updatedTeacher.id);
+      final index = _teachers.indexWhere((t) => t.id == updatedTeacher.id);
       if (index != -1) {
         _teachers[index] = updatedTeacher;
+        await _saveTeachersToLocal();
         notifyListeners();
       }
     } catch (e) {
-      throw Exception('Error updating teacher: $e');
+      debugPrint('Error updating teacher: $e');
+      rethrow;
     }
   }
   
-  // CHAT AND MESSAGE METHODS
+  // CHAT MANAGEMENT METHODS
   
-  // Get chat history for a specific student
-  List<ChatMessage> getChatHistory(String studentId) {
-    return _chatHistory[studentId] ?? [];
-  }
-  
-  // Add message to chat history
-  Future<void> addChatMessage(String studentId, ChatMessage message) async {
+  // Add message to chat
+  Future<void> addMessageToChat(String studentId, ChatMessage message) async {
     try {
-      // Try to add to Firestore first
-      try {
-        await _chatsCollection
-            .doc(studentId)
-            .collection('messages')
-            .doc(message.id)
-            .set(message.toMap());
-      } catch (e) {
-        debugPrint('Firestore add message error: $e');
-      }
-      
-      // Always update local cache
       if (!_chatHistory.containsKey(studentId)) {
         _chatHistory[studentId] = [];
       }
-      
       _chatHistory[studentId]!.add(message);
+      await _saveChatsToLocal();
       notifyListeners();
     } catch (e) {
-      throw Exception('Error adding message: $e');
+      debugPrint('Error adding message to chat: $e');
+      rethrow;
     }
   }
   
-  // Clear chat history for a student
+  // Get chat history for student
+  Future<List<ChatMessage>> getChatHistory(String studentId) async {
+    try {
+      return _chatHistory[studentId] ?? [];
+    } catch (e) {
+      debugPrint('Error getting chat history: $e');
+      return [];
+    }
+  }
+  
+  // Clear chat history for student
   Future<void> clearChatHistory(String studentId) async {
     try {
-      // Try to delete from Firestore first
-      try {
-        final messageDocs = await _chatsCollection
-            .doc(studentId)
-            .collection('messages')
-            .get();
-            
-        for (var doc in messageDocs.docs) {
-          await doc.reference.delete();
-        }
-      } catch (e) {
-        debugPrint('Firestore clear chat history error: $e');
-      }
-      
-      // Always update local cache
       _chatHistory[studentId] = [];
+      await _saveChatsToLocal();
       notifyListeners();
     } catch (e) {
-      throw Exception('Error clearing chat history: $e');
+      debugPrint('Error clearing chat history: $e');
+      rethrow;
     }
   }
   
-  // ANALYTICS AND REPORTING
-  
-  // Get student statistics
-  Map<String, dynamic> getStudentStatistics(String studentId) {
-    final chatMessages = _chatHistory[studentId] ?? [];
-    final totalMessages = chatMessages.length;
-    final studentMessages = chatMessages.where((msg) => 
-        msg.sender == SenderType.student).length;
-    final botMessages = chatMessages.where((msg) => 
-        msg.sender == SenderType.bot).length;
+  // Get recent chats for all students
+  List<Map<String, dynamic>> getRecentChats() {
+    List<Map<String, dynamic>> recentChats = [];
     
-    // Calculate average response time (in seconds)
-    double avgResponseTime = 0;
-    if (chatMessages.length > 2) {
-      int totalResponseTime = 0;
-      int responseCount = 0;
-      
-      for (int i = 1; i < chatMessages.length; i++) {
-        if (chatMessages[i].sender == SenderType.bot && 
-            chatMessages[i-1].sender == SenderType.student) {
-          final diff = chatMessages[i].timestamp.difference(
-              chatMessages[i-1].timestamp).inSeconds;
-          totalResponseTime += diff;
-          responseCount++;
-        }
-      }
-      
-      if (responseCount > 0) {
-        avgResponseTime = totalResponseTime / responseCount;
-      }
-    }
-    
-    // Get feedback ratings
-    final ratings = chatMessages
-        .where((msg) => msg.metadata != null && msg.metadata!.containsKey('rating'))
-        .map((msg) => msg.metadata!['rating'] as int)
-        .toList();
-    
-    final avgRating = ratings.isNotEmpty 
-        ? ratings.reduce((a, b) => a + b) / ratings.length 
-        : 0;
-    
-    // Most common support type
-    final supportTypes = chatMessages
-        .where((msg) => msg.metadata != null && msg.metadata!.containsKey('supportType'))
-        .map((msg) => msg.metadata!['supportType'] as String)
-        .toList();
-    
-    Map<String, int> supportTypeCounts = {};
-    for (var type in supportTypes) {
-      supportTypeCounts[type] = (supportTypeCounts[type] ?? 0) + 1;
-    }
-    
-    String? mostCommonSupportType;
-    int maxCount = 0;
-    supportTypeCounts.forEach((type, count) {
-      if (count > maxCount) {
-        maxCount = count;
-        mostCommonSupportType = type;
-      }
-    });
-    
-    return {
-      'conversationCount': totalMessages,
-      'studentMessageCount': studentMessages,
-      'botMessageCount': botMessages,
-      'averageResponseTime': avgResponseTime,
-      'averageRating': avgRating,
-      'commonSupportType': mostCommonSupportType ?? 'פירוק לשלבים',
-      'feedbackCount': ratings.length,
-    };
-  }
-  
-  // Get overall system statistics
-  Map<String, dynamic> getSystemStatistics() {
-    final totalStudents = _students.length;
-  // Get total messages
-  int totalMessages = 0;
-  for (var messages in _chatHistory.values) {
-    totalMessages += messages.length;
-  }
-
-    
-  int totalDifficultyLevel = 0;
-  for (var student in _students) {
-    totalDifficultyLevel += student.difficultyLevel;
-  }
-  final double avgDifficulty = totalStudents > 0 
-    ? totalDifficultyLevel / totalStudents : 0.0;
-
-    // Distribution by grade
-    Map<String, int> gradeDistribution = {};
     for (var student in _students) {
-      gradeDistribution[student.grade] = (gradeDistribution[student.grade] ?? 0) + 1;
+      final messages = _chatHistory[student.id] ?? [];
+      if (messages.isNotEmpty) {
+        final lastMessage = messages.last;
+        recentChats.add({
+          'student': student,
+          'lastMessage': lastMessage,
+          'messageCount': messages.length,
+        });
+      }
     }
     
-    return {
-      'totalStudents': totalStudents,
-      'totalMessages': totalMessages,
-      'averageDifficultyLevel': avgDifficulty,
-      'gradeDistribution': gradeDistribution,
-      'lastUpdateTimestamp': DateTime.now().millisecondsSinceEpoch,
-    };
+    // Sort by timestamp (most recent first)
+    recentChats.sort((a, b) => 
+      b['lastMessage'].timestamp.compareTo(a['lastMessage'].timestamp));
+    
+    return recentChats;
   }
   
-  // FIRESTORE SYNC METHODS
+  // STATISTICS METHODS
   
-  // Fetch all students from Firestore
-  Future<void> fetchStudentsFromFirestore() async {
-    try {
-      final snapshot = await _studentsCollection.get();
-      final List<Student> fetchedStudents = [];
-      
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        fetchedStudents.add(Student.fromMap(data));
+  // Get total number of students
+  int getTotalStudentsCount() {
+    return _students.length;
+  }
+  
+  // Get total number of messages
+  int getTotalMessagesCount() {
+    int totalMessages = 0;
+    for (var messages in _chatHistory.values) {
+      totalMessages += messages.length;
+    }
+    return totalMessages;
+  }
+  
+  // Get average difficulty level
+  double getAverageDifficultyLevel() {
+    if (_students.isEmpty) return 0.0;
+    
+    int totalDifficulty = 0;
+    for (var student in _students) {
+      totalDifficulty += student.difficultyLevel;
+    }
+    
+    return totalDifficulty / _students.length;
+  }
+  
+  // Get students by difficulty level
+  List<Student> getStudentsByDifficultyLevel(int level) {
+    return _students.where((student) => student.difficultyLevel == level).toList();
+  }
+  
+  // Get students with recent activity (within last 7 days)
+  List<Student> getStudentsWithRecentActivity() {
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    List<Student> activeStudents = [];
+    
+    for (var student in _students) {
+      final messages = _chatHistory[student.id] ?? [];
+      if (messages.any((message) => message.timestamp.isAfter(sevenDaysAgo))) {
+        activeStudents.add(student);
       }
-      
-      // Update local cache
-      _students.clear();
-      _students.addAll(fetchedStudents);
-      notifyListeners();
+    }
+    
+    return activeStudents;
+  }
+  
+  // DATA PERSISTENCE METHODS
+  
+  Future<void> _saveStudentsToLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final studentsJson = _students.map((s) => s.toMap()).toList();
+      await prefs.setString(_studentsKey, json.encode(studentsJson));
     } catch (e) {
-      debugPrint('Error fetching students from Firestore: $e');
-      // Continue with mock data
+      debugPrint('Error saving students to local storage: $e');
     }
   }
   
-  // Fetch chat history for a student from Firestore
-  Future<void> fetchChatHistoryFromFirestore(String studentId) async {
+  Future<void> _saveTeachersToLocal() async {
     try {
-      final snapshot = await _chatsCollection
-          .doc(studentId)
-          .collection('messages')
-          .orderBy('timestamp')
-          .get();
-      
-      final List<ChatMessage> fetchedMessages = [];
-      
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        fetchedMessages.add(ChatMessage.fromMap(data));
-      }
-      
-      // Update local cache
-      _chatHistory[studentId] = fetchedMessages;
-      notifyListeners();
+      final prefs = await SharedPreferences.getInstance();
+      final teachersJson = _teachers.map((t) => t.toMap()).toList();
+      await prefs.setString(_teachersKey, json.encode(teachersJson));
     } catch (e) {
-      debugPrint('Error fetching chat history from Firestore: $e');
-      // Continue with mock data
+      debugPrint('Error saving teachers to local storage: $e');
     }
   }
   
-  // Sync all local data to Firestore
-  Future<void> syncAllDataToFirestore() async {
+  Future<void> _saveChatsToLocal() async {
     try {
-      // Sync students
-      for (var student in _students) {
-        await _studentsCollection.doc(student.id).set(student.toMap());
-      }
-      
-      // Sync chat history
-      _chatHistory.forEach((studentId, messages) async {
-        for (var message in messages) {
-          await _chatsCollection
-              .doc(studentId)
-              .collection('messages')
-              .doc(message.id)
-              .set(message.toMap());
-        }
+      final prefs = await SharedPreferences.getInstance();
+      final chatsJson = <String, dynamic>{};
+      _chatHistory.forEach((studentId, messages) {
+        chatsJson[studentId] = messages.map((m) => m.toMap()).toList();
       });
-      
-      debugPrint('All data synced to Firestore successfully');
+      await prefs.setString(_chatsKey, json.encode(chatsJson));
     } catch (e) {
-      debugPrint('Error syncing data to Firestore: $e');
+      debugPrint('Error saving chats to local storage: $e');
+    }
+  }
+  
+  Future<void> loadDataFromLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Load students
+      final studentsJson = prefs.getString(_studentsKey);
+      if (studentsJson != null) {
+        final studentsList = json.decode(studentsJson) as List;
+        _students.clear();
+        _students.addAll(studentsList.map((s) => Student.fromMap(s)));
+      }
+      
+      // Load teachers
+      final teachersJson = prefs.getString(_teachersKey);
+      if (teachersJson != null) {
+        final teachersList = json.decode(teachersJson) as List;
+        _teachers.clear();
+        _teachers.addAll(teachersList.map((t) => Teacher.fromMap(t)));
+      }
+      
+      // Load chats
+      final chatsJson = prefs.getString(_chatsKey);
+      if (chatsJson != null) {
+        final chatsMap = json.decode(chatsJson) as Map<String, dynamic>;
+        _chatHistory.clear();
+        chatsMap.forEach((studentId, messagesList) {
+          _chatHistory[studentId] = (messagesList as List)
+              .map((m) => ChatMessage.fromMap(m))
+              .toList();
+        });
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading data from local storage: $e');
+    }
+  }
+  
+  // BACKUP METHODS
+  
+  Future<void> exportData() async {
+    try {
+      await _saveStudentsToLocal();
+      await _saveTeachersToLocal();
+      await _saveChatsToLocal();
+    } catch (e) {
+      debugPrint('Error exporting data: $e');
+      rethrow;
     }
   }
 }
