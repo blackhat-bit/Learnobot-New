@@ -12,8 +12,16 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final usersJson = prefs.getString(_usersKey);
     
-    // Only create test users if no users exist
-    if (usersJson == null || usersJson == '[]') {
+    // Check if admin user exists, if not, reinitialize all users
+    List<dynamic> existingUsers = [];
+    if (usersJson != null && usersJson != '[]') {
+      existingUsers = json.decode(usersJson);
+    }
+    
+    bool adminExists = existingUsers.any((user) => user['role'] == 'Admin');
+    
+    // Create test users if no users exist OR if admin doesn't exist
+    if (usersJson == null || usersJson == '[]' || !adminExists) {
       final testUsers = [
         {
           'uid': 'teacher_test_1',
@@ -96,7 +104,6 @@ class AuthService {
       await prefs.setString(_currentUserKey, json.encode(user));
       return user;
     }
-    
     throw Exception('Invalid credentials');
   }
 
