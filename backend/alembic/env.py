@@ -5,6 +5,15 @@ from alembic import context
 import os
 import sys
 
+# Import models to ensure they're registered with SQLAlchemy
+from app.models.user import User, StudentProfile, TeacherProfile  
+from app.models.chat import ChatSession, ChatMessage
+from app.models.task import Task
+from app.models.llm_config import LLMConfig
+from app.models.analytics import InteractionLog, SessionAnalytics, StudentProgress
+from app.core.database import Base
+target_metadata = Base.metadata
+
 # Add the app directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -34,7 +43,7 @@ target_metadata = Base.metadata
 def get_url():
     """Get database URL from environment variables or config."""
     from app.config import settings
-    return settings.database_url
+    return settings.DATABASE_URL
 
 
 def run_migrations_offline() -> None:
