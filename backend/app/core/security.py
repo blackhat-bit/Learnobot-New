@@ -23,6 +23,24 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
+def create_refresh_token(subject: str) -> str:
+    """Create a refresh token"""
+    expire = datetime.utcnow() + timedelta(days=7)  # Refresh tokens last 7 days
+    to_encode = {"sub": str(subject), "exp": expire, "type": "refresh"}
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
+def verify_refresh_token(token: str) -> Optional[str]:
+    """Verify refresh token and return user ID"""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "refresh":
+            return None
+        user_id: str = payload.get("sub")
+        return user_id
+    except JWTError:
+        return None
+
 def verify_token(token: str):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

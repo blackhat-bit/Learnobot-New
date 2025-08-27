@@ -1,9 +1,10 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
 from app.api import auth, chat, teacher, student
 from app.core.database import engine
-from app.models import user, chat as chat_models, task
+from app.models import user, chat as chat_models, task, llm_config
 from app.config import settings
 from app.api import llm_management
 
@@ -50,58 +51,4 @@ def health_check():
         "version": settings.VERSION,
         "timestamp": datetime.utcnow()
     }
-
-# app/schemas/chat.py
-from pydantic import BaseModel
-from datetime import datetime
-from typing import Optional, List
-from enum import Enum
-
-class MessageRole(str, Enum):
-    USER = "user"
-    ASSISTANT = "assistant"
-
-class InteractionMode(str, Enum):
-    PRACTICE = "practice"
-    TEST = "test"
-
-class AssistanceType(str, Enum):
-    BREAKDOWN = "breakdown"
-    EXAMPLE = "example"
-    EXPLAIN = "explain"
-
-class ChatMessageBase(BaseModel):
-    content: str
-    role: MessageRole
-
-class ChatMessageCreate(ChatMessageBase):
-    assistance_type: Optional[AssistanceType] = None
-
-class ChatMessage(ChatMessageBase):
-    id: int
-    timestamp: datetime
-    satisfaction_rating: Optional[int] = None
-    
-    class Config:
-        orm_mode = True
-
-class ChatSessionCreate(BaseModel):
-    mode: InteractionMode = InteractionMode.PRACTICE
-
-class ChatSession(BaseModel):
-    id: int
-    mode: InteractionMode
-    started_at: datetime
-    ended_at: Optional[datetime] = None
-    
-    class Config:
-        orm_mode = True
-
-class TaskUpload(BaseModel):
-    image_base64: str
-    session_id: int
-
-class RatingSatisfaction(BaseModel):
-    message_id: int
-    rating: int  # 1-5
 

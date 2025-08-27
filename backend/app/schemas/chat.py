@@ -30,7 +30,7 @@ class ChatMessage(ChatMessageBase):
     satisfaction_rating: Optional[int] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True #orm_mode
 
 class ChatSessionCreate(BaseModel):
     mode: InteractionMode = InteractionMode.PRACTICE
@@ -42,7 +42,7 @@ class ChatSession(BaseModel):
     ended_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class TaskUpload(BaseModel):
     image_base64: str

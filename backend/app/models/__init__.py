@@ -3,15 +3,15 @@ Database models for the Learnobot application.
 """
 
 from .user import User
-from .chat import Chat, ChatMessage
-from .task import Task, TaskSubmission
+from .chat import ChatSession, ChatMessage
+from .task import Task, TaskInteraction
 from .llm_config import LLMConfig
 
 __all__ = [
     "User",
-    "Chat", 
+    "ChatSession", 
     "ChatMessage",
     "Task",
-    "TaskSubmission", 
+    "TaskInteraction",
     "LLMConfig"
 ]

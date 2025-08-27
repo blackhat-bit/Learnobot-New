@@ -1,119 +1,130 @@
-#!/usr/bin/env python3
+# scripts/create_admin.py
+#!/usr/bin/env python
 """
-Script to create an admin user for the Learnobot application.
+Script to create an admin user for LearnoBot
+Place this file in: learnobot-backend/scripts/create_admin.py
 """
-
-import asyncio
 import sys
 import os
 
-# Add parent directory to path to import app modules
+# Add parent directory to path so we can import app modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy.orm import Session
-from app.core.database import SessionLocal, create_tables
-from app.models.user import User, UserRole
+from app.core.database import SessionLocal, engine
+from app.models.user import Base, User, UserRole
 from app.core.security import get_password_hash
+import getpass
 
-
-def create_admin_user():
-    """Create an admin user interactively."""
-    
-    print("🚀 Learnobot Admin User Creation")
-    print("=" * 40)
-    
+def create_admin():
+    """Create an admin user interactively"""
     # Create tables if they don't exist
-    create_tables()
+    Base.metadata.create_all(bind=engine)
     
-    # Get user input
-    email = input("Enter admin email: ").strip()
-    if not email:
-        print("❌ Email is required")
-        return False
+    db = SessionLocal()
     
-    username = input("Enter admin username: ").strip()
-    if not username:
-        print("❌ Username is required")
-        return False
-    
-    full_name = input("Enter admin full name: ").strip()
-    if not full_name:
-        print("❌ Full name is required")
-        return False
-    
-    password = input("Enter admin password (min 8 characters): ").strip()
-    if len(password) < 8:
-        print("❌ Password must be at least 8 characters")
-        return False
-    
-    confirm_password = input("Confirm password: ").strip()
-    if password != confirm_password:
-        print("❌ Passwords do not match")
-        return False
-    
-    # Create admin user
-    db: Session = SessionLocal()
     try:
-        # Check if user already exists
+        print("=== Create LearnoBot Admin User ===")
+        print()
+        
+        # Get admin details
+        username = input("Enter admin username: ").strip()
+        if not username:
+            print("Username cannot be empty!")
+            return
+            
+        email = input("Enter admin email: ").strip()
+        if not email or '@' not in email:
+            print("Invalid email address!")
+            return
+            
+        password = getpass.getpass("Enter admin password: ")
+        if len(password) < 6:
+            print("Password must be at least 6 characters!")
+            return
+            
+        confirm_password = getpass.getpass("Confirm password: ")
+        if password != confirm_password:
+            print("Passwords do not match!")
+            return
+        
+        # Check if user exists
         existing_user = db.query(User).filter(
-            (User.email == email) | (User.username == username)
+            (User.username == username) | (User.email == email)
         ).first()
         
         if existing_user:
-            if existing_user.email == email:
-                print(f"❌ User with email '{email}' already exists")
+            print(f"User with username '{username}' or email '{email}' already exists!")
+            
+            # Check if it's admin
+            if existing_user.role == UserRole.ADMIN:
+                print("This user is already an admin.")
             else:
-                print(f"❌ User with username '{username}' already exists")
-            return False
+                # Ask if they want to upgrade to admin
+                upgrade = input(f"User exists as {existing_user.role}. Upgrade to admin? (y/n): ")
+                if upgrade.lower() == 'y':
+                    existing_user.role = UserRole.ADMIN
+                    db.commit()
+                    print(f"User '{username}' upgraded to admin successfully!")
+            return
         
-        # Create new admin user
+        # Create admin user
         admin_user = User(
-            email=email,
             username=username,
-            full_name=full_name,
+            email=email,
             hashed_password=get_password_hash(password),
             role=UserRole.ADMIN,
-            is_active=True,
-            is_verified=True
+            is_active=True
         )
         
         db.add(admin_user)
         db.commit()
-        db.refresh(admin_user)
         
-        print("\n✅ Admin user created successfully!")
-        print(f"   ID: {admin_user.id}")
-        print(f"   Email: {admin_user.email}")
-        print(f"   Username: {admin_user.username}")
-        print(f"   Role: {admin_user.role.value}")
-        
-        return True
+        print()
+        print(f"✅ Admin user '{username}' created successfully!")
+        print()
+        print("You can now login with:")
+        print(f"  Username: {username}")
+        print(f"  Password: [hidden]")
+        print()
+        print("Admin capabilities:")
+        print("  - Access AI Configuration Manager")
+        print("  - View all students' analytics")
+        print("  - Export research data")
+        print("  - Switch between LLM providers")
+        print("  - Modify system prompts")
         
     except Exception as e:
-        print(f"❌ Error creating admin user: {str(e)}")
+        print(f"Error creating admin: {str(e)}")
         db.rollback()
-        return False
     finally:
         db.close()
 
-
-def main():
-    """Main function."""
+def list_users():
+    """List all users in the system"""
+    db = SessionLocal()
+    
     try:
-        success = create_admin_user()
-        if success:
-            print("\n🎉 You can now log in with the admin credentials!")
-            sys.exit(0)
-        else:
-            print("\n💥 Failed to create admin user")
-            sys.exit(1)
-    except KeyboardInterrupt:
-        print("\n\n⏹️  Operation cancelled by user")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n💥 Unexpected error: {str(e)}")
-        sys.exit(1)
-
+        users = db.query(User).all()
+        
+        if not users:
+            print("No users found in the database.")
+            return
+            
+        print("\n=== Current Users ===")
+        print(f"{'ID':<5} {'Username':<20} {'Email':<30} {'Role':<10} {'Active':<8}")
+        print("-" * 75)
+        
+        for user in users:
+            print(f"{user.id:<5} {user.username:<20} {user.email:<30} {user.role.value:<10} {'Yes' if user.is_active else 'No':<8}")
+        
+        print(f"\nTotal users: {len(users)}")
+        
+    finally:
+        db.close()
 
 if __name__ == "__main__":
-    main()
+    # Check if user wants to list users
+    if len(sys.argv) > 1 and sys.argv[1] == "--list":
+        list_users()
+    else:
+        create_admin()

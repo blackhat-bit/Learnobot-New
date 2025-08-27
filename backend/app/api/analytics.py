@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Optional, List
 from datetime import datetime, timedelta
 import csv
@@ -9,6 +10,7 @@ import io
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User, UserRole
+from app.models.chat import ChatSession
 from app.services.analytics_service import AnalyticsService
 from app.models.analytics import SessionAnalytics, StudentProgress
 

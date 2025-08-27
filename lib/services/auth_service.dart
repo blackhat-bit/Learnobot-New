@@ -168,6 +168,16 @@ class AuthService {
     return userData?['username'] as String?;
   }
 
+  // Get authentication token for API calls
+  Future<String?> getToken() async {
+    final userData = await getCurrentUserData();
+    if (userData != null) {
+      // For now, return a mock token. In production, this would be a real JWT
+      return 'mock_token_${userData['uid']}';
+    }
+    return null;
+  }
+
   // Sign out
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();

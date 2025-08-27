@@ -17,7 +17,7 @@ class LLMProvider(Base):
     
     # Relationships
     configs = relationship("LLMConfig", back_populates="provider")
-    test_logs = relationship("LLMTestLog", back_populates="provider")
+    # Note: LLMTestLog uses string provider name, not FK relationship
 
 class LLMConfig(Base):
     __tablename__ = "llm_configs"
@@ -44,7 +44,7 @@ class LLMTestLog(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("chat_sessions.id"))
-    provider = Column(String)
+    provider = Column(String)  # Provider name as string
     model = Column(String)
     prompt = Column(Text)
     response_text = Column(Text)
@@ -55,4 +55,4 @@ class LLMTestLog(Base):
     
     # Relationships
     session = relationship("ChatSession")
-    provider_rel = relationship("LLMProvider", back_populates="test_logs")
+    # Note: Uses string provider name, not FK relationship to LLMProvider

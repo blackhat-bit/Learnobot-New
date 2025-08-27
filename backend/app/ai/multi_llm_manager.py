@@ -76,7 +76,6 @@ class OllamaProvider(BaseLLMProvider):
             model=config.get("model", "llama3"),
             temperature=config.get("temperature", 0.7),
             top_p=config.get("top_p", 0.9),
-            num_predict=config.get("max_tokens", 2048),
         )
         
     def generate(self, prompt: str, **kwargs) -> str:
