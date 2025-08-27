@@ -10,6 +10,8 @@ import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../auth/welcome_screen.dart';
+import '../manager/ai_manager_screen.dart';
+import '../manager/research_analytics_screen.dart';
 import 'package:provider/provider.dart';
 
 class TeacherPanelScreen extends StatefulWidget {
@@ -265,16 +267,34 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                                   ),
                                   
                                   // Menu Items
-                                  // Analytics menu item - only for admins
-                                  if (_userRole == 'Admin')
+                                  // Admin-only features
+                                  if (_userRole == 'Admin') ...[
                                     _buildProfessionalMenuItem(
-                                      icon: Icons.analytics_outlined,
-                                      title: 'ייצוא נתונים ומחקר',
-                                      subtitle: 'לוגים, דוחות וניתוחים למנהלי פרויקט',
-                                      color: Colors.blue,
-                                      onTap: () => _showDataExportAndAnalyticsDialog(context),
+                                      icon: Icons.settings_applications,
+                                      title: 'ניהול AI',
+                                      subtitle: 'הגדרת ספקי AI והגדרות מתקדמות',
+                                      color: Colors.purple,
+                                      onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => AIManagerScreen(),
+                                        ),
+                                      ),
                                       isFirst: true,
                                     ),
+                                    _buildProfessionalMenuItem(
+                                      icon: Icons.analytics_outlined,
+                                      title: 'ניתוח מחקרי',
+                                      subtitle: 'דוחות מפורטים וניתוח נתונים למחקר',
+                                      color: Colors.blue,
+                                      onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => ResearchAnalyticsScreen(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                   
                                   _buildProfessionalMenuItem(
                                     icon: Icons.people_outline,
@@ -447,85 +467,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
     );
   }
 
-  Widget _buildMenuCard(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-    bool isLocked = false,
-  }) {
-    return GestureDetector(
-      onTap: isLocked ? null : onTap,
-      child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 30,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  if (isLocked)
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: const BoxDecoration(
-                        color: Colors.black38,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.lock,
-                        size: 30,
-                        color: Colors.white,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildRecentStudentCard(BuildContext context, Student student) {
     return GestureDetector(
@@ -773,23 +715,13 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
             SimpleDialogOption(
               onPressed: () async {
                 Navigator.pop(context);
-                // TODO: Implement data export
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('ייצוא נתונים בקרוב!')),
+                // Navigate to research analytics screen for data export
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ResearchAnalyticsScreen(),
+                  ),
                 );
-                /*
-                final token = await AuthService().getToken();
-                final response = await http.get(
-                  Uri.parse('${ApiConfig.baseUrl}/analytics/export/csv'),
-                  headers: {'Authorization': 'Bearer $token'},
-                );
-                
-                if (response.statusCode == 200) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('נתונים יוצאו בהצלחה')),
-                  );
-                }
-                */
               },
               child: const ListTile(
                 leading: Icon(Icons.download, color: Colors.green),
@@ -804,193 +736,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
     );
   }
 
-  // Combined Data Export & Analytics Dialog - PRIMARY FEATURE for Project Managers
-  void _showDataExportAndAnalyticsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ייצוא נתונים וניתוח מחקר'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // DATA EXPORT SECTION
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        '📁 ייצוא נתונים למנהלי פרויקט',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      const SizedBox(height: 10),
-              ListTile(
-                leading: const Icon(Icons.chat_bubble, color: Colors.blue),
-                title: const Text('לוגים של שיחות'),
-                subtitle: const Text('כל השיחות בין מורים לתלמידים'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  // TODO: Implement chat logs export
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('מייצא לוגים של שיחות...'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                  // Mock implementation for now
-                  await Future.delayed(const Duration(seconds: 2));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ לוגים יוצאו בהצלחה ל-chat_logs.csv'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.analytics, color: Colors.purple),
-                title: const Text('נתוני התקדמות'),
-                subtitle: const Text('סטטיסטיקות ומדדי ביצועים'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  // TODO: Implement progress data export
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('מייצא נתוני התקדמות...'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                  await Future.delayed(const Duration(seconds: 2));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ נתונים יוצאו בהצלחה ל-progress_data.csv'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.person, color: Colors.orange),
-                title: const Text('נתוני משתמשים'),
-                subtitle: const Text('רשימת תלמידים ומורים'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  // TODO: Implement user data export
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('מייצא נתוני משתמשים...'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                  await Future.delayed(const Duration(seconds: 2));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ משתמשים יוצאו בהצלחה ל-users.csv'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.download_for_offline, color: Colors.green),
-                title: const Text('ייצוא מלא'),
-                subtitle: const Text('כל הנתונים בקובץ אחד'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  // TODO: Implement full export
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('מייצא את כל הנתונים...'),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
-                  await Future.delayed(const Duration(seconds: 3));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ כל הנתונים יוצאו בהצלחה ל-full_export.zip'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                },
-              ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 20),
-                
-                // ANALYTICS SECTION
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        '📊 ניתוח נתונים מחקרי',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      const SizedBox(height: 10),
-                      ListTile(
-                        leading: const Icon(Icons.bar_chart, color: Colors.purple),
-                        title: const Text('סטטיסטיקות שימוש'),
-                        subtitle: const Text('גרפים של פעילות יומית'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('סטטיסטיקות שימוש בקרוב!')),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.timeline, color: Colors.purple),
-                        title: const Text('מגמות התקדמות'),
-                        subtitle: const Text('ניתוח התקדמות לאורך זמן'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('מגמות התקדמות בקרוב!')),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.psychology, color: Colors.purple),
-                        title: const Text('ניתוח התנהגות'),
-                        subtitle: const Text('דפוסי שימוש וקשיים'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('ניתוח התנהגות בקרוב!')),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('סגור'),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   // Professional Menu Item Builder
   Widget _buildProfessionalMenuItem({
