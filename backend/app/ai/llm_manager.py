@@ -40,7 +40,7 @@ class LLMManager:
         elif settings.LLM_TYPE == "ollama":
             # Using Ollama for local models
             self.llm = Ollama(
-                model="llama2",  # or any model you've pulled with ollama
+                model=settings.LLM_MODEL_NAME,  # Use configured model
                 temperature=settings.LLM_TEMPERATURE,
                 callback_manager=callback_manager,
             )
