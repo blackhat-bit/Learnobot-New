@@ -4,6 +4,6 @@ Includes LLM management, chains, prompts, and mediation strategies.
 """
 
 from .llm_manager import LLMManager
-from .multi_llm_manager import MultiLLMManager
+from .multi_llm_manager import MultiProviderLLMManager
 
-__all__ = ["LLMManager", "MultiLLMManager"]
+__all__ = ["LLMManager", "MultiProviderLLMManager"]
