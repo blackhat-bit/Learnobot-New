@@ -6,7 +6,7 @@ from .auth_service import AuthService
 from .translation_service import TranslationService
 from .ocr_service import extract_text
 from . import chat_service
-c
+
 __all__ = [
     "AuthService", 
     "TranslationService", 
