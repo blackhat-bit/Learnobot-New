@@ -90,7 +90,7 @@ class AuthService:
         # Create tokens
         access_token = create_access_token(
             subject=user.id,
-            expires_delta=timedelta(minutes=settings.access_token_expire_minutes)
+            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         refresh_token = create_refresh_token(subject=user.id)
         
@@ -102,7 +102,7 @@ class AuthService:
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer",
-            expires_in=settings.access_token_expire_minutes * 60
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
         
         return token, user
@@ -122,7 +122,7 @@ class AuthService:
         # Create new tokens
         access_token = create_access_token(
             subject=user.id,
-            expires_delta=timedelta(minutes=settings.access_token_expire_minutes)
+            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         new_refresh_token = create_refresh_token(subject=user.id)
         
@@ -130,7 +130,7 @@ class AuthService:
             access_token=access_token,
             refresh_token=new_refresh_token,
             token_type="bearer",
-            expires_in=settings.access_token_expire_minutes * 60
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
     
     def change_password(self, user: User, current_password: str, new_password: str) -> bool:
