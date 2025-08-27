@@ -73,7 +73,7 @@ class BaseLLMProvider(ABC):
 class OllamaProvider(BaseLLMProvider):
     def initialize(self, config: Dict[str, Any]):
         self.llm = Ollama(
-            model=config.get("model", "llama3"),
+            model=config.get("model", settings.LLM_MODEL_NAME),
             temperature=config.get("temperature", 0.7),
             top_p=config.get("top_p", 0.9),
         )
@@ -180,7 +180,7 @@ class MultiProviderLLMManager:
         # Always initialize local providers
         try:
             ollama_provider = OllamaProvider()
-            ollama_provider.initialize({"model": "llama3"})
+            ollama_provider.initialize({"model": settings.LLM_MODEL_NAME})
             self.providers["ollama"] = ollama_provider
             self.active_provider = "ollama"  # Default to local
         except Exception as e:
