@@ -1,4 +1,4 @@
-.c#!/usr/bin/env python
+#!/usr/bin/env python
 """
 Script to create different types of users for LearnoBot
 Place this file in: learnobot-backend/scripts/create_users.py
