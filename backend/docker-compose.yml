@@ -1,51 +1,25 @@
 version: '3.8'
 
 services:
-  app:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://learnobot:password@db:5432/learnobot_db
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - db
-      - redis
-    volumes:
-      - ./uploads:/app/uploads
-    env_file:
-      - .env
-
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: learnobot_db
       POSTGRES_USER: learnobot
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: StrongPassword123!
+      POSTGRES_DB: learnobot_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+  ollama:
+    image: ollama/ollama
     volumes:
-      - redis_data:/data
-
-  celery:
-    build: .
-    command: celery -A app.core.celery worker --loglevel=info
-    depends_on:
-      - db
-      - redis
-    environment:
-      - DATABASE_URL=postgresql://learnobot:password@db:5432/learnobot_db
-      - REDIS_URL=redis://redis:6379
-    env_file:
-      - .env
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    command: serve
 
 volumes:
   postgres_data:
-  redis_data:
+  ollama_data:
