@@ -2,7 +2,7 @@
 Prompt templates and management for AI interactions.
 """
 
-# Import key prompt templates and functions
+# Import key prompt templates and functions that actually exist
 from .base_prompts import (
     SYSTEM_PROMPT,
     INSTRUCTION_ANALYSIS_PROMPT,

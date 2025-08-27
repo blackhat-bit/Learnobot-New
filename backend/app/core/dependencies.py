@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import verify_token
-from app.models.user import User
+from app.models.user import User, UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -45,7 +45,7 @@ async def get_current_student(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """Ensure current user is a student"""
-    if current_user.role != "student":
+    if current_user.role != UserRole.STUDENT:
         raise HTTPException(
             status_code=403, 
             detail="Only students can access this resource"
@@ -56,7 +56,7 @@ async def get_current_teacher(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """Ensure current user is a teacher"""
-    if current_user.role != "teacher":
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
         raise HTTPException(
             status_code=403, 
             detail="Only teachers can access this resource"
@@ -67,7 +67,7 @@ async def get_current_admin(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """Ensure current user is an admin"""
-    if current_user.role != "admin":
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403, 
             detail="Only administrators can access this resource"
