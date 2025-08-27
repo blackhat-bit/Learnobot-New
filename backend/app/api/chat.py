@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.schemas import chat as chat_schemas
 from app.services import chat_service, ocr_service
-from app.models.user import User
+from app.models.user import User, UserRole
 import base64
 
 router = APIRouter()
@@ -18,10 +18,13 @@ async def create_chat_session(
     db: Session = Depends(get_db)
 ):
     """Create a new chat session"""
-    if current_user.role != "student":
+    if current_user.role != UserRole.STUDENT:
         raise HTTPException(status_code=403, detail="Only students can create chat sessions")
     
-    return chat_service.create_session(
+    if not current_user.student_profile:
+        raise HTTPException(status_code=400, detail="Student profile not found")
+    
+    return await chat_service.create_session(
         db=db,
         student_id=current_user.student_profile.id,
         mode=session_data.mode
