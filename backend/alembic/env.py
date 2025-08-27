@@ -8,7 +8,7 @@ import sys
 # Import models to ensure they're registered with SQLAlchemy
 from app.models.user import User, StudentProfile, TeacherProfile  
 from app.models.chat import ChatSession, ChatMessage
-from app.models.task import Task
+from app.models.task import Task, TaskInteraction
 from app.models.llm_config import LLMConfig
 from app.models.analytics import InteractionLog, SessionAnalytics, StudentProgress
 from app.core.database import Base
