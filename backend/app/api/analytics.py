@@ -122,36 +122,66 @@ async def get_research_patterns(
     # - Session length vs. progress correlation
     # - Error patterns
     
+    # Convert SQLAlchemy results to serializable dictionaries
+    assistance_query = db.query(
+        SessionAnalytics.learning_progress_score,
+        SessionAnalytics.breakdown_count,
+        SessionAnalytics.example_count,
+        SessionAnalytics.explain_count
+    ).filter(
+        SessionAnalytics.learning_progress_score.isnot(None)
+    ).all()
+    
+    time_query = db.query(
+        func.extract('hour', ChatSession.started_at).label('hour'),
+        func.count(ChatSession.id).label('count'),
+        func.avg(SessionAnalytics.learning_progress_score).label('avg_progress')
+    ).join(
+        SessionAnalytics, ChatSession.id == SessionAnalytics.session_id
+    ).group_by(
+        func.extract('hour', ChatSession.started_at)
+    ).all()
+    
+    mode_query = db.query(
+        ChatSession.mode,
+        func.count(ChatSession.id).label('count'),
+        func.avg(SessionAnalytics.total_duration_seconds).label('avg_duration'),
+        func.avg(SessionAnalytics.learning_progress_score).label('avg_progress')
+    ).join(
+        SessionAnalytics, ChatSession.id == SessionAnalytics.session_id
+    ).group_by(
+        ChatSession.mode
+    ).all()
+    
     patterns = {
-        "assistance_effectiveness": db.query(
-            SessionAnalytics.learning_progress_score,
-            SessionAnalytics.breakdown_count,
-            SessionAnalytics.example_count,
-            SessionAnalytics.explain_count
-        ).filter(
-            SessionAnalytics.learning_progress_score.isnot(None)
-        ).all(),
+        "assistance_effectiveness": [
+            {
+                "progress_score": float(row.learning_progress_score) if row.learning_progress_score else 0,
+                "breakdown_count": int(row.breakdown_count) if row.breakdown_count else 0,
+                "example_count": int(row.example_count) if row.example_count else 0,
+                "explain_count": int(row.explain_count) if row.explain_count else 0
+            }
+            for row in assistance_query
+        ],
         
-        "time_patterns": db.query(
-            func.extract('hour', ChatSession.started_at).label('hour'),
-            func.count(ChatSession.id).label('count'),
-            func.avg(SessionAnalytics.learning_progress_score).label('avg_progress')
-        ).join(
-            SessionAnalytics, ChatSession.id == SessionAnalytics.session_id
-        ).group_by(
-            func.extract('hour', ChatSession.started_at)
-        ).all(),
+        "time_patterns": [
+            {
+                "hour": int(row.hour) if row.hour else 0,
+                "session_count": int(row.count) if row.count else 0,
+                "avg_progress": float(row.avg_progress) if row.avg_progress else 0
+            }
+            for row in time_query
+        ],
         
-        "mode_comparison": db.query(
-            ChatSession.mode,
-            func.count(ChatSession.id).label('count'),
-            func.avg(SessionAnalytics.total_duration_seconds).label('avg_duration'),
-            func.avg(SessionAnalytics.learning_progress_score).label('avg_progress')
-        ).join(
-            SessionAnalytics, ChatSession.id == SessionAnalytics.session_id
-        ).group_by(
-            ChatSession.mode
-        ).all()
+        "mode_comparison": [
+            {
+                "mode": str(row.mode) if row.mode else "unknown",
+                "session_count": int(row.count) if row.count else 0,
+                "avg_duration": float(row.avg_duration) if row.avg_duration else 0,
+                "avg_progress": float(row.avg_progress) if row.avg_progress else 0
+            }
+            for row in mode_query
+        ]
     }
     
     return patterns

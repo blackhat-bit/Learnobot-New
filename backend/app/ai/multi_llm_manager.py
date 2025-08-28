@@ -12,7 +12,6 @@ from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from langchain.callbacks.base import BaseCallbackHandler
 
 # For API key management
-from app.config import settings
 from app.models.llm_config import LLMProvider, LLMConfig
 from sqlalchemy.orm import Session
 import json
@@ -72,6 +71,7 @@ class BaseLLMProvider(ABC):
 
 class OllamaProvider(BaseLLMProvider):
     def initialize(self, config: Dict[str, Any]):
+        from app.config import settings  # Import here to avoid circular imports
         self.llm = Ollama(
             model=config.get("model", settings.LLM_MODEL_NAME),
             temperature=config.get("temperature", 0.7),
@@ -179,6 +179,7 @@ class MultiProviderLLMManager:
         """Initialize all configured providers"""
         # Always initialize local providers
         try:
+            from app.config import settings  # Import here to avoid circular imports
             ollama_provider = OllamaProvider()
             ollama_provider.initialize({"model": settings.LLM_MODEL_NAME})
             self.providers["ollama"] = ollama_provider
@@ -266,6 +267,124 @@ class MultiProviderLLMManager:
                     }
                     
         return results
+    
+    # Admin API Key Management Methods
+    
+    def _has_api_key(self, provider_name: str) -> bool:
+        """Check if provider has API key available"""
+        from app.config import settings
+        
+        api_key_map = {
+            "openai": settings.OPENAI_API_KEY,
+            "anthropic": settings.ANTHROPIC_API_KEY,
+            "google": settings.GOOGLE_API_KEY,
+            "cohere": settings.COHERE_API_KEY,
+        }
+        
+        key = api_key_map.get(provider_name.lower())
+        return key is not None and len(key.strip()) > 0
+    
+    def add_api_key(self, provider_name: str, api_key: str) -> bool:
+        """Dynamically add API key and initialize provider"""
+        try:
+            provider_name = provider_name.lower()
+            
+            # Update settings (in-memory for this session)
+            from app.config import settings
+            if provider_name == "openai":
+                settings.OPENAI_API_KEY = api_key
+                provider_class = OpenAIProvider
+            elif provider_name == "anthropic":
+                settings.ANTHROPIC_API_KEY = api_key
+                provider_class = AnthropicProvider
+            elif provider_name == "google":
+                settings.GOOGLE_API_KEY = api_key
+                provider_class = GoogleProvider
+            elif provider_name == "cohere":
+                settings.COHERE_API_KEY = api_key
+                provider_class = CoherProvider
+            else:
+                return False
+            
+            # Initialize the provider
+            provider_instance = provider_class()
+            provider_instance.initialize({"api_key": api_key})
+            
+            # Add to active providers
+            self.providers[provider_name] = provider_instance
+            
+            # Sync to database
+            self._sync_provider_to_db(provider_name, provider_instance)
+            
+            print(f"✅ Added {provider_name} provider with API key")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to add {provider_name} provider: {e}")
+            return False
+    
+    def remove_api_key(self, provider_name: str) -> bool:
+        """Remove API key and deactivate provider"""
+        try:
+            provider_name = provider_name.lower()
+            
+            # Update settings (in-memory for this session)
+            from app.config import settings
+            if provider_name == "openai":
+                settings.OPENAI_API_KEY = None
+            elif provider_name == "anthropic":
+                settings.ANTHROPIC_API_KEY = None
+            elif provider_name == "google":
+                settings.GOOGLE_API_KEY = None
+            elif provider_name == "cohere":
+                settings.COHERE_API_KEY = None
+            else:
+                return False
+            
+            # Remove from active providers
+            if provider_name in self.providers:
+                del self.providers[provider_name]
+            
+            # If this was the active provider, switch to ollama
+            if self.active_provider == provider_name:
+                self.active_provider = "ollama"
+            
+            print(f"🗑️ Removed {provider_name} provider")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to remove {provider_name} provider: {e}")
+            return False
+    
+    def _sync_provider_to_db(self, provider_name: str, provider_instance):
+        """Helper to sync individual provider to database"""
+        try:
+            from app.core.database import SessionLocal
+            from app.models.llm_provider import LLMProvider
+            
+            db = SessionLocal()
+            try:
+                # Check if provider already exists
+                existing = db.query(LLMProvider).filter(LLMProvider.name == provider_name).first()
+                
+                if not existing:
+                    # Create new provider entry
+                    provider_info = provider_instance.get_info()
+                    new_provider = LLMProvider(
+                        name=provider_name,
+                        type=provider_info.get("type", "unknown"),
+                        is_active=True,
+                        config=provider_info
+                    )
+                    db.add(new_provider)
+                    db.commit()
+                    print(f"📝 Synced {provider_name} to database")
+                    
+            finally:
+                db.close()
+                
+        except Exception as e:
+            print(f"⚠️ Failed to sync {provider_name} to database: {e}")
 
 # Singleton instance
 multi_llm_manager = MultiProviderLLMManager()
