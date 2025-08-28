@@ -9,7 +9,8 @@ from app.models.llm_config import LLMConfig
 from app.ai.multi_llm_manager import multi_llm_manager
 from app.schemas.llm_config import (
     LLMProviderInfo, LLMConfigCreate, LLMConfigUpdate,
-    ProviderComparison, SystemPromptUpdate
+    ProviderComparison, SystemPromptUpdate, APIKeyUpdate, 
+    APIKeyResponse, ProviderStatus
 )
 from app.ai.prompts import HEBREW_PRACTICE_PROMPT, HEBREW_TEST_PROMPT
 
@@ -157,3 +158,111 @@ async def get_prompt_config(
         "temperature": config.temperature,
         "maxTokens": config.max_tokens
     }
+
+# Admin API Key Management - User-Friendly for Non-Technical Manager
+
+@router.get("/providers/status", response_model=List[ProviderStatus])
+async def get_providers_status(
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed status of all providers including API key availability"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can view provider status")
+    
+    providers_status = []
+    
+    # Check available providers (Ollama is always available if running)
+    available_providers = multi_llm_manager.get_available_providers()
+    available_names = [p["name"] for p in available_providers]
+    
+    # List of all possible providers
+    all_providers = [
+        {"name": "ollama", "type": "local", "requires_key": False},
+        {"name": "openai", "type": "cloud", "requires_key": True},
+        {"name": "anthropic", "type": "cloud", "requires_key": True},
+        {"name": "google", "type": "cloud", "requires_key": True},
+        {"name": "cohere", "type": "cloud", "requires_key": True},
+    ]
+    
+    for provider_info in all_providers:
+        name = provider_info["name"]
+        has_key = False
+        
+        # Check if provider has API key
+        if not provider_info["requires_key"]:
+            has_key = True  # Local providers don't need keys
+        else:
+            # Check if API key is available
+            has_key = multi_llm_manager._has_api_key(name)
+        
+        providers_status.append(ProviderStatus(
+            name=name,
+            type=provider_info["type"],
+            is_available=name in available_names,
+            has_api_key=has_key,
+            is_active=name == multi_llm_manager.active_provider,
+            info=next((p["info"] for p in available_providers if p["name"] == name), {})
+        ))
+    
+    return providers_status
+
+@router.post("/providers/api-key", response_model=APIKeyResponse)
+async def add_update_api_key(
+    api_key_data: APIKeyUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Add or update API key for a cloud provider - Manager-friendly!"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can manage API keys")
+    
+    provider_name = api_key_data.provider_name.lower()
+    
+    # Validate provider name
+    valid_providers = ["openai", "anthropic", "google", "cohere"]
+    if provider_name not in valid_providers:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid provider. Supported: {', '.join(valid_providers)}"
+        )
+    
+    # Basic API key validation
+    if not api_key_data.api_key or len(api_key_data.api_key.strip()) < 10:
+        raise HTTPException(status_code=400, detail="API key appears to be invalid")
+    
+    try:
+        # Add the API key to the multi_llm_manager
+        success = multi_llm_manager.add_api_key(provider_name, api_key_data.api_key.strip())
+        
+        if success:
+            return APIKeyResponse(
+                provider_name=provider_name,
+                has_key=True,
+                key_length=len(api_key_data.api_key.strip())
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Failed to add API key")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding API key: {str(e)}")
+
+@router.delete("/providers/{provider_name}/api-key")
+async def remove_api_key(
+    provider_name: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Remove API key for a provider"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can manage API keys")
+    
+    provider_name = provider_name.lower()
+    
+    try:
+        success = multi_llm_manager.remove_api_key(provider_name)
+        
+        if success:
+            return {"message": f"API key removed for {provider_name}"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to remove API key")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error removing API key: {str(e)}")
