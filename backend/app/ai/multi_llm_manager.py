@@ -88,6 +88,11 @@ class OllamaProvider(BaseLLMProvider):
             "model": self.llm.model,
             "requires_api_key": False
         }
+    
+    def count_tokens(self, text: str) -> int:
+        """Estimate token count for Ollama models"""
+        # Simple estimation: ~4 characters per token
+        return len(text) // 4
 
 class OpenAIProvider(BaseLLMProvider):
     def initialize(self, config: Dict[str, Any]):
@@ -114,6 +119,11 @@ class OpenAIProvider(BaseLLMProvider):
             "model": self.llm.model_name,
             "requires_api_key": True
         }
+    
+    def count_tokens(self, text: str) -> int:
+        """Estimate token count for OpenAI models"""
+        # Simple estimation: ~4 characters per token
+        return len(text) // 4
 
 class AnthropicProvider(BaseLLMProvider):
     def initialize(self, config: Dict[str, Any]):
@@ -140,6 +150,11 @@ class AnthropicProvider(BaseLLMProvider):
             "model": self.llm.model,
             "requires_api_key": True
         }
+    
+    def count_tokens(self, text: str) -> int:
+        """Estimate token count for Anthropic models"""
+        # Simple estimation: ~4 characters per token
+        return len(text) // 4
 
 class GoogleProvider(BaseLLMProvider):
     def initialize(self, config: Dict[str, Any]):
