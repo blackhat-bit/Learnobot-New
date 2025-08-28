@@ -5,11 +5,19 @@ from typing import List, Dict, Any
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User, UserRole
+from app.models.llm_config import LLMConfig
 from app.ai.multi_llm_manager import multi_llm_manager
 from app.schemas.llm_config import (
     LLMProviderInfo, LLMConfigCreate, LLMConfigUpdate,
     ProviderComparison, SystemPromptUpdate
 )
+from app.ai.prompts import HEBREW_PRACTICE_PROMPT, HEBREW_TEST_PROMPT
+
+# Default prompts for different modes
+DEFAULT_PROMPTS = {
+    "practice": HEBREW_PRACTICE_PROMPT.template,
+    "test": HEBREW_TEST_PROMPT.template,
+}
 
 router = APIRouter()
 

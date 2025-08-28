@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # LLM Settings
     LLM_TYPE: str = "ollama"  # Options: llamacpp, gpt4all, ollama
     LLM_MODEL_PATH: str = "./models/llama-2-7b-chat-hf"  # For local models
-    LLM_MODEL_NAME: str = "llama3.2:3b"  # For Ollama
+    LLM_MODEL_NAME: str = "llama3.1:8b"  # For Ollama
     LLM_MAX_TOKENS: int = 2048
     LLM_TEMPERATURE: float = 0.7
     OLLAMA_BASE_URL: str = "http://localhost:11434"
