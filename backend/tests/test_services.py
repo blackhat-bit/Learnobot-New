@@ -238,7 +238,7 @@ class TestTranslationService:
         assert "code" in first_lang
         assert "name" in first_lang
     
-    @patch('googletrans.Translator.translate')
+    @patch('deep_translator.GoogleTranslator.translate')
     async def test_translate_text(self, mock_translate, db_session):
         """Test text translation."""
         mock_result = Mock()
