@@ -3,10 +3,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from app.api import auth, chat, teacher, student
-from app.core.database import engine
+from app.core.database import engine, SessionLocal
 from app.models import user, chat as chat_models, task, llm_config
+from app.models.llm_config import LLMProvider
 from app.config import settings
 from app.api import llm_management
+from app.ai.multi_llm_manager import multi_llm_manager
 
 # Create database tables
 user.Base.metadata.create_all(bind=engine)
@@ -14,11 +16,47 @@ chat_models.Base.metadata.create_all(bind=engine)
 task.Base.metadata.create_all(bind=engine)
 llm_config.Base.metadata.create_all(bind=engine)
 
+def sync_providers_to_database():
+    """Sync detected LLM providers to database"""
+    db = SessionLocal()
+    try:
+        for provider_name, provider_instance in multi_llm_manager.providers.items():
+            # Check if provider already exists
+            existing = db.query(LLMProvider).filter(LLMProvider.name == provider_name).first()
+            
+            if not existing:
+                # Create new provider entry
+                provider_info = provider_instance.get_info()
+                new_provider = LLMProvider(
+                    name=provider_name,
+                    type=provider_info.get("type", "unknown"),
+                    is_active=True,
+                    config=provider_info
+                )
+                db.add(new_provider)
+                print(f" Added LLM provider: {provider_name}")
+        
+        db.commit()
+        print(f"🔄 Provider sync complete. Total providers: {len(multi_llm_manager.providers)}")
+        
+    except Exception as e:
+        print(f" Failed to sync providers: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.VERSION,
     openapi_url=f"{settings.API_PREFIX}/openapi.json"
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize providers on application startup"""
+    print(" Starting LearnoBot API...")
+    sync_providers_to_database()
+    print(" Startup complete!")
 
 # CORS middleware
 app.add_middleware(
