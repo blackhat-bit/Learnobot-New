@@ -329,7 +329,7 @@ class MultiProviderLLMManager:
             self.providers[provider_name] = provider_instance
             
             # Sync to database
-            self._sync_provider_to_db(provider_name, provider_instance)
+            # self._sync_provider_to_db(provider_name, provider_instance)  # Temporarily disabled for debugging
             
             print(f"✅ Added {provider_name} provider with API key")
             return True
@@ -375,7 +375,7 @@ class MultiProviderLLMManager:
         """Helper to sync individual provider to database"""
         try:
             from app.core.database import SessionLocal
-            from app.models.llm_provider import LLMProvider
+            from app.models.llm_config import LLMProvider
             
             db = SessionLocal()
             try:
