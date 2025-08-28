@@ -187,26 +187,28 @@ class MultiProviderLLMManager:
             print(f"Failed to initialize Ollama: {e}")
             
         # Initialize online providers if API keys are available
-        if os.getenv("OPENAI_API_KEY"):
+        from app.config import settings
+        
+        if settings.OPENAI_API_KEY:
             try:
                 openai_provider = OpenAIProvider()
-                openai_provider.initialize({})
+                openai_provider.initialize({"api_key": settings.OPENAI_API_KEY})
                 self.providers["openai"] = openai_provider
             except Exception as e:
                 print(f"Failed to initialize OpenAI: {e}")
                 
-        if os.getenv("ANTHROPIC_API_KEY"):
+        if settings.ANTHROPIC_API_KEY:
             try:
                 anthropic_provider = AnthropicProvider()
-                anthropic_provider.initialize({})
+                anthropic_provider.initialize({"api_key": settings.ANTHROPIC_API_KEY})
                 self.providers["anthropic"] = anthropic_provider
             except Exception as e:
                 print(f"Failed to initialize Anthropic: {e}")
                 
-        if os.getenv("GOOGLE_API_KEY"):
+        if settings.GOOGLE_API_KEY:
             try:
                 google_provider = GoogleProvider()
-                google_provider.initialize({})
+                google_provider.initialize({"api_key": settings.GOOGLE_API_KEY})
                 self.providers["google"] = google_provider
             except Exception as e:
                 print(f"Failed to initialize Google: {e}")

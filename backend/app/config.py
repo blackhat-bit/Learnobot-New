@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.7
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     
-    # API Keys for various LLM providers
+    # API Keys for various LLM providers (loaded from .env or environment variables)
     OPENAI_API_KEY: Optional[str] = None
-    ANTHROPIC_API_KEY: Optional[str] = "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"
+    ANTHROPIC_API_KEY: Optional[str] = None
     GOOGLE_API_KEY: Optional[str] = None
     COHERE_API_KEY: Optional[str] = None
     
