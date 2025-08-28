@@ -19,17 +19,31 @@ async def create_chat_session(
 ):
     """Create a new chat session - Students and Admins allowed"""
     
-    # Admin can create sessions for testing - use first student as proxy
+    # Admin can create sessions for testing - create virtual admin student profile
     if current_user.role == UserRole.ADMIN:
-        # Find any student for admin testing
         from app.models.user import StudentProfile
-        test_student = db.query(StudentProfile).first()
-        if not test_student:
-            raise HTTPException(status_code=400, detail="No students available for admin testing")
+        
+        # Check if admin already has a virtual student profile
+        admin_student_profile = db.query(StudentProfile).filter(
+            StudentProfile.user_id == current_user.id
+        ).first()
+        
+        if not admin_student_profile:
+            # Create virtual student profile for admin testing
+            admin_student_profile = StudentProfile(
+                user_id=current_user.id,
+                full_name=f"Admin Testing ({current_user.username})",
+                grade="Admin",
+                difficulty_level=5,  # Advanced level for admin
+                difficulties_description="Admin testing account"
+            )
+            db.add(admin_student_profile)
+            db.commit()
+            db.refresh(admin_student_profile)
         
         return await chat_service.create_session(
             db=db,
-            student_id=test_student.id,
+            student_id=admin_student_profile.id,
             mode=session_data.mode
         )
     
@@ -116,9 +130,29 @@ async def call_teacher(
     db: Session = Depends(get_db)
 ):
     """Send a help request to the teacher"""
+    
+    # Handle admin users - they can call teacher for any session (including their own)
+    if current_user.role == UserRole.ADMIN:
+        # Get the session to find the student (could be admin's own virtual profile)
+        from app.models.chat import ChatSession
+        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        student_id = session.student_id
+    else:
+        # Regular student flow
+        if current_user.role != UserRole.STUDENT:
+            raise HTTPException(status_code=403, detail="Only students and admins can call teachers")
+        
+        if not current_user.student_profile:
+            raise HTTPException(status_code=400, detail="Student profile not found")
+        
+        student_id = current_user.student_profile.id
+    
     return await chat_service.call_teacher(
         db=db,
         session_id=session_id,
-        student_id=current_user.student_profile.id
+        student_id=student_id
     )
 
