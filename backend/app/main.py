@@ -21,7 +21,7 @@ def sync_providers_to_database():
     db = SessionLocal()
     try:
         for provider_name, provider_instance in multi_llm_manager.providers.items():
-            # Check if provider already exists
+            # Checkctivae if provider already exists
             existing = db.query(LLMProvider).filter(LLMProvider.name == provider_name).first()
             
             if not existing:

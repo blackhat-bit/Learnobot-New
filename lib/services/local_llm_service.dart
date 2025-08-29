@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 /// Simple wrapper that talks to the local Ollama server on Windows.
 class LocalLlmService {
-  static const _url = 'http://13.60.179.69:8000/chat';
+  static const _url = 'http://localhost:8000/api/v1/chat';
 
   Future<String> ask({
     required String question,

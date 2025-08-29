@@ -3,12 +3,12 @@ class ApiConfig {
   static const String baseUrl = 'http://localhost:8000';
   
   // API endpoints
-  static const String authEndpoint = '$baseUrl/auth';
-  static const String chatEndpoint = '$baseUrl/chat';
-  static const String teacherEndpoint = '$baseUrl/teacher';
-  static const String studentEndpoint = '$baseUrl/student';
-  static const String analyticsEndpoint = '$baseUrl/analytics';
-  static const String llmEndpoint = '$baseUrl/llm';
+  static const String authEndpoint = '$baseUrl/api/v1/auth';
+  static const String chatEndpoint = '$baseUrl/api/v1/chat';
+  static const String teacherEndpoint = '$baseUrl/api/v1/teacher';
+  static const String studentEndpoint = '$baseUrl/api/v1/student';
+  static const String analyticsEndpoint = '$baseUrl/api/v1/analytics';
+  static const String llmEndpoint = '$baseUrl/api/v1/llm';
   
   // Request timeouts
   static const Duration defaultTimeout = Duration(seconds: 30);
