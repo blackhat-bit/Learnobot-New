@@ -62,11 +62,11 @@ class LoginScreenState extends State<LoginScreen> {
               );
               break;
             case 'admin':
-              // Admin goes to AI Manager screen
+              // Admin goes to main teacher panel (which has manager features)
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => AIManagerScreen(),
+                  builder: (context) => const TeacherPanelScreen(),
                 ),
               );
               break;
