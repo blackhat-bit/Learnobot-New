@@ -163,12 +163,12 @@ async def get_prompt_config(
 # Admin API Key Management - User-Friendly for Non-Technical Manager
 
 @router.get("/providers/status", response_model=List[ProviderStatus])
-async def get_providers_status():
-    """Get detailed status of all providers including API key availability - TEMP: No auth for testing"""
-    # Temporarily disabled auth for testing
-    # current_user: User = Depends(get_current_user)
-    # if current_user.role != UserRole.ADMIN:
-    #     raise HTTPException(status_code=403, detail="Only admins can view provider status")
+async def get_providers_status(
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed status of all providers including API key availability"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can view provider status")
     
     providers_status = []
     

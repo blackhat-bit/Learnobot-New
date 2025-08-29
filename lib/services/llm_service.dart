@@ -1,13 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
+import 'auth_service_backend.dart';
 
 class LLMService {
   // Get all available providers with their status
   static Future<List<Map<String, dynamic>>> getProviders() async {
     try {
-      // For testing: try without auth first, then with admin token if available
-      var headers = ApiConfig.getHeaders();
+      // Get auth token for admin access
+      final token = await AuthServiceBackend.getStoredToken();
+      final headers = ApiConfig.getHeaders(token: token);
       
       final response = await http.get(
         Uri.parse('${ApiConfig.llmEndpoint}/providers/status'),

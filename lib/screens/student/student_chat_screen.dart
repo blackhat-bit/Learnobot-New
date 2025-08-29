@@ -6,7 +6,7 @@ import '../../constants/app_strings.dart';
 import '../../models/chat_message.dart';
 import '../../widgets/chat_bubble.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../services/local_llm_service.dart';
+import '../../services/chat_service_backend.dart';
 
 class StudentChatScreen extends StatefulWidget {
   final String initialMode;
@@ -27,7 +27,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   String _currentMode = 'practice';
   File? _capturedImage;
   bool _showAssistanceOptions = false;
-  final _llm = LocalLlmService();
+  int? _currentSessionId;
   bool _isBotTyping = false;
 
   // Track the latest user question/task (for assist buttons)
@@ -40,7 +40,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   void initState() {
     super.initState();
     _currentMode = widget.initialMode;
-    _addBotMessage('היי! איך אני יכול לעזור לך היום?');
+    _createSession();
+  }
+  
+  Future<void> _createSession() async {
+    try {
+      final session = await ChatServiceBackend.createSession(mode: _currentMode);
+      setState(() {
+        _currentSessionId = session['id'];
+      });
+      _addBotMessage('היי! איך אני יכול לעזור לך היום?');
+    } catch (e) {
+      _addBotMessage('שגיאה בחיבור לשרת: $e');
+    }
   }
 
   @override
@@ -103,21 +115,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
 
   Future<void> _processBotResponse(String userMessage) async {
-    // Adapt next response based on last satisfaction
-    String contextInstruction = '';
-    if (_lastSatisfaction != null) {
-      if (_lastSatisfaction! <= 2) {
-        contextInstruction =
-            'The previous answer was not helpful (user rated it low). Please try a different approach, use simpler or more engaging language.';
-      } else if (_lastSatisfaction! >= 5) {
-        contextInstruction =
-            'The previous answer was rated highly. Continue responding in the same style as before.';
-      }
-      _lastSatisfaction = null; // Use only once!
+    if (_currentSessionId == null) {
+      _addBotMessage('⚠️ שגיאה: אין חיבור לשרת');
+      return;
     }
-    final adaptedQuestion = contextInstruction.isNotEmpty
-        ? '$contextInstruction\n$userMessage'
-        : userMessage;
 
     setState(() {
       _isBotTyping = true;
@@ -132,14 +133,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _scrollToBottom();
 
     try {
-      final reply = await _llm.ask(
-        question: adaptedQuestion,
-        examMode: _currentMode == 'test',
+      final response = await ChatServiceBackend.sendMessage(
+        sessionId: _currentSessionId!,
+        content: userMessage,
       );
 
       setState(() {
         _messages.removeWhere((m) => m.id == 'typing');
-        _addBotMessage(reply);
+        _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
         _isBotTyping = false;
       });
     } catch (e) {

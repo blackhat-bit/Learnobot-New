@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
-import '../../services/auth_service.dart';
+import '../../services/auth_service_backend.dart';
 import '../auth/welcome_screen.dart';
 import 'student_chat_screen.dart';
 
@@ -24,12 +24,15 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   }
 
   Future<void> _loadUsername() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final username = await authService.getCurrentUserName();
-    if (mounted && username != null) {
-      setState(() {
-        _username = username;
-      });
+    try {
+      final user = await AuthServiceBackend.getStoredUser();
+      if (mounted && user != null) {
+        setState(() {
+          _username = user['full_name'] ?? user['username'] ?? 'תלמיד';
+        });
+      }
+    } catch (e) {
+      print('Error loading username: $e');
     }
   }
 
@@ -177,8 +180,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              final authService = Provider.of<AuthService>(context, listen: false);
-              await authService.signOut();
+              await AuthServiceBackend.logout();
               // Navigate back to welcome screen
               Navigator.pushAndRemoveUntil(
                 context,
