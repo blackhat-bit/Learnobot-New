@@ -155,6 +155,7 @@ class LLMService {
         headers: ApiConfig.getHeaders(token: token),
         body: json.encode({
           'prompt': testPrompt,
+          'providers': ['ollama', 'anthropic', 'openai', 'google', 'cohere'], // Compare all available providers
         }),
       ).timeout(ApiConfig.uploadTimeout); // Longer timeout for comparison
 
