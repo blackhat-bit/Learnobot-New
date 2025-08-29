@@ -130,25 +130,50 @@ class AnthropicProvider(BaseLLMProvider):
         api_key = config.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("Anthropic API key is required")
-            
-        self.llm = ChatAnthropic(
-            model=config.get("model", "claude-3-opus-20240229"),
-            temperature=config.get("temperature", 0.7),
-            max_tokens_to_sample=config.get("max_tokens", 2048),
-            anthropic_api_key=api_key
-        )
+        
+        # Store API key for validation but don't initialize LangChain yet
+        # This avoids the count_tokens issue during provider setup
+        self.api_key = api_key
+        self.model = config.get("model", "claude-3-opus-20240229")
+        self.temperature = config.get("temperature", 0.7)
+        self.max_tokens = config.get("max_tokens", 2048)
+        
+        # Simple API key format validation
+        if not api_key.startswith("sk-ant-"):
+            raise ValueError("Invalid Anthropic API key format")
+        
+        print(f"✅ Anthropic provider initialized with key: {api_key[:15]}...")
         
     def generate(self, prompt: str, **kwargs) -> str:
-        messages = [HumanMessage(content=prompt)]
-        response = self.llm(messages)
-        return response.content
+        try:
+            # Lazy initialization - only create LangChain object when actually needed
+            if not hasattr(self, 'llm'):
+                self.llm = ChatAnthropic(
+                    model=self.model,
+                    temperature=self.temperature,
+                    max_tokens_to_sample=self.max_tokens,
+                    anthropic_api_key=self.api_key
+                )
+            
+            messages = [HumanMessage(content=prompt)]
+            response = self.llm(messages)
+            return response.content
+        except Exception as e:
+            # Return proper error messages for API issues
+            if "authentication" in str(e).lower() or "api key" in str(e).lower():
+                raise ValueError(f"Invalid Anthropic API key: {str(e)}")
+            elif "rate limit" in str(e).lower():
+                raise ValueError(f"Anthropic rate limit exceeded: {str(e)}")
+            else:
+                raise ValueError(f"Anthropic API error: {str(e)}")
     
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "Anthropic",
             "type": "online", 
-            "model": self.llm.model,
-            "requires_api_key": True
+            "model": self.model,
+            "requires_api_key": True,
+            "status": "configured"
         }
     
     def count_tokens(self, text: str) -> int:
@@ -322,8 +347,16 @@ class MultiProviderLLMManager:
                 return False
             
             # Initialize the provider
+            print(f"🔍 Creating provider instance: {provider_class}")
             provider_instance = provider_class()
+            print(f"🔍 Provider instance created: {type(provider_instance)}")
+            print(f"🔍 Initializing with API key...")
             provider_instance.initialize({"api_key": api_key})
+            # Check if provider has llm attribute (some use lazy loading)
+            if hasattr(provider_instance, 'llm'):
+                print(f"🔍 Provider initialized. LLM type: {type(provider_instance.llm)}")
+            else:
+                print(f"🔍 Provider initialized. Using lazy loading for LLM.")
             
             # Add to active providers
             self.providers[provider_name] = provider_instance
