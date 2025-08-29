@@ -4,7 +4,7 @@ import '../../constants/app_strings.dart';
 import '../../services/auth_service_backend.dart';
 import '../teacher/teacher_panel_screen.dart';
 import '../student/student_home_screen.dart';
-import '../manager/ai_manager_screen.dart';
+import '../manager/manager_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -62,11 +62,11 @@ class LoginScreenState extends State<LoginScreen> {
               );
               break;
             case 'admin':
-              // Admin goes to main teacher panel (which has manager features)
+              // Admin goes to dedicated manager dashboard
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const TeacherPanelScreen(),
+                  builder: (context) => const ManagerDashboardScreen(),
                 ),
               );
               break;
