@@ -6,9 +6,12 @@ class LLMService {
   // Get all available providers with their status
   static Future<List<Map<String, dynamic>>> getProviders() async {
     try {
+      // For testing: try without auth first, then with admin token if available
+      var headers = ApiConfig.getHeaders();
+      
       final response = await http.get(
         Uri.parse('${ApiConfig.llmEndpoint}/providers/status'),
-        headers: ApiConfig.getHeaders(),
+        headers: headers,
       ).timeout(ApiConfig.defaultTimeout);
 
       if (response.statusCode == 200) {
