@@ -1,9 +1,8 @@
 // lib/screens/manager/ai_manager_screen.dart
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../../services/api_config.dart';
-import '../../services/auth_service.dart';
+import '../../services/llm_service.dart';
+import '../../services/auth_service_backend.dart';
 
 class AIManagerScreen extends StatefulWidget {
   @override
@@ -11,7 +10,6 @@ class AIManagerScreen extends StatefulWidget {
 }
 
 class _AIManagerScreenState extends State<AIManagerScreen> {
-  final AuthService _authService = AuthService();
   
   // State variables
   List<dynamic> _providers = [];
@@ -53,24 +51,16 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final token = await _authService.getToken();
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/llm/providers'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _providers = data;
-          _activeProvider = data.firstWhere(
-            (p) => p['active'] == true,
-            orElse: () => data[0]
-          )['name'];
-        });
-      }
+      final providers = await LLMService.getProviders();
+      setState(() {
+        _providers = providers;
+        _activeProvider = providers.firstWhere(
+          (p) => p['is_active'] == true,
+          orElse: () => providers.isNotEmpty ? providers[0] : {}
+        )['name'] ?? '';
+      });
     } catch (e) {
-      _showError('Failed to load providers');
+      _showError('Failed to load providers: $e');
     } finally {
       setState(() => _isLoading = false);
     }
