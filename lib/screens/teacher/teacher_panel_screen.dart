@@ -267,34 +267,6 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                                   ),
                                   
                                   // Menu Items
-                                  // Admin-only features
-                                  if (_userRole == 'Admin') ...[
-                                    _buildProfessionalMenuItem(
-                                      icon: Icons.settings_applications,
-                                      title: 'ניהול AI',
-                                      subtitle: 'הגדרת ספקי AI והגדרות מתקדמות',
-                                      color: Colors.purple,
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => AIManagerScreen(),
-                                        ),
-                                      ),
-                                      isFirst: true,
-                                    ),
-                                    _buildProfessionalMenuItem(
-                                      icon: Icons.analytics_outlined,
-                                      title: 'ניתוח מחקרי',
-                                      subtitle: 'דוחות מפורטים וניתוח נתונים למחקר',
-                                      color: Colors.blue,
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => ResearchAnalyticsScreen(),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                   
                                   _buildProfessionalMenuItem(
                                     icon: Icons.people_outline,
@@ -307,7 +279,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                                         builder: (context) => const StudentListScreen(),
                                       ),
                                     ),
-                                    isFirst: _userRole != 'Admin', // First item if analytics is not shown
+                                    isFirst: true, // First item for teachers
                                   ),
                                   
                                   _buildProfessionalMenuItem(
@@ -652,28 +624,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
               title: Text('התקדמות תלמידים'),
             ),
           ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Add ResearchAnalyticsScreen navigation
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ניתוח נתונים  !')),
-              );
-              /* 
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ResearchAnalyticsScreen(),
-                ),
-              );
-              */
-            },
-            child: const ListTile(
-              leading: Icon(Icons.analytics, color: Colors.purple),
-              title: Text('ניתוח מחקר'),
-              subtitle: Text('צפייה בהתקדמות ודפוסי התנהגות'),
-            ),
-          ),
+
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(context);

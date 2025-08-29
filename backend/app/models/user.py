@@ -20,7 +20,7 @@ class User(Base):
     role = Column(Enum(UserRole), nullable=False)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
-    language_preference = Column(String, default='en')
+    language_preference = Column(String, default='he')
     timezone = Column(String, default='UTC')
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

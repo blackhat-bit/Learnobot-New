@@ -1,9 +1,7 @@
 // lib/screens/manager/ai_manager_screen.dart
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../../services/api_config.dart';
-import '../../services/auth_service.dart';
+import '../../services/llm_service.dart';
+import '../../services/auth_service_backend.dart';
 
 class AIManagerScreen extends StatefulWidget {
   @override
@@ -11,7 +9,6 @@ class AIManagerScreen extends StatefulWidget {
 }
 
 class _AIManagerScreenState extends State<AIManagerScreen> {
-  final AuthService _authService = AuthService();
   
   // State variables
   List<dynamic> _providers = [];
@@ -53,24 +50,16 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final token = await _authService.getToken();
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/llm/providers'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _providers = data;
-          _activeProvider = data.firstWhere(
-            (p) => p['active'] == true,
-            orElse: () => data[0]
-          )['name'];
-        });
-      }
+      final providers = await LLMService.getProviders();
+      setState(() {
+        _providers = providers;
+        _activeProvider = providers.firstWhere(
+          (p) => p['is_active'] == true,
+          orElse: () => providers.isNotEmpty ? providers[0] : {}
+        )['name'] ?? '';
+      });
     } catch (e) {
-      _showError('Failed to load providers');
+      _showError('Failed to load providers: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -80,19 +69,17 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final token = await _authService.getToken();
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/llm/providers/$providerName/activate'),
-        headers: {'Authorization': 'Bearer $token'},
+      final token = await AuthServiceBackend.getStoredToken();
+      await LLMService.activateProvider(
+        providerName: providerName,
+        token: token,
       );
       
-      if (response.statusCode == 200) {
-        setState(() => _activeProvider = providerName);
-        _showSuccess('Switched to $providerName');
-        await _loadProviders();
-      }
+      setState(() => _activeProvider = providerName);
+      _showSuccess('Switched to $providerName');
+      await _loadProviders();
     } catch (e) {
-      _showError('Failed to switch provider');
+      _showError('Failed to switch provider: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -102,25 +89,18 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final token = await _authService.getToken();
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/llm/prompts/$_selectedMode'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'system': _systemPromptController.text,
-          'temperature': _prompts[_selectedMode]['temperature'],
-          'maxTokens': _prompts[_selectedMode]['maxTokens'],
-        }),
+      final token = await AuthServiceBackend.getStoredToken();
+      await LLMService.savePromptConfig(
+        mode: _selectedMode,
+        systemPrompt: _systemPromptController.text,
+        temperature: _prompts[_selectedMode]['temperature'].toDouble(),
+        maxTokens: _prompts[_selectedMode]['maxTokens'].toInt(),
+        token: token,
       );
       
-      if (response.statusCode == 200) {
-        _showSuccess('Prompt saved successfully');
-      }
+      _showSuccess('Prompt saved successfully');
     } catch (e) {
-      _showError('Failed to save prompt');
+      _showError('Failed to save prompt: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -135,27 +115,18 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final token = await _authService.getToken();
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/llm/compare'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'prompt': _testPromptController.text,
-          'providers': _providers.map((p) => p['name']).toList(),
-        }),
+      final token = await AuthServiceBackend.getStoredToken();
+      final results = await LLMService.compareProviders(
+        testPrompt: _testPromptController.text,
+        token: token,
       );
       
-      if (response.statusCode == 200) {
-        setState(() {
-          _comparisonResults = jsonDecode(response.body);
-        });
-        _showSuccess('Comparison completed');
-      }
+      setState(() {
+        _comparisonResults = results;
+      });
+      _showSuccess('Comparison completed');
     } catch (e) {
-      _showError('Failed to compare providers');
+      _showError('Failed to compare providers: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -238,15 +209,15 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                 ? Colors.green 
                 : Colors.grey,
             ),
-            title: Text(provider['info']['provider']),
-            subtitle: Text(provider['info']['model']),
-            trailing: provider['name'] == _activeProvider
+            title: Text(provider['info']?['provider'] ?? provider['name'] ?? 'Unknown'),
+            subtitle: Text(provider['info']?['model'] ?? 'No model specified'),
+            trailing: (provider['name'] ?? '') == _activeProvider
                 ? Chip(
                     label: Text('Active'),
                     backgroundColor: Colors.green[100],
                   )
                 : ElevatedButton(
-                    onPressed: () => _switchProvider(provider['name']),
+                    onPressed: () => _switchProvider(provider['name'] ?? ''),
                     child: Text('Activate'),
                   ),
           ),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
-import '../../services/auth_service.dart';
+import '../../services/auth_service_backend.dart';
 import '../teacher/teacher_panel_screen.dart';
 import '../student/student_home_screen.dart';
-import 'package:provider/provider.dart';
+import '../manager/manager_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -33,18 +33,19 @@ class LoginScreenState extends State<LoginScreen> {
       });
 
       try {
-        final authService = Provider.of<AuthService>(context, listen: false);
-        final loginResult = await authService.loginWithAutoRole(
-          email: _emailController.text.trim(),
+        // Use backend authentication
+        final loginResult = await AuthServiceBackend.login(
+          username: _emailController.text.trim(), // Can be username or email
           password: _passwordController.text,
         );
 
-        if (loginResult != null) {
-          final userRole = loginResult['role'] as String;
+        if (loginResult['success'] == true) {
+          final user = loginResult['user'];
+          final userRole = user['role'] as String;
           
           // Navigate based on actual user role
           switch (userRole) {
-            case 'Student':
+            case 'student':
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
@@ -52,14 +53,20 @@ class LoginScreenState extends State<LoginScreen> {
                 ),
               );
               break;
-            case 'Teacher':
-            case 'Admin':
-              // Both teachers and admins go to teacher panel
-              // Admins will have access to additional features (analytics)
+            case 'teacher':
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const TeacherPanelScreen(),
+                ),
+              );
+              break;
+            case 'admin':
+              // Admin goes to dedicated manager dashboard
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ManagerDashboardScreen(),
                 ),
               );
               break;
@@ -158,19 +165,18 @@ class LoginScreenState extends State<LoginScreen> {
                     TextFormField(
                       controller: _emailController,
                       decoration: const InputDecoration(
-                        labelText: 'אימייל',
+                        labelText: 'שם משתמש או אימייל',
                         border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.email),
+                        prefixIcon: Icon(Icons.person),
                       ),
                       textAlign: TextAlign.right,
                       textDirection: TextDirection.rtl,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'אנא הכנס אימייל';
+                          return 'אנא הכנס שם משתמש או אימייל';
                         }
-                        if (!value.contains('@')) {
-                          return 'אימייל לא תקין';
-                        }
+                        // Accept both username and email formats
+                        // Remove email validation since usernames are allowed
                         return null;
                       },
                     ),

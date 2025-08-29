@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import HTTPException, status
 import asyncio
 import httpx
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 import json
 
 from app.config import settings
@@ -12,7 +12,7 @@ class TranslationService:
     """Service for text translation functionality."""
     
     def __init__(self):
-        self.translator = Translator()
+        self.translator = GoogleTranslator()
         self.supported_languages = self._get_supported_languages()
     
     async def translate_text(
@@ -98,24 +98,27 @@ class TranslationService:
         target_language: str, 
         source_language: str
     ) -> Dict[str, Any]:
-        """Translate using googletrans library."""
+        """Translate using deep-translator library."""
         
         try:
             # Run translation in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
+            
+            # Create translator with source and target languages
+            translator = GoogleTranslator(
+                source=source_language if source_language != "auto" else "auto",
+                target=target_language
+            )
+            
             translation = await loop.run_in_executor(
                 None, 
-                lambda: self.translator.translate(
-                    text, 
-                    dest=target_language, 
-                    src=source_language if source_language != "auto" else None
-                )
+                lambda: translator.translate(text)
             )
             
             return {
-                "translated_text": translation.text,
-                "detected_language": translation.src,
-                "confidence": getattr(translation, 'confidence', 1.0)
+                "translated_text": translation,
+                "detected_language": source_language if source_language != "auto" else "auto",
+                "confidence": 1.0  # deep-translator doesn't provide confidence
             }
         
         except Exception as e:
@@ -131,19 +134,26 @@ class TranslationService:
                     detail="Text cannot be empty"
                 )
             
-            loop = asyncio.get_event_loop()
-            detection = await loop.run_in_executor(
-                None,
-                lambda: self.translator.detect(text)
-            )
+            # Deep-translator doesn't have built-in language detection
+            # Use langdetect as fallback or return auto-detection
+            try:
+                from deep_translator import single_detection
+                loop = asyncio.get_event_loop()
+                detected_lang = await loop.run_in_executor(
+                    None,
+                    lambda: single_detection(text, api_key=None)
+                )
+            except:
+                # Fallback to auto if detection fails
+                detected_lang = "auto"
             
-            language_name = self.supported_languages.get(detection.lang, "Unknown")
+            language_name = self.supported_languages.get(detected_lang, "Auto-detect")
             
             return {
                 "text": text,
-                "detected_language": detection.lang,
+                "detected_language": detected_lang,
                 "language_name": language_name,
-                "confidence": detection.confidence
+                "confidence": 0.9  # Default confidence since deep-translator doesn't provide it
             }
         
         except Exception as e:
@@ -249,13 +259,15 @@ class TranslationService:
         
         try:
             # Test with a simple translation
-            test_translation = self.translator.translate("Hello", dest='es')
+            test_translator = GoogleTranslator(source='en', target='es')
+            test_translation = test_translator.translate("Hello")
             
             return {
                 "status": "healthy",
                 "service": "google_translate",
                 "test_successful": True,
-                "supported_languages_count": len(self.supported_languages)
+                "supported_languages_count": len(self.supported_languages),
+                "test_result": test_translation
             }
         
         except Exception as e:

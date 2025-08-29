@@ -21,7 +21,8 @@ class ChatMessageBase(BaseModel):
     content: str
     role: MessageRole
 
-class ChatMessageCreate(ChatMessageBase):
+class ChatMessageCreate(BaseModel):
+    content: str
     assistance_type: Optional[AssistanceType] = None
 
 class ChatMessage(ChatMessageBase):

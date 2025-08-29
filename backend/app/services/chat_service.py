@@ -110,22 +110,25 @@ async def process_message(
             "name": student.full_name,
             "grade": student.grade,
             "difficulty_level": student.difficulty_level,
-            "difficulties": student.difficulties_description
+            "difficulties": student.difficulties_description,
+            "language_preference": student.user.language_preference
         }
         
         # Generate AI response based on mode and assistance type
+        language_pref = student.user.language_preference
+        
         if session.mode == InteractionMode.PRACTICE:
             if assistance_type == "breakdown":
                 ai_response = instruction_processor.breakdown_instruction(
-                    message, student.difficulty_level
+                    message, student.difficulty_level, language_pref
                 )
             elif assistance_type == "example":
                 ai_response = instruction_processor.provide_example(
-                    message, "main concept"
+                    message, "main concept", language_pref
                 )
             elif assistance_type == "explain":
                 ai_response = instruction_processor.explain_instruction(
-                    message, student.difficulty_level
+                    message, student.difficulty_level, language_pref
                 )
             else:
                 # Analyze and provide appropriate help

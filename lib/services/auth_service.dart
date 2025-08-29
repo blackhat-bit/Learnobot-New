@@ -41,7 +41,7 @@ class AuthService {
           'uid': 'admin_test_1',
           'email': 'admin@test.com',
           'password': '123456',
-          'username': 'מנהל פרויקט',
+          'username': 'morad',
           'role': 'Admin',
         },
       ];
@@ -83,7 +83,7 @@ class AuthService {
     return newUser;
   }
 
-  // Login with Email/Password
+  // Login with Email/Password OR Username/Password
   Future<Map<String, dynamic>?> loginWithEmail({
     required String email,
     required String password,
@@ -95,8 +95,10 @@ class AuthService {
     final usersJson = prefs.getString(_usersKey) ?? '[]';
     final List<dynamic> users = json.decode(usersJson);
     
+    // Try to find user by email OR username
     final user = users.firstWhere(
-      (user) => user['email'] == email && user['password'] == password,
+      (user) => (user['email'] == email || user['username'] == email) && 
+                user['password'] == password,
       orElse: () => null,
     );
     
