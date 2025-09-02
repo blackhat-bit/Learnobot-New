@@ -19,37 +19,8 @@ class NotificationWidget extends StatefulWidget {
 }
 
 class _NotificationWidgetState extends State<NotificationWidget> {
-  // Sample notification data - in a real app, this would come from a service
-  final List<Map<String, dynamic>> _notifications = [
-    {
-      'message': 'התלמיד חן לוי מבקש עזרה',
-      'time': '8:05 אפר׳ 30',
-      'icon': Icons.school,
-      'isNew': true,
-      'studentId': '1',
-    },
-    {
-      'message': 'נוספו 3 תלמידים חדשים',
-      'time': '10:15 אפר׳ 28',
-      'icon': Icons.person_add,
-      'isNew': false,
-      'studentId': null,
-    },
-    {
-      'message': 'התלמידה נילי נעים השלימה משימה',
-      'time': '14:30 אפר׳ 27',
-      'icon': Icons.task_alt,
-      'isNew': false,
-      'studentId': '4',
-    },
-    {
-      'message': 'יום המורה שמח! 🎉',
-      'time': '9:00 אפר׳ 25',
-      'icon': Icons.celebration,
-      'isNew': false,
-      'studentId': null,
-    },
-  ];
+  // Real notification data - will be empty until backend notifications are implemented
+  final List<Map<String, dynamic>> _notifications = [];
 
   void _markAsRead(int index) {
     setState(() {

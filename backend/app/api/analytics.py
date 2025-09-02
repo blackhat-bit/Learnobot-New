@@ -211,3 +211,48 @@ async def get_all_students(
         }
         for student in students
     ]
+
+@router.put("/students/{student_id}")
+async def update_student_profile(
+    student_id: int,
+    student_data: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update student profile - Admin and Teacher access"""
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    from app.models.user import StudentProfile
+    
+    # Find the student
+    student = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Update allowed fields
+    if 'full_name' in student_data:
+        student.full_name = student_data['full_name']
+    if 'grade' in student_data:
+        student.grade = student_data['grade']
+    if 'difficulty_level' in student_data:
+        student.difficulty_level = student_data['difficulty_level']
+    if 'difficulties_description' in student_data:
+        student.difficulties_description = student_data['difficulties_description']
+    
+    try:
+        db.commit()
+        db.refresh(student)
+        
+        return {
+            "id": student.id,
+            "user_id": student.user_id,
+            "full_name": student.full_name,
+            "grade": student.grade,
+            "difficulty_level": student.difficulty_level,
+            "difficulties_description": student.difficulties_description,
+            "teacher_id": student.teacher_id
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update student: {str(e)}")

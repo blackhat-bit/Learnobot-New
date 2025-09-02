@@ -26,6 +26,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
   bool _isLoading = true;
   String _username = 'המורה';
   String? _userRole;
+  Map<String, dynamic>? _dashboardStats;
   
   // Local state
 
@@ -37,6 +38,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
       _loadData();
       _loadUsername();
       _loadUserRole();
+      _loadDashboardStats();
     });
   }
   
@@ -62,6 +64,27 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
     if (role != null && mounted) {
       setState(() {
         _userRole = role;
+      });
+    }
+  }
+
+  Future<void> _loadDashboardStats() async {
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      final stats = await AnalyticsService.getDashboardSummary(token: token);
+      
+      setState(() {
+        _dashboardStats = stats;
+      });
+    } catch (e) {
+      print('Error loading dashboard stats: $e');
+      // Use fallback values
+      setState(() {
+        _dashboardStats = {
+          'total_students': _recentStudents.length,
+          'total_sessions': 0,
+          'total_interactions': 0,
+        };
       });
     }
   }
@@ -223,9 +246,9 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildSummaryItem('תלמידים', '5'),
-                        _buildSummaryItem('שיחות היום', '12'),
-                        _buildSummaryItem('קריאות לעזרה', '3'),
+                        _buildSummaryItem('תלמידים', '${_dashboardStats?['total_students'] ?? _recentStudents.length}'),
+                        _buildSummaryItem('שיחות היום', '${_dashboardStats?['total_sessions'] ?? 0}'),
+                        _buildSummaryItem('קריאות לעזרה', '${_dashboardStats?['total_interactions'] ?? 0}'),
                       ],
                     ),
                   ),

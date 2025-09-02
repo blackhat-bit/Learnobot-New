@@ -4,7 +4,7 @@ import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/student.dart';
 import '../../models/chat_message.dart';
-import '../student/student_chat_screen.dart';
+import '../../services/analytics_service.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   final Student student;
@@ -121,20 +121,19 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
               ),
             ),
             
-            // Start Conversation Button
+            // View Profile Button (removed unwanted chat button)
             ElevatedButton.icon(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const StudentChatScreen(
-                      initialMode: 'practice',
-                    ),
+                // Just close this screen or show info
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('פרופיל תלמיד - ניתן לערוך פרטים'),
+                    backgroundColor: Colors.blue,
                   ),
                 );
               },
-              icon: const Icon(Icons.chat_bubble_outline),
-              label: const Text(AppStrings.startConversation),
+              icon: const Icon(Icons.info_outline),
+              label: const Text('פרטי תלמיד'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.primary,
@@ -655,7 +654,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
                       child: const Text('ביטול'),
                     ),
                     ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (nameController.text.isEmpty || 
                             gradeController.text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -666,7 +665,20 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
                           return;
                         }
                         
-                        setState(() {
+                        try {
+                          // Update student in database
+                          final updates = {
+                            'full_name': nameController.text,
+                            'grade': gradeController.text,
+                            'difficulty_level': selectedDifficulty,
+                            'difficulties_description': descriptionController.text,
+                          };
+                          
+                          await AnalyticsService.updateStudentProfile(
+                            studentId: int.parse(widget.student.id),
+                            updates: updates,
+                          );
+                          
                           final updatedStudent = Student(
                             id: widget.student.id,
                             name: nameController.text,
@@ -675,9 +687,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
                             description: descriptionController.text,
                           );
                           
-                          // In a real app, you would update the student in the database
-                          
-                          // Refresh the UI
                           Navigator.pop(context);
                           Navigator.pushReplacement(
                             context,
@@ -687,7 +696,21 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
                               ),
                             ),
                           );
-                        });
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('פרטי התלמיד עודכנו בהצלחה'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('שגיאה בעדכון: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       },
                       child: const Text('שמור'),
                     ),
