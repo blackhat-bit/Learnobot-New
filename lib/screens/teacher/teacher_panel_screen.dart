@@ -8,6 +8,8 @@ import 'account_settings_screen.dart';
 import '../../widgets/notification_widget.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/auth_service_backend.dart';
+import '../../services/analytics_service.dart';
 import '../../services/notification_service.dart';
 import '../auth/welcome_screen.dart';
 import 'package:provider/provider.dart';
@@ -68,9 +70,21 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) {
       try {
-        // You may want to replace with actual Firestore fetching here:
-        final databaseService = DatabaseService();
-        List<Student> allStudents = databaseService.getAllStudents();
+        // Load real students from backend
+        final token = await AuthServiceBackend.getStoredToken();
+        final studentsData = await AnalyticsService.getAllStudents(token: token);
+        
+        // Convert backend data to Student model format
+        final allStudents = studentsData.map((studentData) {
+          return Student(
+            id: studentData['id'].toString(),
+            name: studentData['full_name'] ?? 'Student ${studentData['id']}',
+            grade: studentData['grade'] ?? 'N/A',
+            difficultyLevel: studentData['difficulty_level'] ?? 3,
+            description: studentData['difficulties_description'] ?? 'No description available',
+            profileImageUrl: '',
+          );
+        }).toList();
 
         allStudents.sort((a, b) => b.grade.compareTo(a.grade));
         setState(() {
@@ -78,7 +92,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
           _isLoading = false;
         });
       } catch (e) {
-        debugPrint('Error loading data: $e');
+        debugPrint('Error loading backend students: $e');
         setState(() {
           _recentStudents = [];
           _isLoading = false;

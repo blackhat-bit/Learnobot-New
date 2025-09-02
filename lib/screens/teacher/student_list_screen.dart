@@ -31,56 +31,45 @@ class _StudentListScreenState extends State<StudentListScreen> {
     super.dispose();
   }
   
-  void _loadStudents() {
-    // Mock student data - in a real app, this would come from a database
-    _students = [
-      Student(
-        id: '1',
-        name: 'חן לוי',
-        grade: '3\'ג',
-        difficultyLevel: 3,
-        description: 'מתקשה בקריאת הוראות ארוכות ובפירוק משימות מורכבות',
-        profileImageUrl: '',
-      ),
-      Student(
-        id: '2',
-        name: 'הילה שושני',
-        grade: '1\'ה',
-        difficultyLevel: 2,
-        description: 'קשיי קשב וריכוז, צריכה הסברים קצרים וברורים',
-        profileImageUrl: '',
-      ),
-      Student(
-        id: '3',
-        name: 'רון שני',
-        grade: '2\'ב',
-        difficultyLevel: 4,
-        description: 'קשיים בהבנת הוראות מילוליות, מעדיף הוראות חזותיות',
-        profileImageUrl: '',
-      ),
-      Student(
-        id: '4',
-        name: 'נילי נעים',
-        grade: '1\'ו',
-        difficultyLevel: 1,
-        description: 'צריכה חיזוקים חיוביים תכופים לשמירה על מוטיבציה',
-        profileImageUrl: '',
-      ),
-      Student(
-        id: '5',
-        name: 'נועם אופלי',
-        grade: '5\'ג',
-        difficultyLevel: 5,
-        description: 'קשיים משמעותיים בהבנת הוראות, נדרשת עזרה צמודה',
-        profileImageUrl: '',
-      ),
-    ];
-    
-    // Sort by grade
-    _students.sort((a, b) => a.grade.compareTo(b.grade));
-    
-    // Initialize filtered list
-    _filteredStudents = List.from(_students);
+  Future<void> _loadStudents() async {
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      final studentsData = await AnalyticsService.getAllStudents(token: token);
+      
+      // Convert backend data to Student model format
+      final students = studentsData.map((studentData) {
+        return Student(
+          id: studentData['id'].toString(),
+          name: studentData['full_name'] ?? 'Student ${studentData['id']}',
+          grade: studentData['grade'] ?? 'N/A',
+          difficultyLevel: studentData['difficulty_level'] ?? 3,
+          description: studentData['difficulties_description'] ?? 'No description available',
+          profileImageUrl: '',
+        );
+      }).toList();
+      
+      setState(() {
+        _students = students;
+        // Sort by grade
+        _students.sort((a, b) => a.grade.compareTo(b.grade));
+        // Initialize filtered list
+        _filteredStudents = List.from(_students);
+      });
+    } catch (e) {
+      print('Error loading students from backend: $e');
+      // Show empty list if backend fails
+      setState(() {
+        _students = [];
+        _filteredStudents = [];
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load students: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
   
   void _filterStudents(String query) {
