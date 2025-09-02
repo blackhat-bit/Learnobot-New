@@ -62,7 +62,7 @@ class AuthServiceBackend {
     String? school,
   }) async {
     try {
-      final body = {
+      final Map<String, dynamic> body = {
         'email': email,
         'password': password,
         'username': username,
@@ -73,7 +73,7 @@ class AuthServiceBackend {
       // Add student-specific fields
       if (role == 'student') {
         body['grade'] = grade ?? '';
-        body['difficulty_level'] = difficultyLevel ?? 3;
+        body['difficulty_level'] = difficultyLevel ?? 3; // Keep as int - JSON handles it
         body['difficulties_description'] = difficultiesDescription ?? '';
       }
       
