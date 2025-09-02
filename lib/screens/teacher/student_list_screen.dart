@@ -290,10 +290,15 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
   
   void _showAddStudentDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
+    // Complete registration form controllers
+    final TextEditingController usernameController = TextEditingController();
+    final TextEditingController fullNameController = TextEditingController();
+    final TextEditingController emailController = TextEditingController();
+    final TextEditingController passwordController = TextEditingController();
     final TextEditingController gradeController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
     int selectedDifficulty = 3;
+    bool isLoading = false;
     
     showDialog(
       context: context,
@@ -317,13 +322,63 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 ),
                 const SizedBox(height: 20),
                 
-                // Name Field
+                // Username Field
                 TextField(
-                  controller: nameController,
+                  controller: usernameController,
                   textDirection: TextDirection.rtl,
                   decoration: const InputDecoration(
-                    labelText: 'שם תלמיד',
+                    labelText: 'שם משתמש',
                     border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 15, 
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                
+                // Full Name Field
+                TextField(
+                  controller: fullNameController,
+                  textDirection: TextDirection.rtl,
+                  decoration: const InputDecoration(
+                    labelText: 'שם מלא',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.account_circle),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 15, 
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                
+                // Email Field
+                TextField(
+                  controller: emailController,
+                  textDirection: TextDirection.ltr,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'דואר אלקטרוני',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 15, 
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                
+                // Password Field
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'סיסמה',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 15, 
                       vertical: 10,
@@ -424,34 +479,83 @@ class _StudentListScreenState extends State<StudentListScreen> {
                       child: const Text('ביטול'),
                     ),
                     ElevatedButton(
-                      onPressed: () {
-                        if (nameController.text.isEmpty || 
+                      onPressed: isLoading ? null : () async {
+                        // Validate all required fields
+                        if (usernameController.text.isEmpty ||
+                            fullNameController.text.isEmpty ||
+                            emailController.text.isEmpty ||
+                            passwordController.text.isEmpty ||
                             gradeController.text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('נא להזין שם וכיתה'),
+                              content: Text('נא למלא את כל השדות הנדרשים'),
+                              backgroundColor: Colors.red,
                             ),
                           );
                           return;
                         }
                         
-                        final newStudent = Student(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          name: nameController.text,
-                          grade: gradeController.text,
-                          difficultyLevel: selectedDifficulty,
-                          description: descriptionController.text,
-                        );
+                        if (!emailController.text.contains('@')) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('נא להזין כתובת אימייל תקינה'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
                         
                         setState(() {
-                          _students.add(newStudent);
-                          _students.sort((a, b) => a.grade.compareTo(b.grade));
-                          _filteredStudents = List.from(_students);
+                          isLoading = true;
                         });
                         
-                        Navigator.pop(context);
+                        try {
+                          // Register student via backend
+                          await AuthServiceBackend.register(
+                            email: emailController.text.trim(),
+                            password: passwordController.text,
+                            username: usernameController.text.trim(),
+                            fullName: fullNameController.text.trim(),
+                            role: 'student',
+                            grade: gradeController.text.trim(),
+                            difficultyLevel: selectedDifficulty,
+                            difficultiesDescription: descriptionController.text.trim(),
+                          );
+                          
+                          // Refresh student list from backend
+                          await _loadStudents();
+                          
+                          Navigator.pop(context);
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('התלמיד נוסף בהצלחה'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('שגיאה ביצירת התלמיד: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } finally {
+                          setState(() {
+                            isLoading = false;
+                          });
+                        }
                       },
-                      child: const Text('שמור'),
+                      child: isLoading 
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text('שמור'),
                     ),
                   ],
                 ),

@@ -191,13 +191,20 @@ async def get_all_students(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all students for analytics - Admin and Teacher access"""
+    """Get students for analytics - Admin sees all, Teachers see only their assigned students"""
     if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
     
     from app.models.user import StudentProfile
     
-    students = db.query(StudentProfile).all()
+    if current_user.role == UserRole.ADMIN:
+        # Admin sees all students (including admin testing profiles)
+        students = db.query(StudentProfile).all()
+    else:
+        # Teachers only see their assigned students (excludes admin testing profiles)
+        students = db.query(StudentProfile).filter(
+            StudentProfile.teacher_id == current_user.teacher_profile.id
+        ).all()
     
     return [
         {
