@@ -191,7 +191,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
                     items: _students.map((student) {
                       return DropdownMenuItem(
                         value: student['id'].toString(),
-                        child: Text('${student['full_name']} - Grade ${student['grade']}'),
+                        child: Text('${student['full_name'] ?? 'Unknown'} - Grade ${student['grade'] ?? 'N/A'}'),
                       );
                     }).toList(),
                     onChanged: (value) {
