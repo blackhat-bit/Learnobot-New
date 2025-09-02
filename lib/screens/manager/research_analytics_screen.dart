@@ -6,6 +6,8 @@ import '../../services/analytics_service.dart';
 import '../../services/auth_service_backend.dart';
 
 class ResearchAnalyticsScreen extends StatefulWidget {
+  const ResearchAnalyticsScreen({super.key});
+
   @override
   _ResearchAnalyticsScreenState createState() => _ResearchAnalyticsScreenState();
 }
@@ -28,18 +30,19 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
 
   Future<void> _loadStudents() async {
     try {
-      // For now, use mock data since we don't have a students endpoint yet
+      final token = await AuthServiceBackend.getStoredToken();
+      final students = await AnalyticsService.getAllStudents(token: token);
+      
       setState(() {
-        _students = [
-          {'id': 1, 'full_name': 'חן לוי', 'grade': '3ג'},
-          {'id': 2, 'full_name': 'הילה שושני', 'grade': '1ה'},
-          {'id': 3, 'full_name': 'רון שני', 'grade': '2ב'},
-          {'id': 4, 'full_name': 'נילי נעים', 'grade': '1ו'},
-          {'id': 5, 'full_name': 'נועם אופלי', 'grade': '5ג'},
-        ];
+        _students = students;
       });
     } catch (e) {
-      _showError('Failed to load students');
+      print('Error loading students from backend: $e');
+      // Fallback to empty list if backend fails
+      setState(() {
+        _students = [];
+      });
+      _showError('Failed to load students from backend');
     }
   }
 
@@ -117,43 +120,43 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Research Analytics'),
+        title: const Text('Research Analytics'),
         backgroundColor: Colors.purple,
         actions: [
           IconButton(
-            icon: Icon(Icons.download),
+            icon: const Icon(Icons.download),
             onPressed: _exportData,
             tooltip: 'Export Data',
           ),
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Student and Time Range Selector
                   _buildSelectors(),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   
                   // Overview Cards
                   if (_analytics != null) ...[
                     _buildOverviewCards(),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     
                     // Progress Chart
                     _buildProgressChart(),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     
                     // Assistance Usage
                     _buildAssistanceAnalysis(),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     
                     // Engagement Metrics
                     _buildEngagementMetrics(),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     
                     // Research Insights
                     _buildResearchInsights(),
@@ -167,21 +170,21 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   Widget _buildSelectors() {
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Select Student & Time Range',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     value: _selectedStudentId,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Student',
                       border: OutlineInputBorder(),
                     ),
@@ -201,16 +204,16 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
                     },
                   ),
                 ),
-                SizedBox(width: 16),
-                Container(
+                const SizedBox(width: 16),
+                SizedBox(
                   width: 120,
                   child: DropdownButtonFormField<int>(
                     value: _timeRange,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Days',
                       border: OutlineInputBorder(),
                     ),
-                    items: [
+                    items: const [
                       DropdownMenuItem(value: 7, child: Text('7 days')),
                       DropdownMenuItem(value: 30, child: Text('30 days')),
                       DropdownMenuItem(value: 90, child: Text('90 days')),
@@ -244,7 +247,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 1.5,
       crossAxisSpacing: 10,
       mainAxisSpacing: 10,
@@ -287,7 +290,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -306,7 +309,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
             ),
             Text(
               value,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             Text(
               subtitle,
@@ -325,7 +328,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     final progressTrend = (_analytics!['progress_trend'] as List?) ?? [];
     
     if (progressTrend.isEmpty) {
-      return Card(
+      return const Card(
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Center(child: Text('No progress data available')),
@@ -335,22 +338,22 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Learning Progress Over Time',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
-            Container(
+            const SizedBox(height: 16),
+            SizedBox(
               height: 200,
               child: LineChart(
                 LineChartData(
-                  gridData: FlGridData(show: true),
+                  gridData: const FlGridData(show: true),
                   titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
+                    leftTitles: const AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 40,
@@ -364,10 +367,10 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
                             final date = progressTrend[value.toInt()]['date'];
                             return Text(
                               DateFormat('MM/dd').format(DateTime.parse(date)),
-                              style: TextStyle(fontSize: 10),
+                              style: const TextStyle(fontSize: 10),
                             );
                           }
-                          return Text('');
+                          return const Text('');
                         },
                       ),
                     ),
@@ -384,7 +387,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
                       isCurved: true,
                       color: Colors.purple,
                       barWidth: 3,
-                      dotData: FlDotData(show: true),
+                      dotData: const FlDotData(show: true),
                     ),
                   ],
                   minY: 0,
@@ -407,30 +410,30 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Assistance Type Usage',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: Column(
                     children: [
                       _buildAssistanceBar('פירוק', assistance['breakdown'] ?? 0, total, Colors.blue),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       _buildAssistanceBar('דוגמה', assistance['example'] ?? 0, total, Colors.green),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       _buildAssistanceBar('הסבר', assistance['explain'] ?? 0, total, Colors.orange),
                     ],
                   ),
                 ),
-                SizedBox(width: 16),
-                Container(
+                const SizedBox(width: 16),
+                SizedBox(
                   width: 150,
                   height: 150,
                   child: PieChart(
@@ -473,7 +476,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
       children: [
         SizedBox(
           width: 60,
-          child: Text(label, style: TextStyle(fontSize: 14)),
+          child: Text(label, style: const TextStyle(fontSize: 14)),
         ),
         Expanded(
           child: LinearProgressIndicator(
@@ -483,8 +486,8 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
             minHeight: 20,
           ),
         ),
-        SizedBox(width: 8),
-        Text('$value', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        const SizedBox(width: 8),
+        Text('$value', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -497,37 +500,37 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Engagement Metrics',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.school, color: Colors.red),
-              title: Text('Teacher Calls'),
+              leading: const Icon(Icons.school, color: Colors.red),
+              title: const Text('Teacher Calls'),
               trailing: Text(
                 (engagement['teacher_calls'] ?? 0).toString(),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ListTile(
-              leading: Icon(Icons.photo_camera, color: Colors.blue),
-              title: Text('Tasks Uploaded'),
+              leading: const Icon(Icons.photo_camera, color: Colors.blue),
+              title: const Text('Tasks Uploaded'),
               trailing: Text(
                 (engagement['tasks_uploaded'] ?? 0).toString(),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ListTile(
-              leading: Icon(Icons.error_outline, color: Colors.orange),
-              title: Text('Error Rate'),
+              leading: const Icon(Icons.error_outline, color: Colors.orange),
+              title: const Text('Error Rate'),
               trailing: Text(
                 '${(engagement['error_rate'] ?? 0.0).toStringAsFixed(2)} per session',
-                style: TextStyle(fontSize: 16),
+                style: const TextStyle(fontSize: 16),
               ),
             ),
           ],
@@ -539,29 +542,29 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   Widget _buildResearchInsights() {
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Research Insights',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             _buildInsight(
               'Learning Progress',
               _calculateProgressTrend(),
               _getProgressIcon(),
               _getProgressColor(),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             _buildInsight(
               'Engagement Level',
               _getEngagementInsight(),
               Icons.favorite,
               Colors.blue,
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             _buildInsight(
               'Independence',
               _getIndependenceInsight(),
@@ -579,14 +582,14 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, color: color, size: 24),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               Text(
                 insight,

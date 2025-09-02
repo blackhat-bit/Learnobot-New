@@ -10,8 +10,6 @@ import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../auth/welcome_screen.dart';
-import '../manager/ai_manager_screen.dart';
-import '../manager/research_analytics_screen.dart';
 import 'package:provider/provider.dart';
 
 class TeacherPanelScreen extends StatefulWidget {

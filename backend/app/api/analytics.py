@@ -185,3 +185,29 @@ async def get_research_patterns(
     }
     
     return patterns
+
+@router.get("/students", response_model=List[Dict[str, Any]])
+async def get_all_students(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all students for analytics - Admin and Teacher access"""
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    from app.models.user import StudentProfile
+    
+    students = db.query(StudentProfile).all()
+    
+    return [
+        {
+            "id": student.id,
+            "user_id": student.user_id,
+            "full_name": student.full_name,
+            "grade": student.grade,
+            "difficulty_level": student.difficulty_level,
+            "difficulties_description": student.difficulties_description,
+            "teacher_id": student.teacher_id
+        }
+        for student in students
+    ]

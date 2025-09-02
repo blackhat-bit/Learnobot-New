@@ -122,6 +122,27 @@ class AnalyticsService {
     }
   }
 
+  // Get all students for analytics
+  static Future<List<Map<String, dynamic>>> getAllStudents({
+    String? token,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.analyticsEndpoint}/students'),
+        headers: ApiConfig.getHeaders(token: token),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to get students: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to get students: $e');
+    }
+  }
+
   // Get dashboard summary for admin
   static Future<Map<String, dynamic>> getDashboardSummary({
     String? token,

@@ -1,6 +1,5 @@
 // lib/screens/student/student_home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../services/auth_service_backend.dart';

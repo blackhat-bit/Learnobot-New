@@ -4,6 +4,8 @@ import '../../services/llm_service.dart';
 import '../../services/auth_service_backend.dart';
 
 class AIManagerScreen extends StatefulWidget {
+  const AIManagerScreen({super.key});
+
   @override
   _AIManagerScreenState createState() => _AIManagerScreenState();
 }
@@ -13,7 +15,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
   // State variables
   List<dynamic> _providers = [];
   String _activeProvider = '';
-  Map<String, dynamic> _prompts = {
+  final Map<String, dynamic> _prompts = {
     'practice': {
       'system': '''אתה LearnoBot, עוזר AI שנועד לעזור לתלמידים עם לקויות למידה להבין הוראות לימודיות.
 
@@ -35,8 +37,8 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
   
   bool _isLoading = false;
   String _selectedMode = 'practice';
-  TextEditingController _systemPromptController = TextEditingController();
-  TextEditingController _testPromptController = TextEditingController();
+  final TextEditingController _systemPromptController = TextEditingController();
+  final TextEditingController _testPromptController = TextEditingController();
   Map<String, dynamic>? _comparisonResults;
 
   @override
@@ -154,18 +156,18 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('AI Configuration Manager'),
+        title: const Text('AI Configuration Manager'),
         backgroundColor: Colors.purple,
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : DefaultTabController(
               length: 3,
               child: Column(
                 children: [
                   Container(
                     color: Colors.purple[50],
-                    child: TabBar(
+                    child: const TabBar(
                       labelColor: Colors.purple,
                       unselectedLabelColor: Colors.grey,
                       tabs: [
@@ -192,13 +194,13 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
 
   Widget _buildProvidersTab() {
     return ListView(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       children: [
-        Text(
+        const Text(
           'Available AI Providers',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         ..._providers.map((provider) => Card(
           child: ListTile(
             leading: Icon(
@@ -213,12 +215,12 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
             subtitle: Text(provider['info']?['model'] ?? 'No model specified'),
             trailing: (provider['name'] ?? '') == _activeProvider
                 ? Chip(
-                    label: Text('Active'),
+                    label: const Text('Active'),
                     backgroundColor: Colors.green[100],
                   )
                 : ElevatedButton(
                     onPressed: () => _switchProvider(provider['name'] ?? ''),
-                    child: Text('Activate'),
+                    child: const Text('Activate'),
                   ),
           ),
         )).toList(),
@@ -228,13 +230,13 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
 
   Widget _buildPromptsTab() {
     return ListView(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       children: [
-        Text(
+        const Text(
           'Configure AI Behavior',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         
         // Mode selector
         Row(
@@ -252,10 +254,10 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                     ? Colors.purple 
                     : Colors.grey[300],
                 ),
-                child: Text('Practice Mode'),
+                child: const Text('Practice Mode'),
               ),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Expanded(
               child: ElevatedButton(
                 onPressed: () {
@@ -269,21 +271,21 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                     ? Colors.purple 
                     : Colors.grey[300],
                 ),
-                child: Text('Test Mode'),
+                child: const Text('Test Mode'),
               ),
             ),
           ],
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         
         // System prompt editor
-        Text('System Prompt (Hebrew):', style: TextStyle(fontWeight: FontWeight.bold)),
-        SizedBox(height: 8),
+        const Text('System Prompt (Hebrew):', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
         TextField(
           controller: _systemPromptController,
           maxLines: 10,
           textDirection: TextDirection.rtl,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             border: OutlineInputBorder(),
             hintText: 'הכנס הוראות למערכת...',
           ),
@@ -291,7 +293,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
             _prompts[_selectedMode]['system'] = value;
           },
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         
         // Temperature slider
         Text('Temperature (Creativity): ${_prompts[_selectedMode]['temperature']}'),
@@ -306,11 +308,11 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
             });
           },
         ),
-        Text(
+        const Text(
           '0 = Precise answers | 1 = Creative answers',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         
         // Max tokens slider
         Text('Max Tokens: ${_prompts[_selectedMode]['maxTokens']}'),
@@ -325,15 +327,15 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
             });
           },
         ),
-        SizedBox(height: 24),
+        const SizedBox(height: 24),
         
         ElevatedButton(
           onPressed: _savePrompt,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.purple,
-            padding: EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.symmetric(vertical: 16),
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.save),
@@ -348,33 +350,33 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
 
   Widget _buildTestingTab() {
     return ListView(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       children: [
-        Text(
+        const Text(
           'Test & Compare Providers',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         
         TextField(
           controller: _testPromptController,
           maxLines: 3,
           textDirection: TextDirection.rtl,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             border: OutlineInputBorder(),
             hintText: 'הכנס שאלה לבדיקה...',
             labelText: 'Test Prompt',
           ),
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         
         ElevatedButton(
           onPressed: _compareProviders,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.purple,
-            padding: EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.symmetric(vertical: 16),
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.compare_arrows),
@@ -385,15 +387,15 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
         ),
         
         if (_comparisonResults != null) ...[
-          SizedBox(height: 24),
-          Text(
+          const SizedBox(height: 24),
+          const Text(
             'Comparison Results:',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           ..._comparisonResults!.entries.map((entry) => Card(
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -402,7 +404,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                     children: [
                       Text(
                         entry.key,
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       if (entry.value['success'])
                         Chip(
@@ -411,16 +413,16 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                         ),
                     ],
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       entry.value['response'] ?? 'Error: ${entry.value['error']}',
-                      style: TextStyle(fontSize: 14),
+                      style: const TextStyle(fontSize: 14),
                       textDirection: TextDirection.rtl,
                     ),
                   ),
