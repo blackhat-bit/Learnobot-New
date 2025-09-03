@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
-import '../../services/auth_service.dart';
+import '../../services/auth_service_backend.dart';
 import 'login_screen.dart';
-import 'package:provider/provider.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({Key? key}) : super(key: key);
@@ -15,18 +14,32 @@ class RegistrationScreen extends StatefulWidget {
 class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  
+  // Student-specific fields
+  final _gradeController = TextEditingController();
+  final _difficultiesController = TextEditingController();
+  int _difficultyLevel = 3;
+  
+  // Teacher-specific fields
+  final _schoolController = TextEditingController();
+  
   bool _isTeacher = true; // Default to teacher registration
   bool _isLoading = false;
 
   @override
   void dispose() {
     _usernameController.dispose();
+    _fullNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _gradeController.dispose();
+    _difficultiesController.dispose();
+    _schoolController.dispose();
     super.dispose();
   }
 
@@ -47,30 +60,45 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       });
 
       try {
-        final authService = Provider.of<AuthService>(context, listen: false);
-
-        await authService.registerWithEmail(
+        // Use backend registration service
+        final result = await AuthServiceBackend.register(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           username: _usernameController.text.trim(),
-          role: _isTeacher ? 'Teacher' : 'Student',
+          fullName: _fullNameController.text.trim(),
+          role: _isTeacher ? 'teacher' : 'student',
+          // Student-specific fields
+          grade: _isTeacher ? null : _gradeController.text.trim(),
+          difficultyLevel: _isTeacher ? null : _difficultyLevel,
+          difficultiesDescription: _isTeacher ? null : _difficultiesController.text.trim(),
+          // Teacher-specific fields
+          school: _isTeacher ? _schoolController.text.trim() : null,
         );
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('ההרשמה הושלמה בהצלחה! ניתן להתחבר כעת'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ההרשמה הושלמה בהצלחה! ניתן להתחבר כעת'),
+              backgroundColor: Colors.green,
+            ),
+          );
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const LoginScreen(),
-          ),
-        );
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const LoginScreen(),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('שגיאה בהרשמה'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } catch (e) {
         if (!mounted) return;
 
@@ -200,6 +228,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ),
                     const SizedBox(height: 15),
 
+                    // Full Name Field (REQUIRED)
+                    TextFormField(
+                      controller: _fullNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'שם מלא',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.account_circle),
+                      ),
+                      textAlign: TextAlign.right,
+                      textDirection: TextDirection.rtl,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'אנא הכנס שם מלא';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 15),
+
                     // Email Field
                     TextFormField(
                       controller: _emailController,
@@ -266,6 +313,112 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ),
                     const SizedBox(height: 25),
 
+                    // Role-specific fields
+                    if (!_isTeacher) ...[
+                      // Student-specific fields
+                      TextFormField(
+                        controller: _gradeController,
+                        decoration: const InputDecoration(
+                          labelText: 'כיתה',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.school),
+                        ),
+                        textAlign: TextAlign.right,
+                        textDirection: TextDirection.rtl,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'אנא הכנס כיתה';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 15),
+                      
+                      // Difficulty Level Selector
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'רמת קושי בהבנת הוראות:',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: List.generate(5, (index) => 
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _difficultyLevel = index + 1;
+                                  });
+                                },
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: _difficultyLevel == index + 1
+                                        ? _getDifficultyColor(index + 1)
+                                        : Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: TextStyle(
+                                        color: _difficultyLevel == index + 1
+                                            ? Colors.white
+                                            : Colors.black,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+                      
+                      TextFormField(
+                        controller: _difficultiesController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'תיאור קשיים (אופציונלי)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.description),
+                        ),
+                        textAlign: TextAlign.right,
+                        textDirection: TextDirection.rtl,
+                      ),
+                      const SizedBox(height: 15),
+                    ],
+                    
+                    if (_isTeacher) ...[
+                      // Teacher-specific fields
+                      TextFormField(
+                        controller: _schoolController,
+                        decoration: const InputDecoration(
+                          labelText: 'בית ספר',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.location_city),
+                        ),
+                        textAlign: TextAlign.right,
+                        textDirection: TextDirection.rtl,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'אנא הכנס שם בית ספר';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 15),
+                    ],
+
                     // Register Button
                     SizedBox(
                       width: double.infinity,
@@ -308,5 +461,22 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ),
       ),
     );
+  }
+  
+  Color _getDifficultyColor(int level) {
+    switch (level) {
+      case 1:
+        return Colors.green;
+      case 2:
+        return Colors.lightGreen;
+      case 3:
+        return Colors.orange;
+      case 4:
+        return Colors.deepOrange;
+      case 5:
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 }

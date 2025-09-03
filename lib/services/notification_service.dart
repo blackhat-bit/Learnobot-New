@@ -14,69 +14,23 @@ class NotificationService extends ChangeNotifier {
   // Get unread notification count
   int get unreadCount => _notifications.where((n) => !n['isRead']).length;
   
-  // Load notifications - ready for backend integration
+  // Load notifications - now returns empty list (no mock data)
   Future<List<Map<String, dynamic>>> getTeacherNotifications() async {
-    // TODO: Replace with actual API call
+    // TODO: Replace with actual API call when notifications backend is ready
     // Example: 
     // final response = await http.get('/api/notifications/teacher/${teacherId}');
     // return response.data;
     
-    // For now, return mock data
     await Future.delayed(const Duration(milliseconds: 500)); // Simulate network delay
     
-    final mockNotifications = [
-      {
-        'id': '1',
-        'message': 'התלמיד חן לוי מבקש עזרה',
-        'time': '8:05 אפר׳ 30',
-        'timestamp': DateTime.now().subtract(const Duration(hours: 2)),
-        'isRead': false,
-        'type': 'help_request',
-        'studentId': '1',
-      },
-      {
-        'id': '2', 
-        'message': 'ההודעה שלך נשלחה לתלמיד רון שני',
-        'time': '10:30 אפר׳ 29',
-        'timestamp': DateTime.now().subtract(const Duration(days: 1)),
-        'isRead': false,
-        'type': 'message_sent',
-        'studentId': '3',
-      },
-      {
-        'id': '3',
-        'message': 'נוספו 3 תלמידים חדשים',
-        'time': '15:42 אפר׳ 28', 
-        'timestamp': DateTime.now().subtract(const Duration(days: 2)),
-        'isRead': true,
-        'type': 'new_students',
-        'studentId': null,
-      },
-      {
-        'id': '4',
-        'message': 'התלמידה נילי נעים ביקשה עזרה',
-        'time': '14:15 אפר׳ 27',
-        'timestamp': DateTime.now().subtract(const Duration(days: 3)),
-        'isRead': true,
-        'type': 'help_request',
-        'studentId': '4',
-      },
-      {
-        'id': '5',
-        'message': 'התלמיד נועם אופלי השלים משימה',
-        'time': '9:20 אפר׳ 26',
-        'timestamp': DateTime.now().subtract(const Duration(days: 4)),
-        'isRead': true,
-        'type': 'task_completed',
-        'studentId': '5',
-      },
-    ];
+    // Return empty list instead of mock data
+    final realNotifications = <Map<String, dynamic>>[];
     
     _notifications.clear();
-    _notifications.addAll(mockNotifications);
+    _notifications.addAll(realNotifications);
     notifyListeners();
     
-    return mockNotifications;
+    return realNotifications;
   }
   
   // Mark all notifications as read

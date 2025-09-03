@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import csv
 import io
@@ -185,3 +185,81 @@ async def get_research_patterns(
     }
     
     return patterns
+
+@router.get("/students", response_model=List[Dict[str, Any]])
+async def get_all_students(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get students for analytics - Admin sees all, Teachers see only their assigned students"""
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    from app.models.user import StudentProfile
+    
+    if current_user.role == UserRole.ADMIN:
+        # Admin sees all students (including admin testing profiles)
+        students = db.query(StudentProfile).all()
+    else:
+        # Teachers only see their assigned students (excludes admin testing profiles)
+        students = db.query(StudentProfile).filter(
+            StudentProfile.teacher_id == current_user.teacher_profile.id
+        ).all()
+    
+    return [
+        {
+            "id": student.id,
+            "user_id": student.user_id,
+            "full_name": student.full_name,
+            "grade": student.grade,
+            "difficulty_level": student.difficulty_level,
+            "difficulties_description": student.difficulties_description,
+            "teacher_id": student.teacher_id
+        }
+        for student in students
+    ]
+
+@router.put("/students/{student_id}")
+async def update_student_profile(
+    student_id: int,
+    student_data: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update student profile - Admin and Teacher access"""
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    from app.models.user import StudentProfile
+    
+    # Find the student
+    student = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Update allowed fields
+    if 'full_name' in student_data:
+        student.full_name = student_data['full_name']
+    if 'grade' in student_data:
+        student.grade = student_data['grade']
+    if 'difficulty_level' in student_data:
+        student.difficulty_level = student_data['difficulty_level']
+    if 'difficulties_description' in student_data:
+        student.difficulties_description = student_data['difficulties_description']
+    
+    try:
+        db.commit()
+        db.refresh(student)
+        
+        return {
+            "id": student.id,
+            "user_id": student.user_id,
+            "full_name": student.full_name,
+            "grade": student.grade,
+            "difficulty_level": student.difficulty_level,
+            "difficulties_description": student.difficulties_description,
+            "teacher_id": student.teacher_id
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update student: {str(e)}")

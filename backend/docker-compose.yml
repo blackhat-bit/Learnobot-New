@@ -8,18 +8,16 @@ services:
       POSTGRES_PASSWORD: StrongPassword123!
       POSTGRES_DB: learnobot_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
   ollama:
     image: ollama/ollama
     volumes:
-      - ollama_data:/root/.ollama
+      - ./data/ollama:/root/.ollama
     ports:
       - "11434:11434"
     command: serve
 
-volumes:
-  postgres_data:
-  ollama_data:
+# Using local directory mounts for better data persistence

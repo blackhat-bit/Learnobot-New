@@ -1,19 +1,18 @@
 // lib/screens/manager/research_analytics_screen.dart
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import '../../services/api_config.dart';
-import '../../services/auth_service.dart';
+import '../../services/analytics_service.dart';
+import '../../services/auth_service_backend.dart';
 
 class ResearchAnalyticsScreen extends StatefulWidget {
+  const ResearchAnalyticsScreen({super.key});
+
   @override
   _ResearchAnalyticsScreenState createState() => _ResearchAnalyticsScreenState();
 }
 
 class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
-  final AuthService _authService = AuthService();
   
   // State variables
   List<dynamic> _students = [];
@@ -31,19 +30,19 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
 
   Future<void> _loadStudents() async {
     try {
-      final token = await _authService.getToken();
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/teacher/students'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final token = await AuthServiceBackend.getStoredToken();
+      final students = await AnalyticsService.getAllStudents(token: token);
       
-      if (response.statusCode == 200) {
-        setState(() {
-          _students = jsonDecode(response.body);
-        });
-      }
+      setState(() {
+        _students = students;
+      });
     } catch (e) {
-      _showError('Failed to load students');
+      print('Error loading students from backend: $e');
+      // Fallback to empty list if backend fails
+      setState(() {
+        _students = [];
+      });
+      _showError('Failed to load students from backend');
     }
   }
 
@@ -51,19 +50,42 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final token = await _authService.getToken();
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/analytics/student/$studentId?days=$_timeRange'),
-        headers: {'Authorization': 'Bearer $token'},
+      final token = await AuthServiceBackend.getStoredToken();
+      final analytics = await AnalyticsService.getStudentAnalytics(
+        studentId: int.parse(studentId),
+        token: token,
       );
       
-      if (response.statusCode == 200) {
-        setState(() {
-          _analytics = jsonDecode(response.body);
-        });
-      }
+      setState(() {
+        _analytics = analytics;
+      });
     } catch (e) {
-      _showError('Failed to load analytics');
+      print('Error loading analytics for student $studentId: $e');
+      // Use mock analytics data for students not in database
+      setState(() {
+        _analytics = {
+          'summary': {
+            'total_sessions': 0,
+            'total_time_minutes': 0,
+            'total_messages': 0,
+            'average_session_duration_minutes': 0,
+            'average_messages_per_session': 0,
+          },
+          'engagement_metrics': {
+            'average_satisfaction': null,
+            'teacher_calls': 0,
+            'tasks_uploaded': 0,
+            'error_rate': 0.0,
+          },
+          'assistance_usage': {
+            'breakdown': 0,
+            'example': 0,
+            'explain': 0,
+          },
+          'progress_trend': [],
+        };
+      });
+      _showError('Student not found in database - showing empty data');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -98,43 +120,43 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Research Analytics'),
+        title: const Text('Research Analytics'),
         backgroundColor: Colors.purple,
         actions: [
           IconButton(
-            icon: Icon(Icons.download),
+            icon: const Icon(Icons.download),
             onPressed: _exportData,
             tooltip: 'Export Data',
           ),
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Student and Time Range Selector
                   _buildSelectors(),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   
                   // Overview Cards
                   if (_analytics != null) ...[
                     _buildOverviewCards(),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     
                     // Progress Chart
                     _buildProgressChart(),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     
                     // Assistance Usage
                     _buildAssistanceAnalysis(),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     
                     // Engagement Metrics
                     _buildEngagementMetrics(),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     
                     // Research Insights
                     _buildResearchInsights(),
@@ -148,28 +170,28 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   Widget _buildSelectors() {
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Select Student & Time Range',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     value: _selectedStudentId,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Student',
                       border: OutlineInputBorder(),
                     ),
                     items: _students.map((student) {
                       return DropdownMenuItem(
                         value: student['id'].toString(),
-                        child: Text('${student['full_name']} - Grade ${student['grade']}'),
+                        child: Text('${student['full_name'] ?? 'Unknown'} - Grade ${student['grade'] ?? 'N/A'}'),
                       );
                     }).toList(),
                     onChanged: (value) {
@@ -182,16 +204,16 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
                     },
                   ),
                 ),
-                SizedBox(width: 16),
-                Container(
+                const SizedBox(width: 16),
+                SizedBox(
                   width: 120,
                   child: DropdownButtonFormField<int>(
                     value: _timeRange,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Days',
                       border: OutlineInputBorder(),
                     ),
-                    items: [
+                    items: const [
                       DropdownMenuItem(value: 7, child: Text('7 days')),
                       DropdownMenuItem(value: 30, child: Text('30 days')),
                       DropdownMenuItem(value: 90, child: Text('90 days')),
@@ -215,35 +237,39 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   }
 
   Widget _buildOverviewCards() {
-    final summary = _analytics!['summary'];
-    final engagement = _analytics!['engagement_metrics'];
+    if (_analytics == null) {
+      return const Center(child: Text('אין נתונים זמינים'));
+    }
+    
+    final summary = _analytics!['summary'] ?? {};
+    final engagement = _analytics!['engagement_metrics'] ?? {};
     
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 1.5,
       crossAxisSpacing: 10,
       mainAxisSpacing: 10,
       children: [
         _buildMetricCard(
           'Total Sessions',
-          summary['total_sessions'].toString(),
-          'Avg ${summary['average_session_duration_minutes']} min',
+          (summary['total_sessions'] ?? 0).toString(),
+          'Avg ${summary['average_session_duration_minutes'] ?? 0} min',
           Icons.calendar_today,
           Colors.blue,
         ),
         _buildMetricCard(
           'Total Time',
-          '${summary['total_time_minutes']} min',
-          '${(summary['total_time_minutes'] / 60).toStringAsFixed(1)} hours',
+          '${summary['total_time_minutes'] ?? 0} min',
+          '${((summary['total_time_minutes'] ?? 0) / 60).toStringAsFixed(1)} hours',
           Icons.access_time,
           Colors.green,
         ),
         _buildMetricCard(
           'Messages',
-          summary['total_messages'].toString(),
-          'Avg ${summary['average_messages_per_session']}/session',
+          (summary['total_messages'] ?? 0).toString(),
+          'Avg ${summary['average_messages_per_session'] ?? 0}/session',
           Icons.message,
           Colors.orange,
         ),
@@ -264,7 +290,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -283,7 +309,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
             ),
             Text(
               value,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             Text(
               subtitle,
@@ -296,10 +322,13 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   }
 
   Widget _buildProgressChart() {
-    final progressTrend = _analytics!['progress_trend'] as List;
+    if (_analytics == null) {
+      return const Card(child: Padding(padding: EdgeInsets.all(16), child: Center(child: Text('אין נתוני התקדמות'))));
+    }
+    final progressTrend = (_analytics!['progress_trend'] as List?) ?? [];
     
     if (progressTrend.isEmpty) {
-      return Card(
+      return const Card(
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Center(child: Text('No progress data available')),
@@ -309,22 +338,22 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
     
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Learning Progress Over Time',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
-            Container(
+            const SizedBox(height: 16),
+            SizedBox(
               height: 200,
               child: LineChart(
                 LineChartData(
-                  gridData: FlGridData(show: true),
+                  gridData: const FlGridData(show: true),
                   titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
+                    leftTitles: const AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 40,
@@ -338,10 +367,10 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
                             final date = progressTrend[value.toInt()]['date'];
                             return Text(
                               DateFormat('MM/dd').format(DateTime.parse(date)),
-                              style: TextStyle(fontSize: 10),
+                              style: const TextStyle(fontSize: 10),
                             );
                           }
-                          return Text('');
+                          return const Text('');
                         },
                       ),
                     ),
@@ -358,7 +387,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
                       isCurved: true,
                       color: Colors.purple,
                       barWidth: 3,
-                      dotData: FlDotData(show: true),
+                      dotData: const FlDotData(show: true),
                     ),
                   ],
                   minY: 0,
@@ -373,55 +402,58 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   }
 
   Widget _buildAssistanceAnalysis() {
-    final assistance = _analytics!['assistance_usage'];
-    final total = assistance['breakdown'] + assistance['example'] + assistance['explain'];
+    if (_analytics == null) {
+      return const Card(child: Padding(padding: EdgeInsets.all(16), child: Center(child: Text('אין נתוני עזרה'))));
+    }
+    final assistance = _analytics!['assistance_usage'] ?? {};
+    final total = (assistance['breakdown'] ?? 0) + (assistance['example'] ?? 0) + (assistance['explain'] ?? 0);
     
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Assistance Type Usage',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: Column(
                     children: [
-                      _buildAssistanceBar('פירוק', assistance['breakdown'], total, Colors.blue),
-                      SizedBox(height: 8),
-                      _buildAssistanceBar('דוגמה', assistance['example'], total, Colors.green),
-                      SizedBox(height: 8),
-                      _buildAssistanceBar('הסבר', assistance['explain'], total, Colors.orange),
+                      _buildAssistanceBar('פירוק', assistance['breakdown'] ?? 0, total, Colors.blue),
+                      const SizedBox(height: 8),
+                      _buildAssistanceBar('דוגמה', assistance['example'] ?? 0, total, Colors.green),
+                      const SizedBox(height: 8),
+                      _buildAssistanceBar('הסבר', assistance['explain'] ?? 0, total, Colors.orange),
                     ],
                   ),
                 ),
-                SizedBox(width: 16),
-                Container(
+                const SizedBox(width: 16),
+                SizedBox(
                   width: 150,
                   height: 150,
                   child: PieChart(
                     PieChartData(
                       sections: [
                         PieChartSectionData(
-                          value: assistance['breakdown'].toDouble(),
-                          title: 'פירוק\n${(assistance['breakdown'] / total * 100).toInt()}%',
+                          value: (assistance['breakdown'] ?? 0).toDouble(),
+                          title: 'פירוק\n${total > 0 ? ((assistance['breakdown'] ?? 0) / total * 100).toInt() : 0}%',
                           color: Colors.blue,
                           radius: 60,
                         ),
                         PieChartSectionData(
-                          value: assistance['example'].toDouble(),
-                          title: 'דוגמה\n${(assistance['example'] / total * 100).toInt()}%',
+                          value: (assistance['example'] ?? 0).toDouble(),
+                          title: 'דוגמה\n${total > 0 ? ((assistance['example'] ?? 0) / total * 100).toInt() : 0}%',
                           color: Colors.green,
                           radius: 60,
                         ),
                         PieChartSectionData(
-                          value: assistance['explain'].toDouble(),
-                          title: 'הסבר\n${(assistance['explain'] / total * 100).toInt()}%',
+                          value: (assistance['explain'] ?? 0).toDouble(),
+                          title: 'הסבר\n${total > 0 ? ((assistance['explain'] ?? 0) / total * 100).toInt() : 0}%',
                           color: Colors.orange,
                           radius: 60,
                         ),
@@ -444,7 +476,7 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
       children: [
         SizedBox(
           width: 60,
-          child: Text(label, style: TextStyle(fontSize: 14)),
+          child: Text(label, style: const TextStyle(fontSize: 14)),
         ),
         Expanded(
           child: LinearProgressIndicator(
@@ -454,48 +486,51 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
             minHeight: 20,
           ),
         ),
-        SizedBox(width: 8),
-        Text('$value', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        const SizedBox(width: 8),
+        Text('$value', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
       ],
     );
   }
 
   Widget _buildEngagementMetrics() {
-    final engagement = _analytics!['engagement_metrics'];
+    if (_analytics == null) {
+      return const Card(child: Padding(padding: EdgeInsets.all(16), child: Center(child: Text('אין נתוני מעורבות'))));
+    }
+    final engagement = _analytics!['engagement_metrics'] ?? {};
     
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Engagement Metrics',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.school, color: Colors.red),
-              title: Text('Teacher Calls'),
+              leading: const Icon(Icons.school, color: Colors.red),
+              title: const Text('Teacher Calls'),
               trailing: Text(
-                engagement['teacher_calls'].toString(),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                (engagement['teacher_calls'] ?? 0).toString(),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ListTile(
-              leading: Icon(Icons.photo_camera, color: Colors.blue),
-              title: Text('Tasks Uploaded'),
+              leading: const Icon(Icons.photo_camera, color: Colors.blue),
+              title: const Text('Tasks Uploaded'),
               trailing: Text(
-                engagement['tasks_uploaded'].toString(),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                (engagement['tasks_uploaded'] ?? 0).toString(),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ListTile(
-              leading: Icon(Icons.error_outline, color: Colors.orange),
-              title: Text('Error Rate'),
+              leading: const Icon(Icons.error_outline, color: Colors.orange),
+              title: const Text('Error Rate'),
               trailing: Text(
-                '${engagement['error_rate'].toStringAsFixed(2)} per session',
-                style: TextStyle(fontSize: 16),
+                '${(engagement['error_rate'] ?? 0.0).toStringAsFixed(2)} per session',
+                style: const TextStyle(fontSize: 16),
               ),
             ),
           ],
@@ -507,29 +542,29 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   Widget _buildResearchInsights() {
     return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Research Insights',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             _buildInsight(
               'Learning Progress',
               _calculateProgressTrend(),
               _getProgressIcon(),
               _getProgressColor(),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             _buildInsight(
               'Engagement Level',
               _getEngagementInsight(),
               Icons.favorite,
               Colors.blue,
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             _buildInsight(
               'Independence',
               _getIndependenceInsight(),
@@ -547,14 +582,14 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, color: color, size: 24),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               Text(
                 insight,
@@ -568,8 +603,9 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   }
 
   String _calculateProgressTrend() {
-    final trend = _analytics!['progress_trend'] as List;
-    if (trend.isEmpty) return 'No trend data available';
+    if (_analytics == null) return 'אין נתוני התקדמות';
+    final trend = (_analytics!['progress_trend'] as List?) ?? [];
+    if (trend.isEmpty) return 'אין נתוני מגמה זמינים';
     
     final first = trend.first['average_progress'] ?? 0;
     final last = trend.last['average_progress'] ?? 0;
@@ -582,7 +618,8 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   }
 
   IconData _getProgressIcon() {
-    final trend = _analytics!['progress_trend'] as List;
+    if (_analytics == null) return Icons.help_outline;
+    final trend = (_analytics!['progress_trend'] as List?) ?? [];
     if (trend.isEmpty) return Icons.help_outline;
     
     final first = trend.first['average_progress'] ?? 0;
@@ -601,16 +638,18 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
   }
 
   String _getEngagementInsight() {
-    final messages = _analytics!['summary']['average_messages_per_session'] ?? 0;
+    if (_analytics == null) return 'אין נתונים';
+    final messages = _analytics!['summary']?['average_messages_per_session'] ?? 0;
     if (messages > 20) return 'High engagement - very active in sessions';
     if (messages > 10) return 'Good engagement - actively participating';
     return 'Low engagement - consider intervention';
   }
 
   String _getIndependenceInsight() {
-    final assistance = _analytics!['assistance_usage'];
-    final total = assistance['breakdown'] + assistance['example'] + assistance['explain'];
-    final messages = _analytics!['summary']['total_messages'] ?? 1;
+    if (_analytics == null) return 'אין נתונים';
+    final assistance = _analytics!['assistance_usage'] ?? {};
+    final total = (assistance['breakdown'] ?? 0) + (assistance['example'] ?? 0) + (assistance['explain'] ?? 0);
+    final messages = _analytics!['summary']?['total_messages'] ?? 1;
     final ratio = total / messages;
     
     if (ratio < 0.2) return 'High independence - minimal assistance needed';

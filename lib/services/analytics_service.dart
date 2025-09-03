@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
+import 'auth_service_backend.dart';
 
 class AnalyticsService {
   // Get student analytics
@@ -122,6 +123,27 @@ class AnalyticsService {
     }
   }
 
+  // Get all students for analytics
+  static Future<List<Map<String, dynamic>>> getAllStudents({
+    String? token,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.analyticsEndpoint}/students'),
+        headers: ApiConfig.getHeaders(token: token),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to get students: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to get students: $e');
+    }
+  }
+
   // Get dashboard summary for admin
   static Future<Map<String, dynamic>> getDashboardSummary({
     String? token,
@@ -143,6 +165,36 @@ class AnalyticsService {
       };
     } catch (e) {
       throw Exception('Failed to get dashboard summary: $e');
+    }
+  }
+
+  // Update student profile
+  static Future<Map<String, dynamic>> updateStudentProfile({
+    required int studentId,
+    required Map<String, dynamic> updates,
+    String? token,
+  }) async {
+    try {
+      String? authToken = token ?? await AuthServiceBackend.getStoredToken();
+      
+      if (authToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.put(
+        Uri.parse('${ApiConfig.analyticsEndpoint}/students/$studentId'),
+        headers: ApiConfig.getHeaders(token: authToken),
+        body: json.encode(updates),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Failed to update student');
+      }
+    } catch (e) {
+      throw Exception('Failed to update student: $e');
     }
   }
 }

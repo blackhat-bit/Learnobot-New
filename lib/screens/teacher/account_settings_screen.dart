@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
+import '../../services/auth_service_backend.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({Key? key}) : super(key: key);
@@ -12,13 +13,42 @@ class AccountSettingsScreen extends StatefulWidget {
 
 class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController(text: 'המורה עדי');
-  final _emailController = TextEditingController(text: 'adi.teacher@example.com');
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   
   bool _isEditing = false;
+  bool _isLoading = true;
+  bool _notificationsEnabled = true;
+  bool _darkModeEnabled = false;
+  Map<String, dynamic>? _userData;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+  
+  Future<void> _loadUserData() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final user = await AuthServiceBackend.getStoredUser();
+      if (user != null && mounted) {
+        setState(() {
+          _userData = user;
+          _nameController.text = user['full_name'] ?? user['username'] ?? '';
+          _emailController.text = user['email'] ?? '';
+        });
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
   
   @override
   void dispose() {
@@ -43,9 +73,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             onPressed: () {
               setState(() {
                 if (_isEditing) {
-                  // Cancel editing
-                  _nameController.text = 'המורה עדי';
-                  _emailController.text = 'adi.teacher@example.com';
+                  // Cancel editing - restore original values
+                  _nameController.text = _userData?['full_name'] ?? _userData?['username'] ?? '';
+                  _emailController.text = _userData?['email'] ?? '';
                 }
                 _isEditing = !_isEditing;
               });
@@ -53,7 +83,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
@@ -237,7 +269,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 'התראות',
                 'קבלת התראות מתלמידים',
                 Icons.notifications,
-                true,
+                _notificationsEnabled,
               ),
               
               // Dark Mode
@@ -245,7 +277,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 'מצב כהה',
                 'שינוי ערכת הצבעים של האפליקציה',
                 Icons.dark_mode,
-                false,
+                _darkModeEnabled,
               ),
               
               // Language Settings
@@ -367,13 +399,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 Switch(
                   value: switchValue,
                   onChanged: (value) {
-                    // Only allow changing when in edit mode
-                    if (_isEditing) {
-                      setState(() {
-                        // This is just UI representation, would be connected to
-                        // app state in a real app
-                      });
-                    }
+                    setState(() {
+                      if (title == 'התראות') {
+                        _notificationsEnabled = value;
+                      } else if (title == 'מצב כהה') {
+                        _darkModeEnabled = value;
+                      }
+                    });
                   },
                   activeColor: AppColors.primary,
                 )

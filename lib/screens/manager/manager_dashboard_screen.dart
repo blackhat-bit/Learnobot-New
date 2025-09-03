@@ -53,17 +53,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       });
     } catch (e) {
       print('Error loading dashboard data: $e');
-      // Use mock data for now
+      // Use empty data instead of mock data
       setState(() {
         _dashboardData = {
-          'total_sessions': 12,
-          'total_students': 5,
-          'total_interactions': 3,
-          'recent_activities': [
-            {'message': 'התלמיד חן לוי מבקש עזרה', 'time': '8:05 אפר׳ 30'},
-            {'message': 'נוספו 3 תלמידים חדשים', 'time': '10:15 אפר׳ 28'},
-            {'message': 'התלמידה נילי נעים השלימה משימה', 'time': '14:30 אפר׳ 27'},
-          ],
+          'total_sessions': 0,
+          'total_students': 0,
+          'total_interactions': 0,
+          'recent_activities': [],
         };
       });
     } finally {

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/student.dart';
+import '../../services/analytics_service.dart';
+import '../../services/auth_service_backend.dart';
 import 'student_profile_screen.dart';
 
 class StudentListScreen extends StatefulWidget {
@@ -29,56 +31,45 @@ class _StudentListScreenState extends State<StudentListScreen> {
     super.dispose();
   }
   
-  void _loadStudents() {
-    // Mock student data - in a real app, this would come from a database
-    _students = [
-      Student(
-        id: '1',
-        name: 'חן לוי',
-        grade: '3\'ג',
-        difficultyLevel: 3,
-        description: 'מתקשה בקריאת הוראות ארוכות ובפירוק משימות מורכבות',
-        profileImageUrl: '',
-      ),
-      Student(
-        id: '2',
-        name: 'הילה שושני',
-        grade: '1\'ה',
-        difficultyLevel: 2,
-        description: 'קשיי קשב וריכוז, צריכה הסברים קצרים וברורים',
-        profileImageUrl: '',
-      ),
-      Student(
-        id: '3',
-        name: 'רון שני',
-        grade: '2\'ב',
-        difficultyLevel: 4,
-        description: 'קשיים בהבנת הוראות מילוליות, מעדיף הוראות חזותיות',
-        profileImageUrl: '',
-      ),
-      Student(
-        id: '4',
-        name: 'נילי נעים',
-        grade: '1\'ו',
-        difficultyLevel: 1,
-        description: 'צריכה חיזוקים חיוביים תכופים לשמירה על מוטיבציה',
-        profileImageUrl: '',
-      ),
-      Student(
-        id: '5',
-        name: 'נועם אופלי',
-        grade: '5\'ג',
-        difficultyLevel: 5,
-        description: 'קשיים משמעותיים בהבנת הוראות, נדרשת עזרה צמודה',
-        profileImageUrl: '',
-      ),
-    ];
-    
-    // Sort by grade
-    _students.sort((a, b) => a.grade.compareTo(b.grade));
-    
-    // Initialize filtered list
-    _filteredStudents = List.from(_students);
+  Future<void> _loadStudents() async {
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      final studentsData = await AnalyticsService.getAllStudents(token: token);
+      
+      // Convert backend data to Student model format
+      final students = studentsData.map((studentData) {
+        return Student(
+          id: studentData['id'].toString(),
+          name: studentData['full_name'] ?? 'Student ${studentData['id']}',
+          grade: studentData['grade'] ?? 'N/A',
+          difficultyLevel: studentData['difficulty_level'] ?? 3,
+          description: studentData['difficulties_description'] ?? 'No description available',
+          profileImageUrl: '',
+        );
+      }).toList();
+      
+      setState(() {
+        _students = students;
+        // Sort by grade
+        _students.sort((a, b) => a.grade.compareTo(b.grade));
+        // Initialize filtered list
+        _filteredStudents = List.from(_students);
+      });
+    } catch (e) {
+      print('Error loading students from backend: $e');
+      // Show empty list if backend fails
+      setState(() {
+        _students = [];
+        _filteredStudents = [];
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load students: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
   
   void _filterStudents(String query) {
@@ -299,10 +290,15 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
   
   void _showAddStudentDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
+    // Complete registration form controllers
+    final TextEditingController usernameController = TextEditingController();
+    final TextEditingController fullNameController = TextEditingController();
+    final TextEditingController emailController = TextEditingController();
+    final TextEditingController passwordController = TextEditingController();
     final TextEditingController gradeController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
     int selectedDifficulty = 3;
+    bool isLoading = false;
     
     showDialog(
       context: context,
@@ -326,13 +322,63 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 ),
                 const SizedBox(height: 20),
                 
-                // Name Field
+                // Username Field
                 TextField(
-                  controller: nameController,
+                  controller: usernameController,
                   textDirection: TextDirection.rtl,
                   decoration: const InputDecoration(
-                    labelText: 'שם תלמיד',
+                    labelText: 'שם משתמש',
                     border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 15, 
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                
+                // Full Name Field
+                TextField(
+                  controller: fullNameController,
+                  textDirection: TextDirection.rtl,
+                  decoration: const InputDecoration(
+                    labelText: 'שם מלא',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.account_circle),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 15, 
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                
+                // Email Field
+                TextField(
+                  controller: emailController,
+                  textDirection: TextDirection.ltr,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'דואר אלקטרוני',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 15, 
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                
+                // Password Field
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'סיסמה',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 15, 
                       vertical: 10,
@@ -433,34 +479,83 @@ class _StudentListScreenState extends State<StudentListScreen> {
                       child: const Text('ביטול'),
                     ),
                     ElevatedButton(
-                      onPressed: () {
-                        if (nameController.text.isEmpty || 
+                      onPressed: isLoading ? null : () async {
+                        // Validate all required fields
+                        if (usernameController.text.isEmpty ||
+                            fullNameController.text.isEmpty ||
+                            emailController.text.isEmpty ||
+                            passwordController.text.isEmpty ||
                             gradeController.text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('נא להזין שם וכיתה'),
+                              content: Text('נא למלא את כל השדות הנדרשים'),
+                              backgroundColor: Colors.red,
                             ),
                           );
                           return;
                         }
                         
-                        final newStudent = Student(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          name: nameController.text,
-                          grade: gradeController.text,
-                          difficultyLevel: selectedDifficulty,
-                          description: descriptionController.text,
-                        );
+                        if (!emailController.text.contains('@')) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('נא להזין כתובת אימייל תקינה'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
                         
                         setState(() {
-                          _students.add(newStudent);
-                          _students.sort((a, b) => a.grade.compareTo(b.grade));
-                          _filteredStudents = List.from(_students);
+                          isLoading = true;
                         });
                         
-                        Navigator.pop(context);
+                        try {
+                          // Register student via backend
+                          await AuthServiceBackend.register(
+                            email: emailController.text.trim(),
+                            password: passwordController.text,
+                            username: usernameController.text.trim(),
+                            fullName: fullNameController.text.trim(),
+                            role: 'student',
+                            grade: gradeController.text.trim(),
+                            difficultyLevel: selectedDifficulty,
+                            difficultiesDescription: descriptionController.text.trim(),
+                          );
+                          
+                          // Refresh student list from backend
+                          await _loadStudents();
+                          
+                          Navigator.pop(context);
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('התלמיד נוסף בהצלחה'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('שגיאה ביצירת התלמיד: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } finally {
+                          setState(() {
+                            isLoading = false;
+                          });
+                        }
                       },
-                      child: const Text('שמור'),
+                      child: isLoading 
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text('שמור'),
                     ),
                   ],
                 ),

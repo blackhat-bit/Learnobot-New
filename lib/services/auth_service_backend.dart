@@ -53,16 +53,19 @@ class AuthServiceBackend {
   static Future<Map<String, dynamic>> register({
     required String email,
     required String password,
+    required String username,
     required String fullName,
     required String role, // 'student', 'teacher', 'admin'
     String? grade,
     int? difficultyLevel,
     String? difficultiesDescription,
+    String? school,
   }) async {
     try {
-      final body = {
+      final Map<String, dynamic> body = {
         'email': email,
         'password': password,
+        'username': username,
         'full_name': fullName,
         'role': role,
       };
@@ -70,8 +73,13 @@ class AuthServiceBackend {
       // Add student-specific fields
       if (role == 'student') {
         body['grade'] = grade ?? '';
-        body['difficulty_level'] = (difficultyLevel ?? 3).toString();
+        body['difficulty_level'] = difficultyLevel ?? 3; // Keep as int - JSON handles it
         body['difficulties_description'] = difficultiesDescription ?? '';
+      }
+      
+      // Add teacher-specific fields
+      if (role == 'teacher') {
+        body['school'] = school ?? '';
       }
 
       final response = await http.post(
