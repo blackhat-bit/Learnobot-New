@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import '../../services/analytics_service.dart';
 import '../../services/auth_service_backend.dart';
 
@@ -95,12 +97,47 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
 
   Future<void> _exportData() async {
     try {
-      // TODO: Implement actual file download with backend integration
-      // final token = await _authService.getToken();
-      // Implement file download logic here
-      _showSuccess('Data export started');
+      setState(() => _isLoading = true);
+      
+      // Get authentication token
+      final token = await AuthServiceBackend.getStoredToken();
+      if (token == null) {
+        _showError('Authentication required for data export');
+        return;
+      }
+
+      // Let user choose save location
+      final String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Analytics Data',
+        fileName: 'learnobot_analytics_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.csv',
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+
+      if (outputFile != null) {
+        // Get current date range (last 30 days by default)
+        final endDate = DateTime.now();
+        final startDate = endDate.subtract(Duration(days: _timeRange));
+        
+        // Export data from backend
+        final csvData = await AnalyticsService.exportAnalytics(
+          startDate: DateFormat('yyyy-MM-dd').format(startDate),
+          endDate: DateFormat('yyyy-MM-dd').format(endDate),
+          token: token,
+        );
+
+        // Save to selected file
+        final file = File(outputFile);
+        await file.writeAsString(csvData);
+        
+        _showSuccess('Data exported successfully to:\n$outputFile');
+      } else {
+        _showError('Export cancelled - no file selected');
+      }
     } catch (e) {
-      _showError('Failed to export data');
+      _showError('Failed to export data: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
