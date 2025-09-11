@@ -179,6 +179,19 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     );
   }
 
+  void _toggleModelActivation(String providerKey, bool isActive) {
+    // TODO: Implement model activation/deactivation logic
+    // This should call the backend API to toggle the model status
+    setState(() {
+      // For now, just show a message
+      if (isActive) {
+        _showSuccess('Model $providerKey activated');
+      } else {
+        _showSuccess('Model $providerKey deactivated');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
