@@ -46,4 +46,9 @@ class ProviderStatus(BaseModel):
     is_available: bool
     has_api_key: bool
     is_active: bool
+    is_deactivated: bool = False
     info: Dict[str, Any]
+
+class ModelDeactivationUpdate(BaseModel):
+    model_key: str
+    is_deactivated: bool

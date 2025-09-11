@@ -11,6 +11,7 @@ class LLMProvider(Base):
     name = Column(String, unique=True, index=True)
     type = Column(String)  # "local" or "online"
     is_active = Column(Boolean, default=True)
+    is_deactivated = Column(Boolean, default=False)  # For admin to deactivate models
     api_key = Column(String, nullable=True)  # Encrypted in production
     config = Column(JSON, default={})
     created_at = Column(DateTime, default=datetime.utcnow)

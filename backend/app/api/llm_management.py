@@ -11,7 +11,7 @@ from app.ai.multi_llm_manager import multi_llm_manager
 from app.schemas.llm_config import (
     LLMProviderInfo, LLMConfigCreate, LLMConfigUpdate,
     ProviderComparison, SystemPromptUpdate, APIKeyUpdate, 
-    APIKeyResponse, ProviderStatus
+    APIKeyResponse, ProviderStatus, ModelDeactivationUpdate
 )
 from app.ai.prompts import HEBREW_PRACTICE_PROMPT, HEBREW_TEST_PROMPT
 
@@ -37,12 +37,17 @@ async def get_available_providers(
 async def get_available_models(
     current_user: User = Depends(get_current_user)
 ):
-    """Get list of all available models grouped by provider type"""
+    """Get list of available models grouped by provider type"""
     # Allow students to see available models for selection
     if current_user.role not in [UserRole.STUDENT, UserRole.TEACHER, UserRole.ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    return multi_llm_manager.get_available_models()
+    # Students only see active (non-deactivated) models
+    if current_user.role == UserRole.STUDENT:
+        return multi_llm_manager.get_active_models()
+    else:
+        # Teachers and admins see all models (including deactivated ones)
+        return multi_llm_manager.get_available_models()
 
 @router.post("/providers/{provider_name}/activate")
 async def set_active_provider(
@@ -278,3 +283,27 @@ async def remove_api_key(
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error removing API key: {str(e)}")
+
+@router.post("/models/deactivate")
+async def toggle_model_activation(
+    deactivation_data: ModelDeactivationUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Deactivate or activate a specific model"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can deactivate models")
+    
+    try:
+        success = multi_llm_manager.deactivate_model(
+            model_key=deactivation_data.model_key,
+            deactivated=deactivation_data.is_deactivated
+        )
+        
+        if success:
+            action = "deactivated" if deactivation_data.is_deactivated else "activated"
+            return {"message": f"Model {deactivation_data.model_key} has been {action}"}
+        else:
+            raise HTTPException(status_code=400, detail="Model not found")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating model status: {str(e)}")

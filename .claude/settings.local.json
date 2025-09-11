@@ -4,7 +4,9 @@
       "Bash(find:*)",
       "Bash(curl:*)",
       "Bash(python:*)",
-      "Bash(flutter pub:*)"
+      "Bash(flutter pub:*)",
+      "Bash(alembic revision:*)",
+      "Bash(alembic upgrade:*)"
     ],
     "deny": [],
     "ask": []

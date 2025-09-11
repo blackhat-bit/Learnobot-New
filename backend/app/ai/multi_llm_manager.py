@@ -249,6 +249,7 @@ class MultiProviderLLMManager:
     def __init__(self):
         self.providers: Dict[str, BaseLLMProvider] = {}
         self.active_provider: Optional[str] = None
+        self.deactivated_models: Dict[str, bool] = {}  # Track deactivated models
         self._initialize_providers()
         
     def _initialize_providers(self):
@@ -337,11 +338,13 @@ class MultiProviderLLMManager:
         for name, provider in self.providers.items():
             if name.startswith("ollama-"):
                 model_name = provider.get_info().get("model", "unknown")
+                is_deactivated = self.deactivated_models.get(name, False)
                 ollama_models.append({
                     "provider_key": name,
                     "model_name": model_name,
                     "display_name": model_name,
-                    "active": name == self.active_provider
+                    "active": name == self.active_provider,
+                    "is_deactivated": is_deactivated
                 })
         
         if ollama_models:
@@ -356,11 +359,13 @@ class MultiProviderLLMManager:
         for name, provider in self.providers.items():
             if not name.startswith("ollama-"):
                 info = provider.get_info()
+                is_deactivated = self.deactivated_models.get(name, False)
                 online_models.append({
                     "provider_key": name,
                     "model_name": info.get("model", "unknown"),
                     "display_name": f"{info.get('provider', 'Unknown')} - {info.get('model', 'unknown')}",
-                    "active": name == self.active_provider
+                    "active": name == self.active_provider,
+                    "is_deactivated": is_deactivated
                 })
         
         if online_models:
@@ -371,6 +376,41 @@ class MultiProviderLLMManager:
             })
             
         return models
+    
+    def get_active_models(self) -> List[Dict[str, Any]]:
+        """Get list of only active (non-deactivated) models for chat sessions"""
+        all_models = self.get_available_models()
+        active_models = []
+        
+        for provider_group in all_models:
+            active_provider_models = []
+            for model in provider_group["models"]:
+                if not model.get("is_deactivated", False):
+                    active_provider_models.append(model)
+            
+            if active_provider_models:
+                provider_group_copy = provider_group.copy()
+                provider_group_copy["models"] = active_provider_models
+                active_models.append(provider_group_copy)
+        
+        return active_models
+    
+    def deactivate_model(self, model_key: str, deactivated: bool = True) -> bool:
+        """Deactivate/activate a specific model"""
+        if model_key in self.providers:
+            self.deactivated_models[model_key] = deactivated
+            
+            # If deactivating the active provider, switch to a non-deactivated one
+            if deactivated and model_key == self.active_provider:
+                for provider_key in self.providers.keys():
+                    if not self.deactivated_models.get(provider_key, False):
+                        self.active_provider = provider_key
+                        break
+                else:
+                    self.active_provider = None  # No active providers available
+            
+            return True
+        return False
     
     def generate(self, prompt: str, provider: Optional[str] = None, **kwargs) -> str:
         """Generate response using specified or active provider"""

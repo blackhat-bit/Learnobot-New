@@ -192,4 +192,29 @@ class LLMService {
       throw Exception('Failed to compare providers: $e');
     }
   }
+
+  // Deactivate or activate a model
+  static Future<void> toggleModelActivation({
+    required String modelKey,
+    required bool isDeactivated,
+    String? token,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.llmEndpoint}/models/deactivate'),
+        headers: ApiConfig.getHeaders(token: token),
+        body: json.encode({
+          'model_key': modelKey,
+          'is_deactivated': isDeactivated,
+        }),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode != 200) {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Failed to update model status');
+      }
+    } catch (e) {
+      throw Exception('Failed to update model status: $e');
+    }
+  }
 }

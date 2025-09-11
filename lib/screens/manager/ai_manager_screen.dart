@@ -274,6 +274,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                         final modelName = model['model_name'] as String? ?? 'Unknown';
                         final displayName = model['display_name'] as String? ?? modelName;
                         final isActive = model['active'] as bool? ?? false;
+                        final isDeactivated = model['is_deactivated'] as bool? ?? false;
                         final isOllamaModel = providerType == 'ollama';
                         final isAvailable = isOllamaModel; // Ollama models are available if they exist
                         
@@ -284,9 +285,11 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: isActive
-                                  ? Colors.green
-                                  : (isAvailable ? Colors.blue : Colors.grey),
+                              color: isDeactivated
+                                  ? Colors.red
+                                  : (isActive
+                                      ? Colors.green
+                                      : (isAvailable ? Colors.blue : Colors.grey)),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -294,44 +297,78 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                             displayName,
                             style: TextStyle(
                               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                              color: isActive
-                                  ? Colors.green[700]
-                                  : (isAvailable ? Colors.blue[700] : Colors.black87),
+                              color: isDeactivated
+                                  ? Colors.red[700]
+                                  : (isActive
+                                      ? Colors.green[700]
+                                      : (isAvailable ? Colors.blue[700] : Colors.black87)),
+                              decoration: isDeactivated ? TextDecoration.lineThrough : null,
                             ),
                           ),
                           subtitle: Text('Provider: $providerKey'),
-                          trailing: isActive
-                              ? const Chip(
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Deactivation Toggle
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Switch(
+                                    value: !isDeactivated,
+                                    onChanged: (value) => _toggleModelActivation(providerKey, !value),
+                                    activeColor: Colors.green,
+                                    inactiveThumbColor: Colors.red,
+                                  ),
+                                  Text(
+                                    isDeactivated ? 'Deactivated' : 'Active',
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                              
+                              // Status chips and buttons
+                              if (isDeactivated)
+                                const Chip(
+                                  label: Text('Disabled'),
+                                  backgroundColor: Colors.red,
+                                  labelStyle: TextStyle(color: Colors.white),
+                                )
+                              else if (isActive)
+                                const Chip(
                                   label: Text('Active'),
                                   backgroundColor: Colors.green,
                                   labelStyle: TextStyle(color: Colors.white),
                                 )
-                              : isAvailable
-                                  ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Chip(
-                                          label: Text('Available'),
-                                          backgroundColor: Colors.blue,
-                                          labelStyle: TextStyle(color: Colors.white),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton(
-                                          onPressed: () => _switchProvider(providerKey),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.purple,
-                                          ),
-                                          child: const Text('Activate'),
-                                        ),
-                                      ],
-                                    )
-                                  : ElevatedButton(
+                              else if (isAvailable)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Chip(
+                                      label: Text('Available'),
+                                      backgroundColor: Colors.blue,
+                                      labelStyle: TextStyle(color: Colors.white),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
                                       onPressed: () => _switchProvider(providerKey),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.purple,
                                       ),
                                       child: const Text('Activate'),
                                     ),
+                                  ],
+                                )
+                              else
+                                ElevatedButton(
+                                  onPressed: () => _switchProvider(providerKey),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.purple,
+                                  ),
+                                  child: const Text('Activate'),
+                                ),
+                            ],
+                          ),
                         );
                       }).toList(),
                   ],
