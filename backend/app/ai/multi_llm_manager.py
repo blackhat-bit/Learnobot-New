@@ -6,10 +6,8 @@ import os
 import requests
 from datetime import datetime
 
-# LangChain imports
-from langchain.llms import OpenAI, Anthropic, GooglePalm, Cohere, HuggingFaceHub, Ollama, LlamaCpp
-from langchain.chat_models import ChatOpenAI, ChatAnthropic, ChatGooglePalm
-from langchain.schema import BaseMessage, HumanMessage, AIMessage
+# LangChain imports (only for Ollama and legacy support)
+from langchain.llms import Ollama
 from langchain.callbacks.base import BaseCallbackHandler
 
 # For API key management
@@ -121,25 +119,42 @@ class OpenAIProvider(BaseLLMProvider):
         api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OpenAI API key is required")
-            
-        self.llm = ChatOpenAI(
-            model_name=config.get("model", "gpt-4"),
-            temperature=config.get("temperature", 0.7),
-            max_tokens=config.get("max_tokens", 2048),
-            openai_api_key=api_key
-        )
+        
+        self.api_key = api_key
+        self.model = config.get("model", "gpt-4")
+        self.temperature = config.get("temperature", 0.7)
+        self.max_tokens = config.get("max_tokens", 2048)
+        
+        print(f"OpenAI provider initialized with key: {api_key[:15]}...")
         
     def generate(self, prompt: str, **kwargs) -> str:
-        messages = [HumanMessage(content=prompt)]
-        response = self.llm(messages)
-        return response.content
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=self.api_key)
+            
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            return response.choices[0].message.content
+        except Exception as e:
+            if "authentication" in str(e).lower() or "api key" in str(e).lower():
+                raise ValueError(f"Invalid OpenAI API key: {str(e)}")
+            elif "rate limit" in str(e).lower():
+                raise ValueError(f"OpenAI rate limit exceeded: {str(e)}")
+            else:
+                raise ValueError(f"OpenAI API error: {str(e)}")
     
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "OpenAI",
             "type": "online",
-            "model": self.llm.model_name,
-            "requires_api_key": True
+            "model": self.model,
+            "requires_api_key": True,
+            "status": "configured"
         }
     
     def count_tokens(self, text: str) -> int:
@@ -164,22 +179,21 @@ class AnthropicProvider(BaseLLMProvider):
         if not api_key.startswith("sk-ant-"):
             raise ValueError("Invalid Anthropic API key format")
         
-        print(f"✅ Anthropic provider initialized with key: {api_key[:15]}...")
+        print(f"Anthropic provider initialized with key: {api_key[:15]}...")
         
     def generate(self, prompt: str, **kwargs) -> str:
         try:
-            # Lazy initialization - only create LangChain object when actually needed
-            if not hasattr(self, 'llm'):
-                self.llm = ChatAnthropic(
-                    model=self.model,
-                    temperature=self.temperature,
-                    max_tokens_to_sample=self.max_tokens,
-                    anthropic_api_key=self.api_key
-                )
+            import anthropic
+            client = anthropic.Anthropic(api_key=self.api_key)
             
-            messages = [HumanMessage(content=prompt)]
-            response = self.llm(messages)
-            return response.content
+            response = client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            return response.content[0].text
         except Exception as e:
             # Return proper error messages for API issues
             if "authentication" in str(e).lower() or "api key" in str(e).lower():
@@ -451,11 +465,11 @@ class MultiProviderLLMManager:
             # Sync to database
             # self._sync_provider_to_db(provider_name, provider_instance)  # Temporarily disabled for debugging
             
-            print(f"✅ Added {provider_name} provider with API key")
+            print(f"Added {provider_name} provider with API key")
             return True
             
         except Exception as e:
-            print(f"❌ Failed to add {provider_name} provider: {e}")
+            print(f"Failed to add {provider_name} provider: {e}")
             return False
     
     def remove_api_key(self, provider_name: str) -> bool:
@@ -484,11 +498,11 @@ class MultiProviderLLMManager:
             if self.active_provider == provider_name:
                 self.active_provider = "ollama"
             
-            print(f"🗑️ Removed {provider_name} provider")
+            print(f"Removed {provider_name} provider")
             return True
             
         except Exception as e:
-            print(f"❌ Failed to remove {provider_name} provider: {e}")
+            print(f"Failed to remove {provider_name} provider: {e}")
             return False
     
     def _sync_provider_to_db(self, provider_name: str, provider_instance):

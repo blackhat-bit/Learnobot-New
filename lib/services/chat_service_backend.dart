@@ -102,7 +102,7 @@ class ChatServiceBackend {
         Uri.parse('${ApiConfig.chatEndpoint}/sessions/$sessionId/messages'),
         headers: ApiConfig.getHeaders(token: token),
         body: json.encode(body),
-      ).timeout(ApiConfig.uploadTimeout); // Longer timeout for AI responses
+      ).timeout(ApiConfig.llmTimeout); // Extended timeout for slow AI models
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -111,7 +111,13 @@ class ChatServiceBackend {
         throw Exception(error['detail'] ?? 'Failed to send message');
       }
     } catch (e) {
-      throw Exception('Failed to send message: $e');
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception('AI model is taking too long to respond (>5 min). Please try a different model or check if Ollama is running properly.');
+      } else if (e.toString().contains('Connection')) {
+        throw Exception('Cannot connect to backend server. Please check if the backend is running.');
+      } else {
+        throw Exception('Failed to send message: $e');
+      }
     }
   }
 

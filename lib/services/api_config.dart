@@ -13,6 +13,7 @@ class ApiConfig {
   // Request timeouts
   static const Duration defaultTimeout = Duration(seconds: 30);
   static const Duration uploadTimeout = Duration(minutes: 2);
+  static const Duration llmTimeout = Duration(minutes: 5); // Extended timeout for slow LLM models
   
   // Headers
   static Map<String, String> getHeaders({String? token}) {
