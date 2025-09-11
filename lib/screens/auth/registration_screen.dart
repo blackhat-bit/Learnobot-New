@@ -21,8 +21,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   
   // Student-specific fields
   final _gradeController = TextEditingController();
-  final _difficultiesController = TextEditingController();
-  int _difficultyLevel = 3;
   String? _selectedTeacherUsername;
   
   // Teacher-specific fields
@@ -46,7 +44,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _gradeController.dispose();
-    _difficultiesController.dispose();
     _schoolController.dispose();
     super.dispose();
   }
@@ -89,8 +86,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           role: _isTeacher ? 'teacher' : 'student',
           // Student-specific fields
           grade: _isTeacher ? null : _gradeController.text.trim(),
-          difficultyLevel: _isTeacher ? null : _difficultyLevel,
-          difficultiesDescription: _isTeacher ? null : _difficultiesController.text.trim(),
+          difficultyLevel: _isTeacher ? null : 3, // Default difficulty level, will be set by teacher later
+          difficultiesDescription: _isTeacher ? null : '', // Empty - will be set by teacher later
           teacherUsername: _isTeacher ? null : _selectedTeacherUsername,
           // Teacher-specific fields
           school: _isTeacher ? _schoolController.text.trim() : null,
@@ -355,69 +352,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       ),
                       const SizedBox(height: 15),
                       
-                      // Difficulty Level Selector
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'רמת קושי בהבנת הוראות:',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.right,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: List.generate(5, (index) => 
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _difficultyLevel = index + 1;
-                                  });
-                                },
-                                child: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: _difficultyLevel == index + 1
-                                        ? _getDifficultyColor(index + 1)
-                                        : Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${index + 1}',
-                                      style: TextStyle(
-                                        color: _difficultyLevel == index + 1
-                                            ? Colors.white
-                                            : Colors.black,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      
-                      TextFormField(
-                        controller: _difficultiesController,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'תיאור קשיים (אופציונלי)',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.description),
-                        ),
-                        textAlign: TextAlign.right,
-                        textDirection: TextDirection.rtl,
-                      ),
-                      const SizedBox(height: 15),
-                      
                       // Teacher Selection Dropdown
                       DropdownButtonFormField<String>(
                         value: _selectedTeacherUsername,
@@ -512,22 +446,5 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ),
       ),
     );
-  }
-  
-  Color _getDifficultyColor(int level) {
-    switch (level) {
-      case 1:
-        return Colors.green;
-      case 2:
-        return Colors.lightGreen;
-      case 3:
-        return Colors.orange;
-      case 4:
-        return Colors.deepOrange;
-      case 5:
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
   }
 }

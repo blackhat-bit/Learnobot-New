@@ -141,7 +141,18 @@ class AnalyticsService:
         
         # Aggregate metrics
         total_sessions = len(sessions)
-        total_time = sum(s.total_duration_seconds or 0 for s in sessions)
+        
+        # Calculate total time - handle both completed and ongoing sessions
+        total_time_seconds = 0
+        for s in sessions:
+            if s.total_duration_seconds:
+                # Session was properly ended and duration calculated
+                total_time_seconds += s.total_duration_seconds
+            elif s.session and s.session.started_at:
+                # Session is ongoing or wasn't properly ended - calculate duration from start time
+                duration = (datetime.utcnow() - s.session.started_at).total_seconds()
+                total_time_seconds += duration
+        
         total_messages = sum(s.total_messages for s in sessions)
         
         # Calculate trends
@@ -158,13 +169,19 @@ class AnalyticsService:
             func.date(ChatSession.started_at)
         ).all()
         
+        # Calculate average satisfaction from all sessions that have ratings
+        sessions_with_ratings = [s for s in sessions if s.average_satisfaction is not None]
+        average_satisfaction = None
+        if sessions_with_ratings:
+            average_satisfaction = sum(s.average_satisfaction for s in sessions_with_ratings) / len(sessions_with_ratings)
+        
         return {
             "summary": {
                 "total_sessions": total_sessions,
-                "total_time_minutes": total_time // 60,
+                "total_time_minutes": round(total_time_seconds / 60, 1),
                 "total_messages": total_messages,
-                "average_session_duration_minutes": (total_time / total_sessions) // 60 if total_sessions > 0 else 0,
-                "average_messages_per_session": total_messages / total_sessions if total_sessions > 0 else 0,
+                "average_session_duration_minutes": round(total_time_seconds / (total_sessions * 60), 1) if total_sessions > 0 else 0,
+                "average_messages_per_session": round(total_messages / total_sessions, 1) if total_sessions > 0 else 0,
             },
             "assistance_usage": {
                 "breakdown": sum(s.breakdown_count for s in sessions),
@@ -180,10 +197,10 @@ class AnalyticsService:
                 for day in daily_progress
             ],
             "engagement_metrics": {
-                "average_satisfaction": sum(s.average_satisfaction or 0 for s in sessions if s.average_satisfaction) / len([s for s in sessions if s.average_satisfaction]) if any(s.average_satisfaction for s in sessions) else None,
+                "average_satisfaction": round(average_satisfaction, 1) if average_satisfaction is not None else None,
                 "teacher_calls": sum(s.teacher_calls for s in sessions),
                 "tasks_uploaded": sum(s.tasks_uploaded for s in sessions),
-                "error_rate": sum(s.errors_encountered for s in sessions) / total_sessions if total_sessions > 0 else 0
+                "error_rate": round(sum(s.errors_encountered for s in sessions) / total_sessions, 2) if total_sessions > 0 else 0
             }
         }
     

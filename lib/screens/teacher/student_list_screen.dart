@@ -510,6 +510,10 @@ class _StudentListScreenState extends State<StudentListScreen> {
                         });
                         
                         try {
+                          // Get current teacher's username to connect the student
+                          final currentUser = await AuthServiceBackend.getCurrentUser();
+                          final teacherUsername = currentUser?['username'];
+                          
                           // Register student via backend
                           await AuthServiceBackend.register(
                             email: emailController.text.trim(),
@@ -520,6 +524,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                             grade: gradeController.text.trim(),
                             difficultyLevel: selectedDifficulty,
                             difficultiesDescription: descriptionController.text.trim(),
+                            teacherUsername: teacherUsername, // Connect to current teacher
                           );
                           
                           // Refresh student list from backend

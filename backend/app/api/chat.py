@@ -109,7 +109,7 @@ async def upload_task(
         "message": "Task uploaded successfully. How can I help you with this?"
     }
 
-@router.post("/messages/{message_id}/rate")
+@router.put("/messages/{message_id}/rate")
 async def rate_message(
     message_id: int,
     rating_data: chat_schemas.RatingSatisfaction,
@@ -123,6 +123,36 @@ async def rate_message(
         rating=rating_data.rating,
         user_id=current_user.id
     )
+
+@router.post("/sessions/{session_id}/end")
+async def end_chat_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """End a chat session"""
+    
+    # Check if session exists and user has access
+    from app.models.chat import ChatSession
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Check permissions
+    if current_user.role == UserRole.ADMIN:
+        # Admin can end any session
+        pass
+    elif current_user.role == UserRole.STUDENT:
+        # Student can only end their own sessions
+        if not current_user.student_profile or session.student_id != current_user.student_profile.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    else:
+        raise HTTPException(status_code=403, detail="Only students and admins can end sessions")
+    
+    # End the session
+    await chat_service.end_session(db=db, session_id=session_id)
+    
+    return {"message": "Session ended successfully"}
 
 @router.post("/call-teacher/{session_id}")
 async def call_teacher(

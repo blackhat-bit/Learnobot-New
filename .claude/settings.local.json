@@ -6,7 +6,8 @@
       "Bash(python:*)",
       "Bash(flutter pub:*)",
       "Bash(alembic revision:*)",
-      "Bash(alembic upgrade:*)"
+      "Bash(alembic upgrade:*)",
+      "Read(//c/Users/Solo/Desktop/Haifa/Semester7/ProjectUpdated/**)"
     ],
     "deny": [],
     "ask": []
