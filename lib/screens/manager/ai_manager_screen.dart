@@ -16,6 +16,12 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
   List<dynamic> _providers = [];
   List<dynamic> _availableModels = [];
   String _activeProvider = '';
+  final Map<String, TextEditingController> _apiKeyControllers = {
+    'openai': TextEditingController(),
+    'anthropic': TextEditingController(),
+    'google': TextEditingController(),
+    'cohere': TextEditingController(),
+  };
   final Map<String, dynamic> _prompts = {
     'practice': {
       'system': '''אתה LearnoBot, עוזר AI שנועד לעזור לתלמידים עם לקויות למידה להבין הוראות לימודיות.
@@ -48,6 +54,14 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     _loadProviders();
     _loadAvailableModels();
     _systemPromptController.text = _prompts['practice']['system'];
+  }
+
+  @override
+  void dispose() {
+    _systemPromptController.dispose();
+    _testPromptController.dispose();
+    _apiKeyControllers.values.forEach((controller) => controller.dispose());
+    super.dispose();
   }
 
   Future<void> _loadProviders() async {
@@ -175,7 +189,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : DefaultTabController(
-              length: 3,
+              length: 4,
               child: Column(
                 children: [
                   Container(
@@ -183,10 +197,12 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                     child: const TabBar(
                       labelColor: Colors.purple,
                       unselectedLabelColor: Colors.grey,
+                      isScrollable: true,
                       tabs: [
                         Tab(text: 'Providers'),
                         Tab(text: 'Prompts'),
                         Tab(text: 'Testing'),
+                        Tab(text: 'API Keys'),
                       ],
                     ),
                   ),
@@ -196,6 +212,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                         _buildProvidersTab(),
                         _buildPromptsTab(),
                         _buildTestingTab(),
+                        _buildApiKeyManagementTab(),
                       ],
                     ),
                   ),
@@ -257,6 +274,8 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                         final modelName = model['model_name'] as String? ?? 'Unknown';
                         final displayName = model['display_name'] as String? ?? modelName;
                         final isActive = model['active'] as bool? ?? false;
+                        final isOllamaModel = providerType == 'ollama';
+                        final isAvailable = isOllamaModel; // Ollama models are available if they exist
                         
                         return ListTile(
                           dense: true,
@@ -265,7 +284,9 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: isActive ? Colors.green : Colors.grey,
+                              color: isActive
+                                  ? Colors.green
+                                  : (isAvailable ? Colors.blue : Colors.grey),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -273,7 +294,9 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                             displayName,
                             style: TextStyle(
                               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                              color: isActive ? Colors.green[700] : Colors.black87,
+                              color: isActive
+                                  ? Colors.green[700]
+                                  : (isAvailable ? Colors.blue[700] : Colors.black87),
                             ),
                           ),
                           subtitle: Text('Provider: $providerKey'),
@@ -283,13 +306,32 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                                   backgroundColor: Colors.green,
                                   labelStyle: TextStyle(color: Colors.white),
                                 )
-                              : ElevatedButton(
-                                  onPressed: () => _switchProvider(providerKey),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.purple,
-                                  ),
-                                  child: const Text('Activate'),
-                                ),
+                              : isAvailable
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Chip(
+                                          label: Text('Available'),
+                                          backgroundColor: Colors.blue,
+                                          labelStyle: TextStyle(color: Colors.white),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ElevatedButton(
+                                          onPressed: () => _switchProvider(providerKey),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.purple,
+                                          ),
+                                          child: const Text('Activate'),
+                                        ),
+                                      ],
+                                    )
+                                  : ElevatedButton(
+                                      onPressed: () => _switchProvider(providerKey),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.purple,
+                                      ),
+                                      child: const Text('Activate'),
+                                    ),
                         );
                       }).toList(),
                   ],
@@ -551,6 +593,209 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
           )).toList(),
         ],
       ],
+    );
+  }
+
+  Future<void> _addApiKey(String providerName) async {
+    final controller = _apiKeyControllers[providerName];
+    if (controller == null || controller.text.isEmpty) {
+      _showError('Please enter an API key');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      await LLMService.addApiKey(
+        providerName: providerName,
+        apiKey: controller.text.trim(),
+        token: token,
+      );
+      
+      controller.clear();
+      _showSuccess('API key added for $providerName');
+      await _loadProviders(); // Refresh provider status
+    } catch (e) {
+      _showError('Failed to add API key: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _removeApiKey(String providerName) async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      await LLMService.removeApiKey(
+        providerName: providerName,
+        token: token,
+      );
+      
+      _showSuccess('API key removed for $providerName');
+      await _loadProviders(); // Refresh provider status
+    } catch (e) {
+      _showError('Failed to remove API key: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildApiKeyManagementTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'API Key Management',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Manage API keys for cloud AI providers. Local models (Ollama) don\'t require API keys.',
+          style: TextStyle(color: Colors.grey),
+        ),
+        const SizedBox(height: 24),
+        
+        // OpenAI
+        _buildApiKeySection('openai', 'OpenAI', 'Enter your OpenAI API key (sk-...)'),
+        const SizedBox(height: 16),
+        
+        // Anthropic
+        _buildApiKeySection('anthropic', 'Anthropic', 'Enter your Anthropic API key (sk-ant-...)'),
+        const SizedBox(height: 16),
+        
+        // Google
+        _buildApiKeySection('google', 'Google', 'Enter your Google AI API key'),
+        const SizedBox(height: 16),
+        
+        // Cohere
+        _buildApiKeySection('cohere', 'Cohere', 'Enter your Cohere API key'),
+      ],
+    );
+  }
+
+  Widget _buildApiKeySection(String providerName, String displayName, String hintText) {
+    final controller = _apiKeyControllers[providerName]!;
+    final provider = _providers.firstWhere(
+      (p) => p['name'] == providerName,
+      orElse: () => {'has_api_key': false, 'is_available': false, 'is_active': false}
+    );
+    
+    final hasKey = provider['has_api_key'] ?? false;
+    final isAvailable = provider['is_available'] ?? false;
+    final isActive = provider['is_active'] ?? false;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.cloud,
+                  color: Colors.purple,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple,
+                  ),
+                ),
+                const Spacer(),
+                if (hasKey)
+                  Row(
+                    children: [
+                      if (isActive)
+                        const Chip(
+                          label: Text('Active'),
+                          backgroundColor: Colors.green,
+                          labelStyle: TextStyle(color: Colors.white),
+                        )
+                      else if (isAvailable)
+                        const Chip(
+                          label: Text('Available'),
+                          backgroundColor: Colors.blue,
+                          labelStyle: TextStyle(color: Colors.white),
+                        ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 20,
+                      ),
+                    ],
+                  )
+                else
+                  const Icon(
+                    Icons.warning,
+                    color: Colors.orange,
+                    size: 20,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            if (hasKey) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[200]!),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'API key configured for $displayName',
+                        style: const TextStyle(color: Colors.green),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _removeApiKey(providerName),
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text('Remove', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  hintText: hintText,
+                  prefixIcon: const Icon(Icons.vpn_key),
+                ),
+                obscureText: true,
+                onSubmitted: (_) => _addApiKey(providerName),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _addApiKey(providerName),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: Text('Add $displayName API Key'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

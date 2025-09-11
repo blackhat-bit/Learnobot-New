@@ -3,7 +3,8 @@
     "allow": [
       "Bash(find:*)",
       "Bash(curl:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(flutter pub:*)"
     ],
     "deny": [],
     "ask": []
