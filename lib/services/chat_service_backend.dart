@@ -82,6 +82,7 @@ class ChatServiceBackend {
     required int sessionId,
     required String content,
     String? assistanceType, // 'breakdown', 'example', 'explain'
+    String? provider, // LLM provider to use
   }) async {
     try {
       final token = await AuthServiceBackend.getStoredToken();
@@ -92,6 +93,9 @@ class ChatServiceBackend {
       };
       if (assistanceType != null) {
         body['assistance_type'] = assistanceType;
+      }
+      if (provider != null) {
+        body['provider'] = provider;
       }
 
       final response = await http.post(
@@ -215,6 +219,43 @@ class ChatServiceBackend {
       }
     } catch (e) {
       throw Exception('Failed to end session: $e');
+    }
+  }
+
+  // Get available AI models
+  static Future<List<Map<String, dynamic>>> getAvailableModels() async {
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      if (token == null) throw Exception('Not authenticated');
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/v1/llm/models'),
+        headers: ApiConfig.getHeaders(token: token),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to get available models: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Failed to get available models: $e');
+      // Return fallback models if API fails
+      return [
+        {
+          'provider_type': 'ollama',
+          'provider_name': 'Ollama (Local)',
+          'models': [
+            {
+              'provider_key': 'ollama-llama3_1_8b',
+              'model_name': 'llama3.1:8b',
+              'display_name': 'llama3.1:8b',
+              'active': true
+            }
+          ]
+        }
+      ];
     }
   }
 }

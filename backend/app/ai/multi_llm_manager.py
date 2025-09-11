@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from enum import Enum
 import os
+import requests
 from datetime import datetime
 
 # LangChain imports
@@ -70,10 +71,15 @@ class BaseLLMProvider(ABC):
         pass
 
 class OllamaProvider(BaseLLMProvider):
+    def __init__(self):
+        self.model_name = None
+        self.llm = None
+    
     def initialize(self, config: Dict[str, Any]):
         from app.config import settings  # Import here to avoid circular imports
+        self.model_name = config.get("model", settings.LLM_MODEL_NAME)
         self.llm = Ollama(
-            model=config.get("model", settings.LLM_MODEL_NAME),
+            model=self.model_name,
             temperature=config.get("temperature", 0.7),
             top_p=config.get("top_p", 0.9),
         )
@@ -85,7 +91,7 @@ class OllamaProvider(BaseLLMProvider):
         return {
             "provider": "Ollama",
             "type": "local",
-            "model": self.llm.model,
+            "model": self.model_name or (self.llm.model if self.llm else "unknown"),
             "requires_api_key": False
         }
     
@@ -93,6 +99,22 @@ class OllamaProvider(BaseLLMProvider):
         """Estimate token count for Ollama models"""
         # Simple estimation: ~4 characters per token
         return len(text) // 4
+    
+    @staticmethod
+    def get_available_models() -> List[str]:
+        """Get list of available Ollama models"""
+        try:
+            from app.config import settings
+            response = requests.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
+            if response.status_code == 200:
+                data = response.json()
+                return [model["name"] for model in data.get("models", [])]
+            else:
+                print(f"Failed to fetch Ollama models: {response.status_code}")
+                return []
+        except Exception as e:
+            print(f"Error fetching Ollama models: {e}")
+            return []
 
 class OpenAIProvider(BaseLLMProvider):
     def initialize(self, config: Dict[str, Any]):
@@ -217,15 +239,36 @@ class MultiProviderLLMManager:
         
     def _initialize_providers(self):
         """Initialize all configured providers"""
-        # Always initialize local providers
+        # Initialize Ollama providers dynamically for each available model
         try:
             from app.config import settings  # Import here to avoid circular imports
-            ollama_provider = OllamaProvider()
-            ollama_provider.initialize({"model": settings.LLM_MODEL_NAME})
-            self.providers["ollama"] = ollama_provider
-            self.active_provider = "ollama"  # Default to local
+            available_models = OllamaProvider.get_available_models()
+            
+            if available_models:
+                # Initialize each available model as a separate provider
+                for model_name in available_models:
+                    try:
+                        ollama_provider = OllamaProvider()
+                        ollama_provider.initialize({"model": model_name})
+                        provider_key = f"ollama-{model_name.replace(':', '_').replace('.', '_')}"
+                        self.providers[provider_key] = ollama_provider
+                        
+                        # Set default active provider to the configured model or first available
+                        if model_name == settings.LLM_MODEL_NAME:
+                            self.active_provider = provider_key
+                        elif self.active_provider is None:  # First model as fallback
+                            self.active_provider = provider_key
+                    except Exception as e:
+                        print(f"Failed to initialize Ollama model {model_name}: {e}")
+            else:
+                # Fallback: initialize with the configured model name even if not detected
+                ollama_provider = OllamaProvider()
+                ollama_provider.initialize({"model": settings.LLM_MODEL_NAME})
+                provider_key = f"ollama-{settings.LLM_MODEL_NAME.replace(':', '_').replace('.', '_')}"
+                self.providers[provider_key] = ollama_provider
+                self.active_provider = provider_key
         except Exception as e:
-            print(f"Failed to initialize Ollama: {e}")
+            print(f"Failed to initialize Ollama providers: {e}")
             
         # Initialize online providers if API keys are available
         from app.config import settings
@@ -270,6 +313,50 @@ class MultiProviderLLMManager:
             }
             for name, provider in self.providers.items()
         ]
+    
+    def get_available_models(self) -> List[Dict[str, Any]]:
+        """Get list of all available models grouped by provider type"""
+        models = []
+        
+        # Ollama models
+        ollama_models = []
+        for name, provider in self.providers.items():
+            if name.startswith("ollama-"):
+                model_name = provider.get_info().get("model", "unknown")
+                ollama_models.append({
+                    "provider_key": name,
+                    "model_name": model_name,
+                    "display_name": model_name,
+                    "active": name == self.active_provider
+                })
+        
+        if ollama_models:
+            models.append({
+                "provider_type": "ollama",
+                "provider_name": "Ollama (Local)",
+                "models": ollama_models
+            })
+        
+        # Online models
+        online_models = []
+        for name, provider in self.providers.items():
+            if not name.startswith("ollama-"):
+                info = provider.get_info()
+                online_models.append({
+                    "provider_key": name,
+                    "model_name": info.get("model", "unknown"),
+                    "display_name": f"{info.get('provider', 'Unknown')} - {info.get('model', 'unknown')}",
+                    "active": name == self.active_provider
+                })
+        
+        if online_models:
+            models.append({
+                "provider_type": "online",
+                "provider_name": "Cloud Models",
+                "models": online_models
+            })
+            
+        return models
     
     def generate(self, prompt: str, provider: Optional[str] = None, **kwargs) -> str:
         """Generate response using specified or active provider"""

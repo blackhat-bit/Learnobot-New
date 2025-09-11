@@ -28,6 +28,29 @@ class LLMService {
     }
   }
 
+  // Get all available models grouped by provider
+  static Future<List<Map<String, dynamic>>> getAvailableModels() async {
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      final headers = ApiConfig.getHeaders(token: token);
+      
+      final response = await http.get(
+        Uri.parse('${ApiConfig.llmEndpoint}/models'),
+        headers: headers,
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to load models: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error loading models: $e');
+      throw Exception('Failed to connect to backend: $e');
+    }
+  }
+
   // Add API key for a provider
   static Future<Map<String, dynamic>> addApiKey({
     required String providerName,

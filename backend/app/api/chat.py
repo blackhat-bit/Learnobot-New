@@ -73,7 +73,8 @@ async def send_message(
         session_id=session_id,
         user_id=current_user.id,
         message=message.content,
-        assistance_type=message.assistance_type
+        assistance_type=message.assistance_type,
+        provider=message.provider
     )
 
 @router.post("/sessions/{session_id}/upload-task")

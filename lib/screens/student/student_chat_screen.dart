@@ -36,11 +36,53 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   // Track last satisfaction for adaptive logic
   int? _lastSatisfaction;
 
+  // Model selection
+  List<Map<String, dynamic>> _availableModels = [];
+  String? _selectedModel;
+  bool _showModelSelector = false;
+
   @override
   void initState() {
     super.initState();
     _currentMode = widget.initialMode;
+    _loadAvailableModels();
     _createSession();
+  }
+
+  String _getSelectedModelDisplayName() {
+    if (_selectedModel == null) return 'Default';
+    
+    for (final providerGroup in _availableModels) {
+      final models = providerGroup['models'] as List<dynamic>? ?? [];
+      for (final model in models) {
+        if (model['provider_key'] == _selectedModel) {
+          return model['model_name'] ?? model['display_name'] ?? 'Unknown';
+        }
+      }
+    }
+    return 'Unknown';
+  }
+  
+  Future<void> _loadAvailableModels() async {
+    try {
+      final models = await ChatServiceBackend.getAvailableModels();
+      setState(() {
+        _availableModels = models;
+        // Set default selected model to the first active one
+        for (final providerGroup in models) {
+          final modelsList = providerGroup['models'] as List<dynamic>? ?? [];
+          for (final model in modelsList) {
+            if (model['active'] == true) {
+              _selectedModel = model['provider_key'];
+              break;
+            }
+          }
+          if (_selectedModel != null) break;
+        }
+      });
+    } catch (e) {
+      print('Failed to load available models: $e');
+    }
   }
   
   Future<void> _createSession() async {
@@ -136,6 +178,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       final response = await ChatServiceBackend.sendMessage(
         sessionId: _currentSessionId!,
         content: userMessage,
+        provider: _selectedModel,
       );
 
       setState(() {
@@ -228,6 +271,107 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
   }
   // === END SATISFACTION BAR LOGIC ===
+
+  // === MODEL SELECTOR ===
+  Widget _buildModelSelector() {
+    if (_availableModels.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'בחר מודל AI',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              IconButton(
+                onPressed: () => setState(() => _showModelSelector = false),
+                icon: const Icon(Icons.close, color: AppColors.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ..._availableModels.map((providerGroup) {
+            final providerName = providerGroup['provider_name'] as String;
+            final models = providerGroup['models'] as List<dynamic>;
+            
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    providerName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                ...models.map((model) {
+                  final providerKey = model['provider_key'] as String;
+                  final displayName = model['display_name'] as String;
+                  final isSelected = _selectedModel == providerKey;
+                  
+                  return ListTile(
+                    dense: true,
+                    leading: Radio<String>(
+                      value: providerKey,
+                      groupValue: _selectedModel,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedModel = value;
+                          _showModelSelector = false;
+                        });
+                      },
+                      activeColor: AppColors.primary,
+                    ),
+                    title: Text(
+                      displayName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        color: isSelected ? AppColors.primary : Colors.black87,
+                      ),
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _selectedModel = providerKey;
+                        _showModelSelector = false;
+                      });
+                    },
+                  );
+                }).toList(),
+                const SizedBox(height: 8),
+              ],
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
 
   // === MODE SELECTOR BAR ===
   Widget _buildModeSelector() {
@@ -358,11 +502,45 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              setState(() {
+                _showModelSelector = !_showModelSelector;
+              });
+            },
+            tooltip: 'בחר מודל AI',
+          ),
+          if (_selectedModel != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _getSelectedModelDisplayName(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          _buildModeSelector(),
-          Container(
+          Column(
+            children: [
+              _buildModeSelector(),
+              Container(
             height: 80,
             width: double.infinity,
             color: AppColors.skyBackground,
@@ -625,6 +803,18 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               ],
             ),
           ),
+            ],
+          ),
+          // Model selector overlay
+          if (_showModelSelector)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.5),
+                child: Center(
+                  child: _buildModelSelector(),
+                ),
+              ),
+            ),
         ],
       ),
     );

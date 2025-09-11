@@ -61,7 +61,8 @@ async def process_message(
     session_id: int,
     user_id: int,
     message: str,
-    assistance_type: Optional[str] = None
+    assistance_type: Optional[str] = None,
+    provider: Optional[str] = None
 ) -> ChatMessage:
     """Process a user message and generate AI response"""
     
@@ -120,19 +121,19 @@ async def process_message(
         if session.mode == InteractionMode.PRACTICE:
             if assistance_type == "breakdown":
                 ai_response = instruction_processor.breakdown_instruction(
-                    message, student.difficulty_level, language_pref
+                    message, student.difficulty_level, language_pref, provider
                 )
             elif assistance_type == "example":
                 ai_response = instruction_processor.provide_example(
-                    message, "main concept", language_pref
+                    message, "main concept", language_pref, provider
                 )
             elif assistance_type == "explain":
                 ai_response = instruction_processor.explain_instruction(
-                    message, student.difficulty_level, language_pref
+                    message, student.difficulty_level, language_pref, provider
                 )
             else:
                 # Analyze and provide appropriate help
-                analysis = instruction_processor.analyze_instruction(message, student_context)
+                analysis = instruction_processor.analyze_instruction(message, student_context, provider)
                 ai_response = analysis["analysis"]
         else:
             # Test mode - limited assistance

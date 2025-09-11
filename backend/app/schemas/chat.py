@@ -24,6 +24,7 @@ class ChatMessageBase(BaseModel):
 class ChatMessageCreate(BaseModel):
     content: str
     assistance_type: Optional[AssistanceType] = None
+    provider: Optional[str] = None  # Allow specifying which LLM provider to use
 
 class ChatMessage(ChatMessageBase):
     id: int
@@ -35,6 +36,7 @@ class ChatMessage(ChatMessageBase):
 
 class ChatSessionCreate(BaseModel):
     mode: InteractionMode = InteractionMode.PRACTICE
+    preferred_provider: Optional[str] = None  # Default LLM provider for this session
 
 class ChatSession(BaseModel):
     id: int

@@ -2,6 +2,7 @@
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
 from app.ai.llm_manager import llm_manager
+from app.ai.multi_llm_manager import multi_llm_manager
 from app.ai.prompts.hebrew_prompts import (
     HEBREW_SYSTEM_PROMPT,
     HEBREW_BREAKDOWN_PROMPT,
@@ -21,11 +22,18 @@ logger = logging.getLogger(__name__)
 
 class InstructionProcessor:
     def __init__(self):
-        self.llm = llm_manager.get_llm()
+        self.llm = llm_manager.get_llm()  # Fallback LLM
         self.memory = ConversationBufferMemory(
             memory_key="chat_history",
             return_messages=True
         )
+        
+    def _get_llm_for_provider(self, provider: str = None):
+        """Get LLM instance for specified provider"""
+        if provider and provider in multi_llm_manager.providers:
+            # Use the specific provider from multi_llm_manager
+            return multi_llm_manager.providers[provider].llm if hasattr(multi_llm_manager.providers[provider], 'llm') else None
+        return self.llm  # Fallback to default
     
     def _get_prompts_for_language(self, language_preference: str = 'he'):
         """
@@ -53,74 +61,59 @@ class InstructionProcessor:
                 'analysis': HEBREW_PRACTICE_PROMPT
             }
     
-    def analyze_instruction(self, instruction: str, student_context: dict) -> dict:
+    def analyze_instruction(self, instruction: str, student_context: dict, provider: str = None) -> dict:
         """Analyze an instruction to understand what needs to be done"""
         # Get user language preference from context
         language_pref = student_context.get("language_preference", "he")
         prompts = self._get_prompts_for_language(language_pref)
         
-        chain = LLMChain(
-            llm=self.llm,
-            prompt=prompts['analysis'],
-            verbose=True
-        )
-        
-        # Use appropriate parameters based on language
+        # Format the prompt with variables
         if language_pref and language_pref.lower() in ['en', 'english']:
-            result = chain.run(
+            prompt_text = prompts['analysis'].format(
                 instruction=instruction,
                 student_context=str(student_context)
             )
         else:
-            result = chain.run(
+            prompt_text = prompts['analysis'].format(
                 instruction=instruction,
                 student_level=student_context.get("difficulty_level", 3),
                 assistance_type="הסבר"
             )
         
+        # Use multi_llm_manager to generate response
+        result = multi_llm_manager.generate(prompt_text, provider=provider)
+        
         return {"analysis": result}
     
-    def breakdown_instruction(self, instruction: str, student_level: int, language_preference: str = "he") -> str:
+    def breakdown_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None) -> str:
         """Break down instruction into simple steps"""
         prompts = self._get_prompts_for_language(language_preference)
         
-        chain = LLMChain(
-            llm=self.llm,
-            prompt=prompts['breakdown'],
-            verbose=True
-        )
-        
-        return chain.run(
+        prompt_text = prompts['breakdown'].format(
             instruction=instruction,
             student_level=student_level
         )
+        
+        return multi_llm_manager.generate(prompt_text, provider=provider)
     
-    def provide_example(self, instruction: str, concept: str, language_preference: str = "he") -> str:
+    def provide_example(self, instruction: str, concept: str, language_preference: str = "he", provider: str = None) -> str:
         """Provide a relatable example"""
         prompts = self._get_prompts_for_language(language_preference)
         
-        chain = LLMChain(
-            llm=self.llm,
-            prompt=prompts['example'],
-            verbose=True
-        )
-        
-        return chain.run(
+        prompt_text = prompts['example'].format(
             instruction=instruction,
             concept=concept
         )
+        
+        return multi_llm_manager.generate(prompt_text, provider=provider)
     
-    def explain_instruction(self, instruction: str, student_level: int, language_preference: str = "he") -> str:
+    def explain_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None) -> str:
         """Explain instruction in simple terms"""
         prompts = self._get_prompts_for_language(language_preference)
         
-        chain = LLMChain(
-            llm=self.llm,
-            prompt=prompts['explain'],
-            verbose=True
-        )
-        
-        return chain.run(
+        prompt_text = prompts['explain'].format(
             instruction=instruction,
             student_level=student_level
         )
+        
+        return multi_llm_manager.generate(prompt_text, provider=provider)

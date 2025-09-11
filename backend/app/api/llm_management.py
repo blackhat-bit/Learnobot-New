@@ -33,6 +33,17 @@ async def get_available_providers(
     
     return multi_llm_manager.get_available_providers()
 
+@router.get("/models")
+async def get_available_models(
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of all available models grouped by provider type"""
+    # Allow students to see available models for selection
+    if current_user.role not in [UserRole.STUDENT, UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    return multi_llm_manager.get_available_models()
+
 @router.post("/providers/{provider_name}/activate")
 async def set_active_provider(
     provider_name: str,

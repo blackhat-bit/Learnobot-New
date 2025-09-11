@@ -14,6 +14,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
   
   // State variables
   List<dynamic> _providers = [];
+  List<dynamic> _availableModels = [];
   String _activeProvider = '';
   final Map<String, dynamic> _prompts = {
     'practice': {
@@ -45,6 +46,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
   void initState() {
     super.initState();
     _loadProviders();
+    _loadAvailableModels();
     _systemPromptController.text = _prompts['practice']['system'];
   }
 
@@ -64,6 +66,17 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
       _showError('Failed to load providers: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadAvailableModels() async {
+    try {
+      final models = await LLMService.getAvailableModels();
+      setState(() {
+        _availableModels = models;
+      });
+    } catch (e) {
+      _showError('Failed to load available models: $e');
     }
   }
 
@@ -197,33 +210,139 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         const Text(
-          'Available AI Providers',
+          'Available AI Models',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        ..._providers.map((provider) => Card(
-          child: ListTile(
-            leading: Icon(
-              provider['info']['type'] == 'local' 
-                ? Icons.computer 
-                : Icons.cloud,
-              color: provider['name'] == _activeProvider 
-                ? Colors.green 
-                : Colors.grey,
+        if (_availableModels.isNotEmpty)
+          ..._availableModels.map((providerGroup) {
+            final providerName = providerGroup['provider_name'] as String? ?? 'Unknown';
+            final providerType = providerGroup['provider_type'] as String? ?? 'unknown';
+            final models = providerGroup['models'] as List<dynamic>? ?? [];
+            
+            return Card(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          providerType == 'ollama' ? Icons.computer : Icons.cloud,
+                          color: Colors.purple,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          providerName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (models.isEmpty)
+                      const Text(
+                        'No models available',
+                        style: TextStyle(color: Colors.grey),
+                      )
+                    else
+                      ...models.map((model) {
+                        final providerKey = model['provider_key'] as String? ?? '';
+                        final modelName = model['model_name'] as String? ?? 'Unknown';
+                        final displayName = model['display_name'] as String? ?? modelName;
+                        final isActive = model['active'] as bool? ?? false;
+                        
+                        return ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                          leading: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: isActive ? Colors.green : Colors.grey,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          title: Text(
+                            displayName,
+                            style: TextStyle(
+                              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                              color: isActive ? Colors.green[700] : Colors.black87,
+                            ),
+                          ),
+                          subtitle: Text('Provider: $providerKey'),
+                          trailing: isActive
+                              ? const Chip(
+                                  label: Text('Active'),
+                                  backgroundColor: Colors.green,
+                                  labelStyle: TextStyle(color: Colors.white),
+                                )
+                              : ElevatedButton(
+                                  onPressed: () => _switchProvider(providerKey),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.purple,
+                                  ),
+                                  child: const Text('Activate'),
+                                ),
+                        );
+                      }).toList(),
+                  ],
+                ),
+              ),
+            );
+          }).toList()
+        else
+          const Center(
+            child: Text(
+              'No models available. Please check your configuration.',
+              style: TextStyle(color: Colors.grey),
             ),
-            title: Text(provider['info']?['provider'] ?? provider['name'] ?? 'Unknown'),
-            subtitle: Text(provider['info']?['model'] ?? 'No model specified'),
-            trailing: (provider['name'] ?? '') == _activeProvider
-                ? Chip(
-                    label: const Text('Active'),
-                    backgroundColor: Colors.green[100],
-                  )
-                : ElevatedButton(
-                    onPressed: () => _switchProvider(provider['name'] ?? ''),
-                    child: const Text('Activate'),
-                  ),
           ),
-        )).toList(),
+        
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 16),
+        
+        // Legacy provider status for debugging
+        if (_providers.isNotEmpty) ...[
+          const Text(
+            'Provider Status (Debug)',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          ..._providers.map((provider) => Card(
+            color: Colors.grey[100],
+            child: ListTile(
+              dense: true,
+              leading: Icon(
+                provider['type'] == 'local' 
+                  ? Icons.computer 
+                  : Icons.cloud,
+                color: provider['is_active'] 
+                  ? Colors.green 
+                  : Colors.grey,
+                size: 20,
+              ),
+              title: Text(
+                provider['name'] ?? 'Unknown',
+                style: const TextStyle(fontSize: 14),
+              ),
+              subtitle: Text(
+                'Type: ${provider['type']}, Has Key: ${provider['has_api_key']}',
+                style: const TextStyle(fontSize: 12),
+              ),
+              trailing: provider['is_active']
+                  ? const Icon(Icons.check_circle, color: Colors.green, size: 16)
+                  : const Icon(Icons.radio_button_unchecked, color: Colors.grey, size: 16),
+            ),
+          )).toList(),
+        ],
       ],
     );
   }
