@@ -1,0 +1,23 @@
+#version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: learnobot
+      POSTGRES_PASSWORD: StrongPassword123!
+      POSTGRES_DB: learnobot_db
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ./data/ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    command: serve
+
+# Using local directory mounts for better data persistence

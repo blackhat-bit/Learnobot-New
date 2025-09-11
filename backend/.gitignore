@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.env
+.venv
+instance/
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+*.db
+*.log
+
+# Docker data persistence
+<<<<<<< HEAD
+<<<<<<< HEAD
+data/**
+!data/.keep
+=======
+data/
+data/postgres/
+data/ollama/
+>>>>>>> 6acb89f (add postgress and ollama model in the gitignore file)
+=======
+data/**
+!data/.keep
+>>>>>>> 74db41c (Update .gitignore to exclude all data files while preserving .keep file)

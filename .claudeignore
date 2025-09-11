@@ -1,0 +1,17 @@
+# common noise
+node_modules/
+.venv/
+.venv-linux/
+.env
+.env.*
+dist/
+build/
+.cache/
+__pycache__/
+*.log
+
+# your project specifics
+data/
+docker-data/
+postgres/
+ollama/
