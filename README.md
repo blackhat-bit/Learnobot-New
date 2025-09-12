@@ -189,8 +189,3 @@ flutter run
 3. **Model Downloads**: Models can take 10-15 minutes to download
 4. **Virtual Environment**: Always activate `.venv` before running backend
 
-## 📖 Flutter Resources
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-- [Online documentation](https://docs.flutter.dev/)
