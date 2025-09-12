@@ -611,7 +611,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _isLoading = true);
     
     try {
-      await UploadService.removeProfilePicture();
+      await UploadService.deleteProfilePicture();
       
       if (mounted) {
         setState(() {
