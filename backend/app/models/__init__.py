@@ -6,6 +6,7 @@ from .user import User
 from .chat import ChatSession, ChatMessage
 from .task import Task, TaskInteraction
 from .llm_config import LLMConfig
+from .conversation_state import ConversationState
 
 __all__ = [
     "User",
@@ -13,5 +14,6 @@ __all__ = [
     "ChatMessage",
     "Task",
     "TaskInteraction",
-    "LLMConfig"
+    "LLMConfig",
+    "ConversationState"
 ]

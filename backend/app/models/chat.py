@@ -26,6 +26,7 @@ class ChatSession(Base):
     # Relationships
     messages = relationship("ChatMessage", back_populates="session")
     student = relationship("StudentProfile")
+    conversation_state = relationship("ConversationState", back_populates="session", uselist=False)
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"

@@ -4,6 +4,7 @@ from app.models.chat import ChatSession, ChatMessage, InteractionMode, MessageRo
 from app.models.task import Task
 from app.ai.chains.instruction_chain import InstructionProcessor
 from app.ai.mediation_strategies import MediationManager, MediationStrategy
+from app.services.hebrew_mediation_service import hebrew_mediation_service
 from app.services.analytics_service import AnalyticsService
 from app.models.analytics import EventType
 from typing import Optional
@@ -55,6 +56,9 @@ async def end_session(db: Session, session_id: int):
         
         # Finalize analytics
         AnalyticsService.finalize_session_analytics(db, session_id)
+        
+        # Cleanup Hebrew mediation resources
+        hebrew_mediation_service.cleanup_session(session_id)
 
 async def process_message(
     db: Session,
@@ -118,7 +122,35 @@ async def process_message(
         # Generate AI response based on mode and assistance type
         language_pref = student.user.language_preference
         
-        if session.mode == InteractionMode.PRACTICE:
+        # Check if Hebrew mediation should be used (Agent Selection mode or Test mode)
+        if hebrew_mediation_service.should_use_mediation(session, assistance_type):
+            # Use sophisticated Hebrew mediation system
+            mediation_result = hebrew_mediation_service.process_mediated_response(
+                db=db,
+                session_id=session_id,
+                instruction=message,
+                student_response="",  # First message in conversation
+                provider=provider
+            )
+            
+            ai_response = mediation_result["response"]
+            
+            # Log mediation strategy used
+            AnalyticsService.log_event(
+                db=db,
+                session_id=session_id,
+                user_id=user_id,
+                event_type=EventType.AI_RESPONSE,
+                event_data={
+                    "strategy_used": mediation_result["strategy_used"],
+                    "comprehension_level": mediation_result["comprehension_level"],
+                    "attempt_count": mediation_result["attempt_count"],
+                    "mediation_system": "hebrew_chain"
+                }
+            )
+            
+        elif session.mode == InteractionMode.PRACTICE:
+            # Student Selection mode - use existing simple logic
             if assistance_type == "breakdown":
                 ai_response = instruction_processor.breakdown_instruction(
                     message, student.difficulty_level, language_pref, provider
@@ -132,12 +164,11 @@ async def process_message(
                     message, student.difficulty_level, language_pref, provider
                 )
             else:
-                # Analyze and provide appropriate help
+                # Fallback to analysis
                 analysis = instruction_processor.analyze_instruction(message, student_context, provider)
                 ai_response = analysis["analysis"]
         else:
-            # Test mode - limited assistance
-            # Check previous attempts
+            # Test mode fallback (shouldn't reach here if mediation is working)
             previous_attempts = db.query(ChatMessage).filter(
                 ChatMessage.session_id == session_id,
                 ChatMessage.role == MessageRole.ASSISTANT
@@ -146,7 +177,6 @@ async def process_message(
             if previous_attempts >= 3:
                 ai_response = "הגעת למספר המקסימלי של ניסיונות עזרה לשאלה זו. אנא עבור לשאלה הבאה או פנה למורה שלך."
             else:
-                # Provide minimal assistance
                 strategy = mediation_manager.get_next_strategy([], "test")
                 ai_response = mediation_manager.apply_strategy(
                     strategy, message, instruction_processor
