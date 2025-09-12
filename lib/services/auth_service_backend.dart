@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
+import 'chat_service_backend.dart';
 
 class AuthServiceBackend {
   static const String _tokenKey = 'auth_token';
@@ -177,6 +178,9 @@ class AuthServiceBackend {
   // Logout
   static Future<void> logout() async {
     try {
+      // Cancel all ongoing chat requests before logout
+      ChatServiceBackend.cancelAllRequests();
+      
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_tokenKey);
       await prefs.remove(_userKey);

@@ -6,6 +6,7 @@ import 'auth_service_backend.dart';
 
 class ChatServiceBackend {
   // Track ongoing requests for cancellation
+  static final Map<int, http.Client> _ongoingClients = {};
   static final Map<int, Completer<Map<String, dynamic>>> _ongoingRequests = {};
   // Create a new chat session
   static Future<Map<String, dynamic>> createSession({
@@ -82,10 +83,34 @@ class ChatServiceBackend {
 
   // Cancel ongoing request for a session
   static void cancelRequest(int sessionId) {
+    // Close the HTTP client to cancel the actual network request
+    if (_ongoingClients.containsKey(sessionId)) {
+      _ongoingClients[sessionId]?.close();
+      _ongoingClients.remove(sessionId);
+    }
+    
+    // Complete the completer with cancellation error
     if (_ongoingRequests.containsKey(sessionId)) {
       _ongoingRequests[sessionId]?.completeError(Exception('Request cancelled'));
       _ongoingRequests.remove(sessionId);
     }
+  }
+
+  // Cancel all ongoing requests (useful for logout)
+  static void cancelAllRequests() {
+    // Close all HTTP clients
+    for (final client in _ongoingClients.values) {
+      client.close();
+    }
+    _ongoingClients.clear();
+    
+    // Complete all completers with cancellation error
+    for (final completer in _ongoingRequests.values) {
+      if (!completer.isCompleted) {
+        completer.completeError(Exception('Request cancelled'));
+      }
+    }
+    _ongoingRequests.clear();
   }
 
   // Send a message
@@ -102,6 +127,10 @@ class ChatServiceBackend {
     final completer = Completer<Map<String, dynamic>>();
     _ongoingRequests[sessionId] = completer;
     
+    // Create a new HTTP client for this request
+    final client = http.Client();
+    _ongoingClients[sessionId] = client;
+    
     try {
       final token = await AuthServiceBackend.getStoredToken();
       if (token == null) throw Exception('Not authenticated');
@@ -116,14 +145,16 @@ class ChatServiceBackend {
         body['provider'] = provider;
       }
 
-      final response = await http.post(
+      final response = await client.post(
         Uri.parse('${ApiConfig.chatEndpoint}/sessions/$sessionId/messages'),
         headers: ApiConfig.getHeaders(token: token),
         body: json.encode(body),
       ).timeout(ApiConfig.llmTimeout); // Extended timeout for slow AI models
 
-      // Remove from ongoing requests when completed
+      // Clean up when completed
       _ongoingRequests.remove(sessionId);
+      _ongoingClients.remove(sessionId);
+      client.close();
 
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
@@ -136,8 +167,10 @@ class ChatServiceBackend {
         throw exception;
       }
     } catch (e) {
-      // Remove from ongoing requests on error
+      // Clean up on error
       _ongoingRequests.remove(sessionId);
+      _ongoingClients.remove(sessionId);
+      client.close();
       
       Exception finalException;
       if (e.toString().contains('TimeoutException')) {
@@ -161,6 +194,10 @@ class ChatServiceBackend {
     required List<int> imageBytes,
     required String fileName,
   }) async {
+    // Create a new HTTP client for this request
+    final client = http.Client();
+    _ongoingClients[sessionId] = client;
+    
     try {
       final token = await AuthServiceBackend.getStoredToken();
       if (token == null) throw Exception('Not authenticated');
@@ -177,8 +214,12 @@ class ChatServiceBackend {
         filename: fileName,
       ));
 
-      final streamedResponse = await request.send().timeout(ApiConfig.uploadTimeout);
+      final streamedResponse = await client.send(request).timeout(ApiConfig.uploadTimeout);
       final response = await http.Response.fromStream(streamedResponse);
+
+      // Clean up when completed
+      _ongoingClients.remove(sessionId);
+      client.close();
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -187,6 +228,9 @@ class ChatServiceBackend {
         throw Exception(error['detail'] ?? 'Failed to upload task');
       }
     } catch (e) {
+      // Clean up on error
+      _ongoingClients.remove(sessionId);
+      client.close();
       throw Exception('Failed to upload task: $e');
     }
   }
