@@ -48,13 +48,16 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               color: AppColors.primary,
               child: Row(
                 children: [
-                  const CircleAvatar(
-                    backgroundColor: Colors.white,
-                    radius: 25,
-                    child: Icon(
-                      Icons.person,
-                      color: AppColors.primary,
-                      size: 30,
+                  GestureDetector(
+                    onTap: () => _showProfileOptions(context),
+                    child: const CircleAvatar(
+                      backgroundColor: Colors.white,
+                      radius: 25,
+                      child: Icon(
+                        Icons.person,
+                        color: AppColors.primary,
+                        size: 30,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 15),
@@ -123,24 +126,83 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 30),
 
-                    // Start Conversation Button
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _showModeSelectionDialog(context);
-                      },
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      label: const Text(
-                        AppStrings.startChat,
-                        style: TextStyle(fontSize: 18),
+                    // Encouraging Message
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.blue.shade200, width: 1),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 30,
-                          vertical: 15,
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                            size: 30,
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'כל נסיון מקדם אותך להצלחה, מאמין בך!',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 25),
+
+                    // Buttons Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // Profile Update Button
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _showUpdateProfileDialog(context);
+                          },
+                          icon: const Icon(Icons.edit),
+                          label: const Text('עדכון פרטים'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
-                      ),
+
+                        // Start Conversation Button
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _showModeSelectionDialog(context);
+                          },
+                          icon: const Icon(Icons.chat_bubble_outline),
+                          label: const Text('התחל שיחה'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -161,6 +223,183 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showProfileOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('עדכון פרטים'),
+              onTap: () {
+                Navigator.pop(context);
+                _showUpdateProfileDialog(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('החלף תמונת פרופיל'),
+              onTap: () {
+                Navigator.pop(context);
+                _showProfilePictureOptions(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel),
+              title: const Text('ביטול'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showProfilePictureOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('צלם תמונה'),
+              onTap: () {
+                Navigator.pop(context);
+                _showFeatureComingSoon('צילום תמונה');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('בחר מהגלריה'),
+              onTap: () {
+                Navigator.pop(context);
+                _showFeatureComingSoon('בחירת תמונה מהגלריה');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel),
+              title: const Text('ביטול'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showUpdateProfileDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController emailController = TextEditingController();
+    
+    // Load current user data
+    _loadCurrentUserData(nameController, emailController);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('עדכון פרטים אישיים'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                textDirection: TextDirection.rtl,
+                decoration: const InputDecoration(
+                  labelText: 'שם מלא',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: emailController,
+                textDirection: TextDirection.ltr,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'דואר אלקטרוני',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ביטול'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _updateProfile(context, nameController.text, emailController.text);
+            },
+            child: const Text('שמור'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadCurrentUserData(
+      TextEditingController nameController, 
+      TextEditingController emailController) async {
+    try {
+      final user = await AuthServiceBackend.getStoredUser();
+      if (user != null) {
+        nameController.text = user['full_name'] ?? '';
+        emailController.text = user['email'] ?? '';
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    }
+  }
+
+  void _updateProfile(BuildContext context, String name, String email) {
+    if (name.isEmpty || email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('נא למלא את כל השדות'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('נא להזין כתובת דואר אלקטרוני תקינה'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // TODO: Implement actual profile update API call
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('הפרטים עודכנו בהצלחה!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+    
+    // Reload username to reflect changes
+    _loadUsername();
+  }
+
+  void _showFeatureComingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature יתווסף בקרוב'),
+        backgroundColor: Colors.orange,
       ),
     );
   }

@@ -74,4 +74,6 @@ backend/**/*.pyc
 backend/data/
 backend/data/**
 
+ClaudeResorce/
+
 examplesInteractionsStudentBot.pdf

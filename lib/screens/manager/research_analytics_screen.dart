@@ -95,6 +95,82 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
 
 
 
+  Future<void> _exportChatHistory() async {
+    try {
+      setState(() => _isLoading = true);
+      
+      // Get authentication token
+      final token = await AuthServiceBackend.getStoredToken();
+      if (token == null) {
+        _showError('Authentication required for chat export');
+        return;
+      }
+
+      // Select file location for saving
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Chat History CSV',
+        fileName: 'learnobot_chat_history_${DateFormat('yyyy_MM_dd').format(DateTime.now())}.csv',
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+
+      if (outputFile != null) {
+        // Get current date range
+        final endDate = DateTime.now();
+        final startDate = endDate.subtract(Duration(days: _timeRange));
+        
+        // Get chat history from backend
+        final conversations = await AnalyticsService.getConversationArchive(
+          studentId: _selectedStudentId != null ? int.parse(_selectedStudentId!) : null,
+          days: _timeRange,
+          token: token,
+        );
+        
+        // Convert to CSV format
+        List<List<String>> csvData = [
+          ['Student ID', 'Student Name', 'Session ID', 'Mode', 'Message Role', 'Message Content', 'Timestamp', 'Satisfaction Rating']
+        ];
+        
+        for (var conversation in conversations) {
+          final studentId = conversation['student_id']?.toString() ?? '';
+          final studentName = conversation['student_name']?.toString() ?? '';
+          final sessionId = conversation['session_id']?.toString() ?? '';
+          final mode = conversation['mode']?.toString() ?? '';
+          
+          final messages = conversation['messages'] as List? ?? [];
+          for (var message in messages) {
+            csvData.add([
+              studentId,
+              studentName,
+              sessionId,
+              mode,
+              message['role']?.toString() ?? '',
+              message['content']?.toString() ?? '',
+              message['timestamp']?.toString() ?? '',
+              message['satisfaction_rating']?.toString() ?? '',
+            ]);
+          }
+        }
+        
+        // Write CSV file
+        final csvString = csvData.map((row) => 
+          row.map((cell) => '"${cell.replaceAll('"', '""')}"').join(',')
+        ).join('\n');
+        
+        final file = File(outputFile);
+        await file.writeAsString(csvString);
+        
+        _showSuccess('Chat history exported successfully to:\n$outputFile');
+      } else {
+        _showError('Export cancelled - no file selected');
+      }
+    } catch (e) {
+      _showError('Failed to export chat history: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _exportData() async {
     try {
       setState(() => _isLoading = true);
@@ -160,10 +236,34 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
         title: const Text('Research Analytics'),
         backgroundColor: Colors.purple,
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.download),
-            onPressed: _exportData,
-            tooltip: 'Export Data',
+            tooltip: 'ייצא נתוני מחקר וצ\'אט',
+            onSelected: (String value) {
+              if (value == 'research_data') {
+                _exportData();
+              } else if (value == 'chat_history') {
+                _exportChatHistory();
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'research_data',
+                child: ListTile(
+                  leading: Icon(Icons.analytics),
+                  title: Text('נתוני מחקר'),
+                  subtitle: Text('סשנים, מטריקות, דירוגים'),
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'chat_history',
+                child: ListTile(
+                  leading: Icon(Icons.chat),
+                  title: Text('היסטוריית צ\'אט'),
+                  subtitle: Text('תוכן השיחות המלא'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -882,21 +882,24 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     ),
                     Row(
                       children: [
-                        TextButton.icon(
-                          onPressed: () async {
-                            try {
-                              final csvData = await AnalyticsService.exportComprehensiveCSV();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('הנתונים יוצאו בהצלחה')),
-                              );
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('שגיאה ביצוא הנתונים: $e')),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.download),
-                          label: const Text('ייצא כ-CSV'),
+                        Tooltip(
+                          message: 'ייצא נתונים מקיפים: סשנים, מטריקות, שגיאות, דירוגים וכל הנתונים הסטטיסטיים',
+                          child: TextButton.icon(
+                            onPressed: () async {
+                              try {
+                                final csvData = await AnalyticsService.exportComprehensiveCSV();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('נתונים מקיפים יוצאו בהצלחה')),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('שגיאה ביצוא הנתונים: $e')),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.analytics),
+                            label: const Text('ייצא נתונים מקיפים'),
+                          ),
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(context),

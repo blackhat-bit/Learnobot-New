@@ -11,7 +11,8 @@
       "Bash(alembic current:*)",
       "Bash(alembic:*)",
       "Bash(sed:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(flutter analyze:*)"
     ],
     "deny": [],
     "ask": []
