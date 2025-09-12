@@ -110,6 +110,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   @override
   void dispose() {
+    // Cancel any ongoing requests
+    if (_currentSessionId != null) {
+      ChatServiceBackend.cancelRequest(_currentSessionId!);
+    }
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -193,17 +197,26 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         provider: _selectedModel,
       );
 
-      setState(() {
-        _messages.removeWhere((m) => m.id == 'typing');
-        _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
-        _isBotTyping = false;
-      });
+      if (mounted) {
+        setState(() {
+          _messages.removeWhere((m) => m.id == 'typing');
+          _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
+          _isBotTyping = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _messages.removeWhere((m) => m.id == 'typing');
-        _addBotMessage('⚠️ שגיאה: $e');
-        _isBotTyping = false;
-      });
+      if (mounted) {
+        setState(() {
+          _messages.removeWhere((m) => m.id == 'typing');
+          if (e.toString().contains('Request was cancelled')) {
+            // Don't show error message for cancelled requests
+            _isBotTyping = false;
+          } else {
+            _addBotMessage('⚠️ שגיאה: $e');
+            _isBotTyping = false;
+          }
+        });
+      }
     }
   }
 

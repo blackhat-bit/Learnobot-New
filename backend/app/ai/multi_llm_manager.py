@@ -83,7 +83,28 @@ class OllamaProvider(BaseLLMProvider):
         )
         
     def generate(self, prompt: str, **kwargs) -> str:
-        return self.llm(prompt)
+        import time
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        prompt_length = len(prompt)
+        
+        try:
+            response = self.llm(prompt)
+            response_time = time.time() - start_time
+            
+            logger.info(f"Ollama {self.model_name} - Prompt: {prompt_length} chars, Response: {response_time:.2f}s")
+            
+            # Log performance warning if slow
+            if response_time > 10.0:
+                logger.warning(f"Ollama {self.model_name} slow response: {response_time:.2f}s for {prompt_length} chars")
+                
+            return response
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Ollama {self.model_name} error after {response_time:.2f}s: {e}")
+            raise
     
     def get_info(self) -> Dict[str, Any]:
         return {

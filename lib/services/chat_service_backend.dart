@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
 import 'auth_service_backend.dart';
 
 class ChatServiceBackend {
+  // Track ongoing requests for cancellation
+  static final Map<int, Completer<Map<String, dynamic>>> _ongoingRequests = {};
   // Create a new chat session
   static Future<Map<String, dynamic>> createSession({
     required String mode, // 'practice' or 'test'
@@ -77,6 +80,14 @@ class ChatServiceBackend {
     }
   }
 
+  // Cancel ongoing request for a session
+  static void cancelRequest(int sessionId) {
+    if (_ongoingRequests.containsKey(sessionId)) {
+      _ongoingRequests[sessionId]?.completeError(Exception('Request cancelled'));
+      _ongoingRequests.remove(sessionId);
+    }
+  }
+
   // Send a message
   static Future<Map<String, dynamic>> sendMessage({
     required int sessionId,
@@ -84,6 +95,13 @@ class ChatServiceBackend {
     String? assistanceType, // 'breakdown', 'example', 'explain'
     String? provider, // LLM provider to use
   }) async {
+    // Cancel any existing request for this session
+    cancelRequest(sessionId);
+    
+    // Create a completer for this request
+    final completer = Completer<Map<String, dynamic>>();
+    _ongoingRequests[sessionId] = completer;
+    
     try {
       final token = await AuthServiceBackend.getStoredToken();
       if (token == null) throw Exception('Not authenticated');
@@ -104,20 +122,36 @@ class ChatServiceBackend {
         body: json.encode(body),
       ).timeout(ApiConfig.llmTimeout); // Extended timeout for slow AI models
 
+      // Remove from ongoing requests when completed
+      _ongoingRequests.remove(sessionId);
+
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final result = json.decode(response.body);
+        if (!completer.isCompleted) completer.complete(result);
+        return result;
       } else {
         final error = json.decode(response.body);
-        throw Exception(error['detail'] ?? 'Failed to send message');
+        final exception = Exception(error['detail'] ?? 'Failed to send message');
+        if (!completer.isCompleted) completer.completeError(exception);
+        throw exception;
       }
     } catch (e) {
+      // Remove from ongoing requests on error
+      _ongoingRequests.remove(sessionId);
+      
+      Exception finalException;
       if (e.toString().contains('TimeoutException')) {
-        throw Exception('AI model is taking too long to respond (>5 min). Please try a different model or check if Ollama is running properly.');
+        finalException = Exception('AI model is taking too long to respond (>5 min). Please try a different model or check if Ollama is running properly.');
       } else if (e.toString().contains('Connection')) {
-        throw Exception('Cannot connect to backend server. Please check if the backend is running.');
+        finalException = Exception('Cannot connect to backend server. Please check if the backend is running.');
+      } else if (e.toString().contains('Request cancelled')) {
+        finalException = Exception('Request was cancelled');
       } else {
-        throw Exception('Failed to send message: $e');
+        finalException = Exception('Failed to send message: $e');
       }
+      
+      if (!completer.isCompleted) completer.completeError(finalException);
+      throw finalException;
     }
   }
 
