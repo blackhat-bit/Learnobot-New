@@ -73,6 +73,7 @@ backend/**/__pycache__/
 backend/**/*.pyc
 backend/data/
 backend/data/**
+backend/uploads/
 
 ClaudeResorce/
 

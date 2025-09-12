@@ -10,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/auth_service_backend.dart';
 import '../../services/analytics_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/upload_service.dart';
 import '../auth/welcome_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -26,6 +27,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
   String _username = 'המורה';
   String? _userRole;
   Map<String, dynamic>? _dashboardStats;
+  String? _profileImageUrl;
   
   // Local state
 
@@ -38,6 +40,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
       _loadUsername();
       _loadUserRole();
       _loadDashboardStats();
+      _loadProfilePicture();
     });
   }
   
@@ -64,6 +67,19 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
       setState(() {
         _userRole = role;
       });
+    }
+  }
+
+  Future<void> _loadProfilePicture() async {
+    try {
+      final profileInfo = await UploadService.getProfilePictureInfo();
+      if (mounted && profileInfo['image_url'] != null) {
+        setState(() {
+          _profileImageUrl = UploadService.getImageUrl(profileInfo['image_url']);
+        });
+      }
+    } catch (e) {
+      print('Error loading profile picture: $e');
     }
   }
 
@@ -147,16 +163,24 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                                 builder: (context) =>
                                     const AccountSettingsScreen(),
                               ),
-                            );
+                            ).then((_) {
+                              // Reload profile picture when returning from settings
+                              _loadProfilePicture();
+                            });
                           },
-                          child: const CircleAvatar(
+                          child: CircleAvatar(
                             backgroundColor: Colors.white,
                             radius: 25,
-                            child: Icon(
-                              Icons.person,
-                              color: AppColors.primary,
-                              size: 30,
-                            ),
+                            backgroundImage: _profileImageUrl != null 
+                                ? NetworkImage(_profileImageUrl!)
+                                : null,
+                            child: _profileImageUrl == null
+                                ? const Icon(
+                                    Icons.person,
+                                    color: AppColors.primary,
+                                    size: 30,
+                                  )
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 15),

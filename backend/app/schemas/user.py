@@ -44,6 +44,14 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str
+
 class Token(BaseModel):
     access_token: str
     refresh_token: Optional[str] = None

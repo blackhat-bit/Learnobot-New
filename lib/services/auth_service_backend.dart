@@ -220,6 +220,37 @@ class AuthServiceBackend {
     }
   }
 
+  // Change user password
+  static Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+    String? token,
+  }) async {
+    try {
+      String? authToken = token ?? await getStoredToken();
+      
+      if (authToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.authEndpoint}/change-password'),
+        headers: ApiConfig.getHeaders(token: authToken),
+        body: json.encode({
+          'old_password': oldPassword,
+          'new_password': newPassword,
+        }),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode != 200) {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Password change failed');
+      }
+    } catch (e) {
+      throw Exception('Password change failed: $e');
+    }
+  }
+
   // Get available teachers for student registration
   static Future<List<Map<String, dynamic>>> getAvailableTeachers() async {
     try {

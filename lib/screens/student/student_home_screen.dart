@@ -8,6 +8,7 @@ import '../../services/auth_service_backend.dart';
 import '../../services/upload_service.dart';
 import '../auth/welcome_screen.dart';
 import 'student_chat_screen.dart';
+import 'student_account_settings_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({Key? key}) : super(key: key);
@@ -172,7 +173,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                         // Profile Update Button
                         ElevatedButton.icon(
                           onPressed: () {
-                            _showUpdateProfileDialog(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const StudentAccountSettingsScreen(),
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.edit),
                           label: const Text('עדכון פרטים'),
@@ -273,7 +279,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               title: const Text('עדכון פרטים'),
               onTap: () {
                 Navigator.pop(context);
-                _showUpdateProfileDialog(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const StudentAccountSettingsScreen(),
+                  ),
+                );
               },
             ),
             ListTile(
@@ -337,107 +348,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     );
   }
 
-  void _showUpdateProfileDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
-    final TextEditingController emailController = TextEditingController();
-    
-    // Load current user data
-    _loadCurrentUserData(nameController, emailController);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('עדכון פרטים אישיים'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                textDirection: TextDirection.rtl,
-                decoration: const InputDecoration(
-                  labelText: 'שם מלא',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: emailController,
-                textDirection: TextDirection.ltr,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'דואר אלקטרוני',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('ביטול'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _updateProfile(context, nameController.text, emailController.text);
-            },
-            child: const Text('שמור'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _loadCurrentUserData(
-      TextEditingController nameController, 
-      TextEditingController emailController) async {
-    try {
-      final user = await AuthServiceBackend.getStoredUser();
-      if (user != null) {
-        nameController.text = user['full_name'] ?? '';
-        emailController.text = user['email'] ?? '';
-      }
-    } catch (e) {
-      print('Error loading user data: $e');
-    }
-  }
-
-  void _updateProfile(BuildContext context, String name, String email) {
-    if (name.isEmpty || email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('נא למלא את כל השדות'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (!email.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('נא להזין כתובת דואר אלקטרוני תקינה'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // TODO: Implement actual profile update API call
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('הפרטים עודכנו בהצלחה!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-    
-    // Reload username to reflect changes
-    _loadUsername();
-  }
 
   Future<void> _pickImageFromCamera() async {
     try {
