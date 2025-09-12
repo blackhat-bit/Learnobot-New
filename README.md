@@ -42,7 +42,7 @@ pip install -r requirements.txt
 ### 4. Environment Configuration
 Create `backend/.env` file:
 ```env
-DATABASE_URL=postgresql://learnobot:StrongPassword123!@localhost:5432/learnobot_db
+DATABASE_URL=postgresql://learnobot:SomePassword@localhost:5432/learnobot_db
 SECRET_KEY=your-secret-key-here
 OPENAI_API_KEY=your-openai-key
 ```
