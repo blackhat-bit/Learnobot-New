@@ -270,6 +270,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         try {
           // Read image bytes
           final imageBytes = await image.readAsBytes();
+          print('Image size: ${imageBytes.length} bytes, filename: ${image.name}');
           
           // Upload and process with OCR
           final result = await ChatServiceBackend.uploadTask(
@@ -278,10 +279,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             fileName: image.name,
           );
           
+          print('Upload result: $result');
+          
           final extractedText = result['extracted_text'] ?? '';
           final response = result['ai_response'] ?? '';
+          final message = result['message'] ?? '';
           
-          if (extractedText.isNotEmpty) {
+          // Check if OCR was successful
+          if (extractedText.isNotEmpty && 
+              !extractedText.contains('לא הצלחתי') && 
+              !extractedText.contains('שגיאה')) {
             _lastTaskText = extractedText;
             _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
             
@@ -298,11 +305,29 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               });
             });
           } else {
-            _addBotMessage('מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.');
+            // OCR failed or returned error message
+            String errorMessage = message.isNotEmpty ? message : extractedText;
+            if (errorMessage.isEmpty) {
+              errorMessage = 'מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.';
+            }
+            _addBotMessage(errorMessage);
           }
         } catch (e) {
           print('Upload task error: $e');
-          _addBotMessage('מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.');
+          String errorMessage = 'מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.';
+          
+          // Provide more specific error messages
+          if (e.toString().contains('TimeoutException')) {
+            errorMessage = 'העיבוד לוקח יותר מדי זמן. אנא נסה תמונה קטנה יותר או כתב את השאלה ידנית.';
+          } else if (e.toString().contains('Connection')) {
+            errorMessage = 'בעיית חיבור לשרת. אנא בדוק את החיבור לאינטרנט ונסה שוב.';
+          } else if (e.toString().contains('400')) {
+            errorMessage = 'התמונה לא תקינה. אנא נסה תמונה אחרת (JPG, PNG).';
+          } else if (e.toString().contains('413')) {
+            errorMessage = 'התמונה גדולה מדי. אנא נסה תמונה קטנה יותר (מתחת ל-5MB).';
+          }
+          
+          _addBotMessage(errorMessage);
         }
       }
     } catch (e) {
@@ -1007,7 +1032,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 3),
             child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 1400),
+              duration: const Duration(milliseconds: 600),
               tween: Tween(begin: 0.0, end: 1.0),
               builder: (context, value, child) {
                 // Create a wave that moves left to right, then right to left
@@ -1036,8 +1061,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 );
               },
               onEnd: () {
+                // Continuously restart animation while typing
                 if (_isBotTyping && mounted) {
-                  Future.delayed(const Duration(milliseconds: 50), () {
+                  Future.delayed(const Duration(milliseconds: 100), () {
                     if (_isBotTyping && mounted) {
                       setState(() {
                         _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
