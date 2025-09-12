@@ -1,6 +1,7 @@
 // lib/screens/student/student_chat_screen.dart
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:math' as math;
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/chat_message.dart';
@@ -543,7 +544,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       case 'breakdown':
         instructionPrompt = 'Break down the following task into step-by-step instructions in simple language: ${_lastTaskText!}';
         break;
-      case 'demonstrate':
+      case 'example':
         instructionPrompt = 'Give a concrete worked example that shows how to solve: ${_lastTaskText!}';
         break;
       case 'explain':
@@ -711,7 +712,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
                   // Typing indicator
                   if (message.type == MessageType.systemMessage &&
-                      message.content == 'typing') {
+                      message.content == '...') {
                     return Align(
                       alignment: Alignment.centerRight,
                       child: Padding(
@@ -837,7 +838,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   _buildAssistanceButton(
                     'הדגמה',
                     Icons.play_circle_outline,
-                    () => _handleAssistButton('demonstrate'),
+                    () => _handleAssistButton('example'),
                   ),
                   _buildAssistanceButton(
                     'הסבר',
@@ -989,41 +990,52 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildTypingDot(0),
-        const SizedBox(width: 4),
-        _buildTypingDot(1),
-        const SizedBox(width: 4),
-        _buildTypingDot(2),
-      ],
-    );
-  }
-
-  Widget _buildTypingDot(int index) {
-    return TweenAnimationBuilder<double>(
-      duration: Duration(milliseconds: 600 + (index * 200)),
-      tween: Tween(begin: 0.0, end: 1.0),
-      builder: (context, value, child) {
-        return Transform.scale(
-          scale: 0.6 + (0.4 * (0.5 + 0.5 * (1.0 - (value - 0.5).abs() * 2).clamp(0.0, 1.0))),
-          child: Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.6 + 0.4 * value),
-              shape: BoxShape.circle,
+        for (int i = 0; i < 3; i++)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            child: TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 800),
+              tween: Tween(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                // Create a wave that moves left to right, then right to left
+                final wavePosition = math.sin(value * 2 * math.pi);
+                final dotPosition = (i / 2.0) - 1.0; // -1, -0.5, 0 for dots 0,1,2
+                final distance = (wavePosition - dotPosition).abs();
+                
+                // Closer to wave = more active (bigger and more opaque)
+                final activity = math.max(0.0, 1.0 - distance * 2.0);
+                final scale = 0.6 + 0.4 * activity;
+                final opacity = 0.3 + 0.7 * activity;
+                
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(opacity),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                );
+              },
+              onEnd: () {
+                if (_isBotTyping && mounted) {
+                  Future.delayed(const Duration(milliseconds: 50), () {
+                    if (_isBotTyping && mounted) {
+                      setState(() {
+                        _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
+                      });
+                    }
+                  });
+                }
+              },
             ),
           ),
-        );
-      },
-      onEnd: () {
-        // Restart animation if still typing
-        if (_isBotTyping) {
-          setState(() {
-            // Cycle through typing messages
-            _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
-          });
-        }
-      },
+      ],
     );
   }
 }

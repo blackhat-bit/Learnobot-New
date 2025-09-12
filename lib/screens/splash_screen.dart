@@ -138,7 +138,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 40),
                         child: Text(
-                          "סוכן מבוסס בינה מלאכותית\nלתיווך הוראות לתלמידים מתקשים",
+                          "השותף החכם שלך ללמידה\nמסייע לך להבין ולהצליח",
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.white,
