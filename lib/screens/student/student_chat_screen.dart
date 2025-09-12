@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:async';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/chat_message.dart';
@@ -46,16 +47,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   late List<String> _typingMessages;
   int _currentTypingMessageIndex = 0;
   int _typingAnimationKey = 0;
+  Timer? _typingMessageTimer;
 
   @override
   void initState() {
     super.initState();
     _currentMode = widget.initialMode;
     _typingMessages = [
-      'חושב...',
-      'מעבד את השאלה...',
-      'מכין תשובה...',
-      'כמעט מוכן...',
+      'מעבד את השאלה...',  // First: Processing the question
+      'חושב...',           // Then: Thinking
     ];
     _loadAvailableModels();
     _createSession();
@@ -115,6 +115,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (_currentSessionId != null) {
       ChatServiceBackend.cancelRequest(_currentSessionId!);
     }
+    // Cancel typing message timer
+    _typingMessageTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -180,7 +182,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
     setState(() {
       _isBotTyping = true;
-      _currentTypingMessageIndex = 0; // Reset to start from first message
+      _currentTypingMessageIndex = 0; // Start with "מעבד את השאלה..."
       _messages.add(ChatMessage(
         id: 'typing',
         content: '...',
@@ -191,6 +193,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
     _scrollToBottom();
 
+    // Start timer to switch to "חושב..." after 3 seconds
+    _typingMessageTimer?.cancel();
+    _typingMessageTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && _isBotTyping) {
+        setState(() {
+          _currentTypingMessageIndex = 1; // Switch to "חושב..."
+        });
+      }
+    });
+
     try {
       final response = await ChatServiceBackend.sendMessage(
         sessionId: _currentSessionId!,
@@ -199,6 +211,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       );
 
       if (mounted) {
+        _typingMessageTimer?.cancel(); // Cancel timer when response arrives
         setState(() {
           _messages.removeWhere((m) => m.id == 'typing');
           _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
@@ -207,6 +220,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       }
     } catch (e) {
       if (mounted) {
+        _typingMessageTimer?.cancel(); // Cancel timer on error
         setState(() {
           _messages.removeWhere((m) => m.id == 'typing');
           if (e.toString().contains('Request was cancelled')) {
@@ -605,7 +619,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
     setState(() {
       _isBotTyping = true;
-      _currentTypingMessageIndex = 0; // Reset to start from first message
+      _currentTypingMessageIndex = 0; // Start with "מעבד את השאלה..."
       _messages.add(ChatMessage(
         id: 'typing',
         content: '...',
@@ -616,6 +630,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
     _scrollToBottom();
 
+    // Start timer to switch to "חושב..." after 3 seconds
+    _typingMessageTimer?.cancel();
+    _typingMessageTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && _isBotTyping) {
+        setState(() {
+          _currentTypingMessageIndex = 1; // Switch to "חושב..."
+        });
+      }
+    });
+
     try {
       final response = await ChatServiceBackend.sendMessage(
         sessionId: _currentSessionId!,
@@ -624,12 +648,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         provider: _selectedModel,
       );
 
+      _typingMessageTimer?.cancel(); // Cancel timer when response arrives
       setState(() {
         _messages.removeWhere((m) => m.id == 'typing');
         _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
         _isBotTyping = false;
       });
     } catch (e) {
+      _typingMessageTimer?.cancel(); // Cancel timer on error
       setState(() {
         _messages.removeWhere((m) => m.id == 'typing');
         _addBotMessage('⚠️ שגיאה: $e');
@@ -1063,13 +1089,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 );
               },
               onEnd: () {
-                // Continuously restart animation while typing
+                // Continuously restart animation while typing (dots only, not text)
                 if (_isBotTyping && mounted) {
                   Future.delayed(const Duration(milliseconds: 100), () {
                     if (_isBotTyping && mounted) {
                       setState(() {
                         _typingAnimationKey++;
-                        _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
+                        // Don't cycle through messages - timer handles that
                       });
                     }
                   });
