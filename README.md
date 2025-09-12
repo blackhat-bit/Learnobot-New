@@ -141,6 +141,33 @@ learnobot-backend-Cursor/
 └── pubspec.yaml                  # Flutter dependencies
 ```
 
+## 👨‍💼 Manager/Admin Features
+
+### AI Configuration Management
+Managers have exclusive access to the **AI Configuration Manager** panel where they can:
+
+- **Model Management**: Activate/deactivate AI models (Ollama local models, OpenAI, Anthropic, etc.)
+- **Provider Configuration**: Switch between different AI providers and configure API keys
+- **Prompt Engineering**: Customize system prompts for different modes (practice vs test)
+- **Performance Testing**: Compare responses from different AI models
+- **Real-time Monitoring**: View provider status and model availability
+
+### Analytics & Reporting
+The most important feature for managers is the **analytics and CSV export system**:
+
+- **Student Progress Tracking**: Monitor individual student performance and engagement
+- **Conversation Analytics**: View detailed chat logs and interaction patterns
+- **Time Tracking**: Track total conversation time and average session duration
+- **CSV Export**: Two types of data export available
+  - **Research Data Export**: Detailed interaction logs for research purposes (`/export/csv`) - **Download button in Research Analytics screen**
+  - **Student Analytics Export**: Complete student profiles with performance metrics (`/export/students/csv`) - **Available via API endpoint**
+- **Usage Statistics**: Monitor system usage and identify trends
+
+### Access Control
+- **User Management**: Create and manage student/teacher accounts
+- **Role-based Access**: Control what each user type can access
+- **System Administration**: Full access to all system features and configurations
+
 ## 🔧 Key Features
 
 - **Local AI Models**: Ollama integration with Llama3.1/3.2
