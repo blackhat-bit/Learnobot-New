@@ -1,8 +1,11 @@
 // lib/screens/teacher/account_settings_screen.dart
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../services/auth_service_backend.dart';
+import '../../services/upload_service.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({Key? key}) : super(key: key);
@@ -24,11 +27,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   bool _notificationsEnabled = true;
   bool _darkModeEnabled = false;
   Map<String, dynamic>? _userData;
+  String? _profileImageUrl;
+  final ImagePicker _picker = ImagePicker();
   
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadProfilePicture();
   }
   
   Future<void> _loadUserData() async {
@@ -47,6 +53,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       print('Error loading user data: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadProfilePicture() async {
+    try {
+      final profileInfo = await UploadService.getProfilePictureInfo();
+      if (mounted && profileInfo['image_url'] != null) {
+        setState(() {
+          _profileImageUrl = UploadService.getImageUrl(profileInfo['image_url']);
+        });
+      }
+    } catch (e) {
+      print('Error loading profile picture: $e');
     }
   }
   
@@ -96,26 +115,24 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Center(
                 child: Column(
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 50,
                       backgroundColor: AppColors.primary,
-                      child: Icon(
-                        Icons.person,
-                        size: 60,
-                        color: Colors.white,
-                      ),
+                      backgroundImage: _profileImageUrl != null 
+                          ? NetworkImage(_profileImageUrl!)
+                          : null,
+                      child: _profileImageUrl == null
+                          ? const Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Colors.white,
+                            )
+                          : null,
                     ),
                     if (_isEditing) ...[
                       const SizedBox(height: 10),
                       TextButton.icon(
-                        onPressed: () {
-                          // Implement profile picture change
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('שינוי תמונת פרופיל בפיתוח'),
-                            ),
-                          );
-                        },
+                        onPressed: () => _showProfilePictureOptions(),
                         icon: const Icon(Icons.camera_alt),
                         label: const Text('החלף תמונה'),
                       ),
@@ -468,6 +485,161 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     );
   }
   
+  void _showProfilePictureOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('מצלמה'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromCamera();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('גלריה'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromGallery();
+              },
+            ),
+            if (_profileImageUrl != null)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('הסר תמונה', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _removeProfilePicture();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        await _uploadProfilePicture(File(image.path));
+      }
+    } catch (e) {
+      print('Error picking image from camera: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('שגיאה בפתיחת המצלמה'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        await _uploadProfilePicture(File(image.path));
+      }
+    } catch (e) {
+      print('Error picking image from gallery: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('שגיאה בבחירת תמונה'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _uploadProfilePicture(File imageFile) async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final result = await UploadService.uploadProfilePicture(
+        imageFile: imageFile,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _profileImageUrl = UploadService.getImageUrl(result['image_url']);
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('תמונת הפרופיל עודכנה בהצלחה'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error uploading profile picture: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('שגיאה בהעלאת תמונת הפרופיל'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeProfilePicture() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      await UploadService.removeProfilePicture();
+      
+      if (mounted) {
+        setState(() {
+          _profileImageUrl = null;
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('תמונת הפרופיל הוסרה בהצלחה'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error removing profile picture: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('שגיאה בהסרת תמונת הפרופיל'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,

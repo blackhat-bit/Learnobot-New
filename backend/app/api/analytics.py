@@ -283,7 +283,8 @@ async def get_all_students(
             "grade": student.grade,
             "difficulty_level": student.difficulty_level,
             "difficulties_description": student.difficulties_description,
-            "teacher_id": student.teacher_id
+            "teacher_id": student.teacher_id,
+            "profile_image_url": student.profile_image_url
         }
         for student in students
     ]

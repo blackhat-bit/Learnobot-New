@@ -28,12 +28,12 @@ class Student {
   
   factory Student.fromMap(Map<String, dynamic> map) {
     return Student(
-      id: map['id'],
-      name: map['name'],
-      grade: map['grade'],
-      difficultyLevel: map['difficultyLevel'],
-      description: map['description'] ?? '',
-      profileImageUrl: map['profileImageUrl'] ?? '',
+      id: map['id']?.toString() ?? '',
+      name: map['full_name'] ?? map['name'] ?? '',
+      grade: map['grade'] ?? '',
+      difficultyLevel: map['difficulty_level'] ?? map['difficultyLevel'] ?? 3,
+      description: map['difficulties_description'] ?? map['description'] ?? '',
+      profileImageUrl: map['profile_image_url'] ?? map['profileImageUrl'] ?? '',
     );
   }
 }

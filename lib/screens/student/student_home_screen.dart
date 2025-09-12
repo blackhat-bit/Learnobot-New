@@ -1,8 +1,11 @@
 // lib/screens/student/student_home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../services/auth_service_backend.dart';
+import '../../services/upload_service.dart';
 import '../auth/welcome_screen.dart';
 import 'student_chat_screen.dart';
 
@@ -15,11 +18,14 @@ class StudentHomeScreen extends StatefulWidget {
 
 class _StudentHomeScreenState extends State<StudentHomeScreen> {
   String _username = 'תלמיד';
+  String? _profileImageUrl;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _loadUsername();
+    _loadProfilePicture();
   }
 
   Future<void> _loadUsername() async {
@@ -32,6 +38,19 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       }
     } catch (e) {
       print('Error loading username: $e');
+    }
+  }
+
+  Future<void> _loadProfilePicture() async {
+    try {
+      final profileInfo = await UploadService.getProfilePictureInfo();
+      if (mounted && profileInfo['image_url'] != null) {
+        setState(() {
+          _profileImageUrl = UploadService.getImageUrl(profileInfo['image_url']);
+        });
+      }
+    } catch (e) {
+      print('Error loading profile picture: $e');
     }
   }
 
@@ -50,14 +69,19 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 children: [
                   GestureDetector(
                     onTap: () => _showProfileOptions(context),
-                    child: const CircleAvatar(
+                    child: CircleAvatar(
                       backgroundColor: Colors.white,
                       radius: 25,
-                      child: Icon(
-                        Icons.person,
-                        color: AppColors.primary,
-                        size: 30,
-                      ),
+                      backgroundImage: _profileImageUrl != null 
+                          ? NetworkImage(_profileImageUrl!)
+                          : null,
+                      child: _profileImageUrl == null
+                          ? const Icon(
+                              Icons.person,
+                              color: AppColors.primary,
+                              size: 30,
+                            )
+                          : null,
                     ),
                   ),
                   const SizedBox(width: 15),
@@ -98,71 +122,53 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
             // Main Content
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // LearnoBot Logo or Image
-                    Container(
-                      width: 150,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(75),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            spreadRadius: 5,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.white, AppColors.background],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // LearnoBot Logo or Image
+                      Container(
+                        width: 160,
+                        height: 160,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.white, AppColors.primary.withOpacity(0.1)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.smart_toy,
-                          size: 80,
-                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(80),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withOpacity(0.2),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.smart_toy,
+                            size: 85,
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 30),
+                      const SizedBox(height: 50),
 
-                    // Encouraging Message
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.blue.shade200, width: 1),
-                      ),
-                      child: Column(
+                      // Buttons Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          const Icon(
-                            Icons.star,
-                            color: Colors.amber,
-                            size: 30,
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'כל נסיון מקדם אותך להצלחה, מאמין בך!',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 25),
-
-                    // Buttons Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
                         // Profile Update Button
                         ElevatedButton.icon(
                           onPressed: () {
@@ -204,21 +210,50 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                         ),
                       ],
                     ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
 
-            // Bottom Info
+            // Bottom Encouragement Message
             Container(
-              padding: const EdgeInsets.all(15),
-              alignment: Alignment.center,
-              child: const Text(
-                'לחץ "התחל שיחה" כדי לקבל עזרה עם משימה',
-                style: TextStyle(
-                  color: AppColors.textLight,
-                  fontSize: 14,
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.primary.withOpacity(0.1), AppColors.primary.withOpacity(0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.primary.withOpacity(0.2), width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.star,
+                    color: Colors.amber,
+                    size: 28,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'כל נסיון מקדם אותך להצלחה, מאמין בך!',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
           ],
@@ -271,7 +306,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               title: const Text('צלם תמונה'),
               onTap: () {
                 Navigator.pop(context);
-                _showFeatureComingSoon('צילום תמונה');
+                _pickImageFromCamera();
               },
             ),
             ListTile(
@@ -279,9 +314,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               title: const Text('בחר מהגלריה'),
               onTap: () {
                 Navigator.pop(context);
-                _showFeatureComingSoon('בחירת תמונה מהגלריה');
+                _pickImageFromGallery();
               },
             ),
+            if (_profileImageUrl != null)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('הסר תמונה', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _removeProfilePicture();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.cancel),
               title: const Text('ביטול'),
@@ -395,13 +439,136 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     _loadUsername();
   }
 
-  void _showFeatureComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature יתווסף בקרוב'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        await _uploadProfilePicture(File(image.path));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('שגיאה בצילום התמונה: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        await _uploadProfilePicture(File(image.path));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('שגיאה בבחירת התמונה: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _uploadProfilePicture(File imageFile) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final result = await UploadService.uploadProfilePicture(
+        imageFile: imageFile,
+      );
+
+      // Close loading indicator
+      Navigator.pop(context);
+
+      if (result['image_url'] != null) {
+        setState(() {
+          _profileImageUrl = UploadService.getImageUrl(result['image_url']);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('תמונת הפרופיל עודכנה בהצלחה!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading indicator if still open
+      Navigator.pop(context);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('שגיאה בעדכון תמונת הפרופיל: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _removeProfilePicture() async {
+    try {
+      // Show confirmation dialog
+      final bool? confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('הסרת תמונת פרופיל'),
+          content: const Text('האם אתה בטוח שברצונך להסיר את תמונת הפרופיל?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('ביטול'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('הסר', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        await UploadService.deleteProfilePicture();
+        
+        setState(() {
+          _profileImageUrl = null;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('תמונת הפרופיל הוסרה בהצלחה'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('שגיאה בהסרת תמונת הפרופיל: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showLogoutDialog() {

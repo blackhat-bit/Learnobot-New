@@ -37,6 +37,7 @@ class TeacherProfile(Base):
     user_id = Column(Integer, ForeignKey("users.id"), unique=True)
     full_name = Column(String, nullable=False)
     school = Column(String)
+    profile_image_url = Column(String, nullable=True)  # Profile picture URL
     
     # Relationships
     user = relationship("User", back_populates="teacher_profile")
@@ -52,6 +53,7 @@ class StudentProfile(Base):
     grade = Column(String)
     difficulty_level = Column(Integer, default=3)  # 1-5 scale
     difficulties_description = Column(Text)
+    profile_image_url = Column(String, nullable=True)  # Profile picture URL
     
     # Relationships
     user = relationship("User", back_populates="student_profile")
