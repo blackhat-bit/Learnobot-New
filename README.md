@@ -56,7 +56,7 @@ docker-compose up -d
 ### 6. Download AI Models
 ```bash
 docker exec backend-ollama-1 ollama pull llama3.1:8b
-docker exec backend-ollama-1 ollama pull llama3.2:1b
+docker exec backend-ollama-1 ollama pull aya-expanse:8b
 ```
 
 ### 7. Start Backend Server
@@ -73,21 +73,70 @@ flutter run
 
 ### 9. Create Admin User
 - Go to `http://localhost:8000/docs` (Swagger UI)
-- Use the registration endpoint to create 1 admin/manager user
+- Find the `POST /api/v1/auth/register` endpoint
+- Click "Try it out" and use this body template:
+
+```json
+{
+  "username": "admin",
+  "email": "admin@learnobot.com",
+  "password": "admin123",
+  "full_name": "System Administrator",
+  "role": "admin"
+}
+```
+
+**Important Notes:**
+
+- Fill the first 4 feild as you like, but the role MUST BE "admin"
+- Only create **one** admin user manually
+- All other users (students, teachers) should be created through the app interface
+- The admin user will have full access to all system features
 
 ## 📁 Project Structure
 
 ```
 learnobot-backend-Cursor/
-├── lib/                    # Flutter frontend
-│   ├── screens/           # UI screens
-│   ├── services/          # API services
-│   └── models/            # Data models
-├── backend/               # FastAPI backend
-│   ├── app/              # Main application
-│   ├── data/             # Persistent data (DB, models)
-│   └── scripts/          # Utility scripts
-└── assets/               # Flutter assets
+├── lib/                           # Flutter frontend
+│   ├── screens/                   # UI screens
+│   │   ├── auth/                  # Authentication screens
+│   │   ├── manager/               # Manager/Admin screens
+│   │   ├── student/               # Student screens
+│   │   ├── teacher/               # Teacher screens
+│   │   └── splash_screen.dart     # App startup screen
+│   ├── services/                  # API services & business logic
+│   ├── models/                    # Data models
+│   ├── widgets/                   # Reusable UI components
+│   ├── constants/                 # App constants & strings
+│   ├── utils/                     # Utility functions
+│   └── main.dart                  # App entry point
+├── backend/                       # FastAPI backend
+│   ├── app/                       # Main application
+│   │   ├── api/                   # API endpoints
+│   │   ├── ai/                    # AI/LLM integration
+│   │   ├── core/                  # Core functionality
+│   │   ├── models/                # Database models
+│   │   ├── schemas/               # Pydantic schemas
+│   │   ├── services/              # Business logic
+│   │   └── main.py                # FastAPI app
+│   ├── data/                      # Persistent data
+│   │   ├── postgres/              # Database files
+│   │   └── ollama/                # AI model files
+│   ├── scripts/                   # Utility scripts
+│   ├── tests/                     # Backend tests
+│   ├── alembic/                   # Database migrations
+│   └── requirements.txt           # Python dependencies
+├── assets/                        # Flutter assets
+│   ├── fonts/                     # Custom fonts (Heebo)
+│   ├── images/                    # App images
+│   └── animations/                # Animation files
+├── android/                       # Android platform files
+├── ios/                          # iOS platform files
+├── web/                          # Web platform files
+├── windows/                      # Windows platform files
+├── linux/                        # Linux platform files
+├── macos/                        # macOS platform files
+└── pubspec.yaml                  # Flutter dependencies
 ```
 
 ## 🔧 Key Features
@@ -129,6 +178,7 @@ flutter run
 - **Data Persistence**: Docker volumes ensure data survives container restarts
 - **Model Downloads**: AI models are ~5GB each, download as needed
 - **Environment**: Always activate virtual environment before running backend
+- **Ignored Files**: `.env`, `.venv/`, `backend/data/`, and model files are gitignored (created automatically)
 
 ## 🆘 Troubleshooting
 
