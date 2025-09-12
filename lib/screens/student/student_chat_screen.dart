@@ -45,6 +45,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   // Typing indicator messages
   late List<String> _typingMessages;
   int _currentTypingMessageIndex = 0;
+  int _typingAnimationKey = 0;
 
   @override
   void initState() {
@@ -1032,6 +1033,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 3),
             child: TweenAnimationBuilder<double>(
+              key: ValueKey('typing_${_typingAnimationKey}_$i'),
               duration: const Duration(milliseconds: 600),
               tween: Tween(begin: 0.0, end: 1.0),
               builder: (context, value, child) {
@@ -1066,6 +1068,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   Future.delayed(const Duration(milliseconds: 100), () {
                     if (_isBotTyping && mounted) {
                       setState(() {
+                        _typingAnimationKey++;
                         _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
                       });
                     }
