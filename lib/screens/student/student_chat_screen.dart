@@ -525,25 +525,65 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       );
       return;
     }
-    String prompt;
+    
+    // Create the instruction prompt for the AI but don't show it in chat
+    String instructionPrompt;
     switch (type) {
       case 'breakdown':
-        prompt =
-            'Break down the following task into step-by-step instructions in simple language: ${_lastTaskText!}';
+        instructionPrompt = 'Break down the following task into step-by-step instructions in simple language: ${_lastTaskText!}';
         break;
       case 'demonstrate':
-        prompt =
-            'Give a concrete worked example that shows how to solve: ${_lastTaskText!}';
+        instructionPrompt = 'Give a concrete worked example that shows how to solve: ${_lastTaskText!}';
         break;
       case 'explain':
-        prompt =
-            'Explain the following task in simple words so that a student can understand: ${_lastTaskText!}';
+        instructionPrompt = 'Explain the following task in simple words so that a student can understand: ${_lastTaskText!}';
         break;
       default:
-        prompt = _lastTaskText!;
+        instructionPrompt = _lastTaskText!;
     }
-    _addUserMessage(prompt);
-    _processBotResponse(prompt);
+    
+    // Send the instruction prompt to AI but don't add it as a visible message
+    _processAssistanceRequest(instructionPrompt, type);
+  }
+  
+  Future<void> _processAssistanceRequest(String instructionPrompt, String assistanceType) async {
+    if (_currentSessionId == null) {
+      _addBotMessage('⚠️ שגיאה: אין חיבור לשרת');
+      return;
+    }
+
+    setState(() {
+      _isBotTyping = true;
+      _messages.add(ChatMessage(
+        id: 'typing',
+        content: '...',
+        timestamp: DateTime.now(),
+        sender: SenderType.bot,
+        type: MessageType.systemMessage,
+      ));
+    });
+    _scrollToBottom();
+
+    try {
+      final response = await ChatServiceBackend.sendMessage(
+        sessionId: _currentSessionId!,
+        content: instructionPrompt, // Send the full instruction prompt to AI
+        assistanceType: assistanceType, // Also specify the assistance type
+        provider: _selectedModel,
+      );
+
+      setState(() {
+        _messages.removeWhere((m) => m.id == 'typing');
+        _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
+        _isBotTyping = false;
+      });
+    } catch (e) {
+      setState(() {
+        _messages.removeWhere((m) => m.id == 'typing');
+        _addBotMessage('⚠️ שגיאה: $e');
+        _isBotTyping = false;
+      });
+    }
   }
   // === END ASSISTANCE BUTTONS HANDLER ===
 
