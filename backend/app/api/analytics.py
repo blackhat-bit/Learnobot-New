@@ -86,18 +86,13 @@ async def export_students_csv(
     db: Session = Depends(get_db)
 ):
     """Export student data with analytics as CSV for Excel analysis"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
-        raise HTTPException(status_code=403, detail="Only admins and teachers can export student data")
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can export student data")
     
     from app.models.user import StudentProfile
     
-    # Get all students (admin sees all, teachers see only their students)
-    if current_user.role == UserRole.ADMIN:
-        students = db.query(StudentProfile).all()
-    else:
-        students = db.query(StudentProfile).filter(
-            StudentProfile.teacher_id == current_user.teacher_profile.id
-        ).all()
+    # Get all students (admin only)
+    students = db.query(StudentProfile).all()
     
     # Prepare data for CSV export
     export_data = []
@@ -566,7 +561,9 @@ async def get_summary_report(
     
     # Calculate averages
     avg_progress = sum(a.learning_progress_score or 0 for a in analytics_data) / len(analytics_data) if analytics_data else 0
-    avg_satisfaction = sum(a.average_satisfaction or 0 for a in analytics_data if a.average_satisfaction) / len([a for a in analytics_data if a.average_satisfaction]) if analytics_data else None
+    # Calculate average satisfaction safely
+    satisfaction_data = [a for a in analytics_data if a.average_satisfaction is not None]
+    avg_satisfaction = sum(a.average_satisfaction for a in satisfaction_data) / len(satisfaction_data) if satisfaction_data else None
     
     return {
         "period": {
@@ -597,8 +594,8 @@ async def export_comprehensive_csv(
     db: Session = Depends(get_db)
 ):
     """Export comprehensive analytics data as CSV with all metrics"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can export comprehensive data")
     
     # Set default date range if not provided
     if not end_date:
@@ -618,24 +615,7 @@ async def export_comprehensive_csv(
             ChatSession.started_at <= end_date
         )
         
-        # Filter by access permissions
-        if current_user.role == UserRole.TEACHER:
-            if hasattr(current_user, 'teacher_profile') and current_user.teacher_profile:
-                sessions_query = sessions_query.filter(
-                    StudentProfile.teacher_id == current_user.teacher_profile.id
-                )
-            else:
-                # Return empty CSV if no teacher profile
-                output = io.StringIO()
-                output.write("No sessions found\n")
-                output.seek(0)
-                return StreamingResponse(
-                    io.BytesIO(output.getvalue().encode()),
-                    media_type="text/csv",
-                    headers={
-                        "Content-Disposition": f"attachment; filename=learnobot_comprehensive_empty_{datetime.now().strftime('%Y%m%d')}.csv"
-                    }
-                )
+        # Admin only - no filtering needed
         
         sessions = sessions_query.all()
     except Exception as e:

@@ -1588,26 +1588,10 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                       'דוח סיכום',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
+                    // CSV export removed - only admins can export data
+                    // Teachers should use "מעקב תלמידים" for student performance tracking
                     Row(
                       children: [
-                        TextButton.icon(
-                          onPressed: () async {
-                            try {
-                              final csvData = await AnalyticsService.exportComprehensiveCSV();
-                              // Note: In a real implementation, you would save this to a file
-                              // For now, just show a success message
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('הנתונים יוצאו בהצלחה')),
-                              );
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('שגיאה ביצוא הנתונים: $e')),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.download),
-                          label: const Text('ייצא כ-CSV'),
-                        ),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close),
