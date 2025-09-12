@@ -15,7 +15,6 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
   // State variables
   List<dynamic> _providers = [];
   List<dynamic> _availableModels = [];
-  String _activeProvider = '';
   final Map<String, TextEditingController> _apiKeyControllers = {
     'openai': TextEditingController(),
     'anthropic': TextEditingController(),
@@ -71,10 +70,6 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
       final providers = await LLMService.getProviders();
       setState(() {
         _providers = providers;
-        _activeProvider = providers.firstWhere(
-          (p) => p['is_active'] == true,
-          orElse: () => providers.isNotEmpty ? providers[0] : {}
-        )['name'] ?? '';
       });
     } catch (e) {
       _showError('Failed to load providers: $e');
@@ -94,25 +89,6 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     }
   }
 
-  Future<void> _switchProvider(String providerName) async {
-    setState(() => _isLoading = true);
-    
-    try {
-      final token = await AuthServiceBackend.getStoredToken();
-      await LLMService.activateProvider(
-        providerName: providerName,
-        token: token,
-      );
-      
-      setState(() => _activeProvider = providerName);
-      _showSuccess('Switched to $providerName');
-      await _loadProviders();
-    } catch (e) {
-      _showError('Failed to switch provider: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
 
   Future<void> _savePrompt() async {
     setState(() => _isLoading = true);
@@ -179,17 +155,29 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     );
   }
 
-  void _toggleModelActivation(String providerKey, bool isActive) {
-    // TODO: Implement model activation/deactivation logic
-    // This should call the backend API to toggle the model status
-    setState(() {
-      // For now, just show a message
-      if (isActive) {
-        _showSuccess('Model $providerKey activated');
-      } else {
-        _showSuccess('Model $providerKey deactivated');
-      }
-    });
+  Future<void> _toggleModelActivation(String providerKey, bool shouldActivate) async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      
+      // Toggle the model activation status
+      await LLMService.toggleModelActivation(
+        providerKey: providerKey,
+        isDeactivated: !shouldActivate,
+        token: token,
+      );
+      
+      final action = shouldActivate ? 'activated' : 'deactivated';
+      _showSuccess('Model $providerKey $action');
+      
+      // Refresh the models list
+      await _loadAvailableModels();
+    } catch (e) {
+      _showError('Failed to toggle model: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -291,96 +279,84 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
                         final isOllamaModel = providerType == 'ollama';
                         final isAvailable = isOllamaModel; // Ollama models are available if they exist
                         
-                        return ListTile(
-                          dense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                          leading: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: isDeactivated
-                                  ? Colors.red
-                                  : (isActive
-                                      ? Colors.green
-                                      : (isAvailable ? Colors.blue : Colors.grey)),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          title: Text(
-                            displayName,
-                            style: TextStyle(
-                              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                              color: isDeactivated
-                                  ? Colors.red[700]
-                                  : (isActive
-                                      ? Colors.green[700]
-                                      : (isAvailable ? Colors.blue[700] : Colors.black87)),
-                              decoration: isDeactivated ? TextDecoration.lineThrough : null,
-                            ),
-                          ),
-                          subtitle: Text('Provider: $providerKey'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Deactivation Toggle
-                              Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Switch(
-                                    value: !isDeactivated,
-                                    onChanged: (value) => _toggleModelActivation(providerKey, !value),
-                                    activeColor: Colors.green,
-                                    inactiveThumbColor: Colors.red,
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                // Status indicator
+                                Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: isDeactivated
+                                        ? Colors.red
+                                        : (isActive
+                                            ? Colors.green
+                                            : (isAvailable ? Colors.blue : Colors.grey)),
+                                    shape: BoxShape.circle,
                                   ),
-                                  Text(
-                                    isDeactivated ? 'Deactivated' : 'Active',
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 8),
-                              
-                              // Status chips and buttons
-                              if (isDeactivated)
-                                const Chip(
-                                  label: Text('Disabled'),
-                                  backgroundColor: Colors.red,
-                                  labelStyle: TextStyle(color: Colors.white),
-                                )
-                              else if (isActive)
-                                const Chip(
-                                  label: Text('Active'),
-                                  backgroundColor: Colors.green,
-                                  labelStyle: TextStyle(color: Colors.white),
-                                )
-                              else if (isAvailable)
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Chip(
-                                      label: Text('Available'),
-                                      backgroundColor: Colors.blue,
-                                      labelStyle: TextStyle(color: Colors.white),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton(
-                                      onPressed: () => _switchProvider(providerKey),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.purple,
-                                      ),
-                                      child: const Text('Activate'),
-                                    ),
-                                  ],
-                                )
-                              else
-                                ElevatedButton(
-                                  onPressed: () => _switchProvider(providerKey),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.purple,
-                                  ),
-                                  child: const Text('Activate'),
                                 ),
-                            ],
+                                const SizedBox(width: 12),
+                                
+                                // Model info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        displayName,
+                                        style: TextStyle(
+                                          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                          fontSize: 16,
+                                          color: isDeactivated
+                                              ? Colors.red[700]
+                                              : (isActive
+                                                  ? Colors.green[700]
+                                                  : (isAvailable ? Colors.blue[700] : Colors.black87)),
+                                          decoration: isDeactivated ? TextDecoration.lineThrough : null,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Provider: $providerKey',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                
+                                // Status chip
+                                Container(
+                                  margin: const EdgeInsets.only(right: 8),
+                                  child: Chip(
+                                    label: Text(
+                                      isDeactivated 
+                                          ? 'Disabled' 
+                                          : (isActive ? 'Active' : 'Available'),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    backgroundColor: isDeactivated
+                                        ? Colors.red
+                                        : (isActive ? Colors.green : Colors.blue),
+                                  ),
+                                ),
+                                
+                                // Toggle switch
+                                Switch(
+                                  value: !isDeactivated,
+                                  onChanged: (value) => _toggleModelActivation(providerKey, value),
+                                  activeColor: Colors.green,
+                                  inactiveThumbColor: Colors.red,
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       }).toList(),

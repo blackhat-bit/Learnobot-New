@@ -61,7 +61,7 @@ class WelcomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'לרנובוט: סוכן מבוסס בינה מלאכותית לתיווך הוראות לתלמידים מתקשים',
+                  'השותף החכם שלך ללמידה - מסייע לך להבין ולהצליח',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,

@@ -118,6 +118,31 @@ class LLMService {
     }
   }
 
+  // Toggle model activation/deactivation
+  static Future<void> toggleModelActivation({
+    required String providerKey,
+    required bool isDeactivated,
+    String? token,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.llmEndpoint}/models/deactivate'),
+        headers: ApiConfig.getHeaders(token: token),
+        body: json.encode({
+          'model_key': providerKey,
+          'is_deactivated': isDeactivated,
+        }),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode != 200) {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Failed to toggle model');
+      }
+    } catch (e) {
+      throw Exception('Failed to toggle model: $e');
+    }
+  }
+
   // Get prompt configuration for a mode
   static Future<Map<String, dynamic>> getPromptConfig({
     required String mode,
@@ -193,28 +218,4 @@ class LLMService {
     }
   }
 
-  // Deactivate or activate a model
-  static Future<void> toggleModelActivation({
-    required String modelKey,
-    required bool isDeactivated,
-    String? token,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.llmEndpoint}/models/deactivate'),
-        headers: ApiConfig.getHeaders(token: token),
-        body: json.encode({
-          'model_key': modelKey,
-          'is_deactivated': isDeactivated,
-        }),
-      ).timeout(ApiConfig.defaultTimeout);
-
-      if (response.statusCode != 200) {
-        final error = json.decode(response.body);
-        throw Exception(error['detail'] ?? 'Failed to update model status');
-      }
-    } catch (e) {
-      throw Exception('Failed to update model status: $e');
-    }
-  }
 }
