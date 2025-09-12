@@ -38,6 +38,22 @@ class ConversationStateMemory:
         """Analyze Hebrew student response for comprehension indicators"""
         response_lower = student_response.lower().strip()
         
+        # Emotional indicators - check first
+        emotional_phrases = [
+            "עצוב", "עצובה", "עצובים", "עצובות", "sad", "sadness",
+            "כועס", "כועסת", "כועסים", "כועסות", "angry", "anger",
+            "מפחד", "מפחדת", "מפחדים", "מפחדות", "scared", "afraid",
+            "חרד", "חרדה", "חרדים", "חרדות", "anxious", "anxiety",
+            "דואג", "דואגת", "דואגים", "דואגות", "worried", "worry",
+            "לא רוצה", "לא בא לי", "לא מתחשק לי", "don't want", "don't feel like",
+            "לא טוב לי", "רע לי", "לא בסדר", "לא טוב", "feel bad"
+        ]
+        
+        for phrase in emotional_phrases:
+            if phrase in response_lower:
+                self.comprehension_indicators.append("emotional")
+                return "emotional"
+        
         # Confusion indicators in Hebrew
         confusion_phrases = [
             "לא הבין", "לא מבין", "מה זה אומר", "לא מצליח", "קשה לי",
@@ -69,6 +85,7 @@ class HebrewMediationRouter:
     def __init__(self):
         # Hierarchical strategy order based on Hebrew examples
         self.strategy_hierarchy = [
+            "emotional_support",    # תמיכה רגשית
             "highlight_keywords",    # הדגשת מילות מפתח
             "guided_reading",       # הנחיה לקריאה בעיון
             "provide_example",      # מתן דוגמה
@@ -79,6 +96,12 @@ class HebrewMediationRouter:
         
         # Simplified Hebrew strategy templates for fast responses
         self.strategy_templates = {
+            "emotional_support": PromptTemplate(
+                input_variables=["instruction"],
+                template="""ענה בעברית בעדינות ובהבנה: {instruction}
+תן תמיכה רגשית ועידוד. אל תנתח את המשפט, אלא תגיב לרגש של התלמיד."""
+            ),
+            
             "highlight_keywords": PromptTemplate(
                 input_variables=["instruction"],
                 template="""ענה בעברית במשפט קצר: בוא נסתכל על המילים החשובות: {instruction}
@@ -109,6 +132,10 @@ class HebrewMediationRouter:
     def route_strategy(self, comprehension_level: str, failed_strategies: List[str], 
                       mode: str = "practice") -> Optional[str]:
         """Route to next appropriate strategy based on Hebrew decision tree"""
+        
+        # Emotional responses get immediate emotional support
+        if comprehension_level == "emotional":
+            return "emotional_support"
         
         # Test mode: limit to 3 attempts
         if mode == "test" and len(failed_strategies) >= 3:
@@ -242,6 +269,7 @@ class HebrewMediationChain(Chain):
             
             # Fallback to simple Hebrew response
             fallback_responses = {
+                "emotional_support": "אני מבין שאתה מרגיש לא טוב. זה בסדר להרגיש כך. אני כאן כדי לעזור לך ולהקשיב. איך אני יכול לתמוך בך? 💙",
                 "highlight_keywords": "בוא נסתכל על המילים החשובות בהוראה. איזו מילה נראית לך הכי חשובה?",
                 "guided_reading": "בוא נקרא שוב את ההוראה בזהירות, מילה אחר מילה.",
                 "provide_example": "אני אתן לך דוגמה שתעזור להבין את המשימה.",
