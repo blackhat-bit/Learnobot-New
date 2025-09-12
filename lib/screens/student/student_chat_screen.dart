@@ -994,7 +994,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 3),
             child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 800),
+              duration: const Duration(milliseconds: 1400),
               tween: Tween(begin: 0.0, end: 1.0),
               builder: (context, value, child) {
                 // Create a wave that moves left to right, then right to left

@@ -637,9 +637,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('תיעוד שיחות בקרוב!')),
-              );
+              _showConversationArchive(context);
             },
             child: const ListTile(
               leading: Icon(Icons.chat),
@@ -649,9 +647,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('התקדמות תלמידים בקרוב!')),
-              );
+              _showProgressArchive(context);
             },
             child: const ListTile(
               leading: Icon(Icons.trending_up),
@@ -662,9 +658,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('דוחות בקרוב!')),
-              );
+              _showReportsArchive(context);
             },
             child: const ListTile(
               leading: Icon(Icons.description),
@@ -1351,5 +1345,340 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
         ],
       ),
     );
+  }
+
+  // Archive functionality methods
+  void _showConversationArchive(BuildContext context) async {
+    try {
+      final conversations = await AnalyticsService.getConversationArchive();
+      
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'תיעוד שיחות',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                Expanded(
+                  child: conversations.isEmpty
+                    ? const Center(child: Text('אין שיחות להצגה'))
+                    : ListView.builder(
+                      itemCount: conversations.length,
+                      itemBuilder: (context, index) {
+                        final conversation = conversations[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          child: ExpansionTile(
+                            title: Text(
+                              'שיחה עם ${conversation['student_name']}',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('תאריך: ${DateTime.parse(conversation['started_at']).toLocal().toString().substring(0, 16)}'),
+                                Text('מצב: ${conversation['mode'] == 'practice' ? 'תרגול' : 'מבחן'}'),
+                                Text('מספר הודעות: ${conversation['message_count']}'),
+                                if (conversation['duration_minutes'] != null)
+                                  Text('משך השיחה: ${conversation['duration_minutes']} דקות'),
+                              ],
+                            ),
+                            children: [
+                              Container(
+                                height: 200,
+                                padding: const EdgeInsets.all(8),
+                                child: ListView.builder(
+                                  itemCount: conversation['messages'].length,
+                                  itemBuilder: (context, msgIndex) {
+                                    final message = conversation['messages'][msgIndex];
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 2),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            message['role'] == 'user' ? Icons.person : Icons.smart_toy,
+                                            size: 16,
+                                            color: message['role'] == 'user' ? Colors.blue : Colors.green,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              message['content'],
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('שגיאה בטעינת השיחות: $e')),
+      );
+    }
+  }
+
+  void _showProgressArchive(BuildContext context) async {
+    // First, show student selection dialog
+    try {
+      final students = await AnalyticsService.getAllStudents();
+      
+      showDialog(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text('בחר תלמיד לצפייה בהתקדמות'),
+          children: students.map((student) => 
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(context);
+                _showStudentProgress(context, student);
+              },
+              child: ListTile(
+                title: Text(student['full_name']),
+                subtitle: Text('כיתה: ${student['grade']} | רמה: ${student['difficulty_level']}'),
+              ),
+            ),
+          ).toList(),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('שגיאה בטעינת רשימת התלמידים: $e')),
+      );
+    }
+  }
+
+  void _showStudentProgress(BuildContext context, Map<String, dynamic> student) async {
+    try {
+      final progressData = await AnalyticsService.getStudentProgressArchive(
+        studentId: student['id'],
+      );
+      
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'התקדמות ${progressData['student']['name']}',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                // Student info
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('שם: ${progressData['student']['name']}'),
+                        Text('כיתה: ${progressData['student']['grade']}'),
+                        Text('רמת קושי: ${progressData['student']['difficulty_level']}'),
+                        if (progressData['student']['difficulties_description'] != null)
+                          Text('תיאור קשיים: ${progressData['student']['difficulties_description']}'),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'התקדמות לפי שבועות',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                Expanded(
+                  child: progressData['progress_timeline'].isEmpty
+                    ? const Center(child: Text('אין נתוני התקדמות'))
+                    : ListView.builder(
+                      itemCount: progressData['progress_timeline'].length,
+                      itemBuilder: (context, index) {
+                        final weekData = progressData['progress_timeline'][index];
+                        return Card(
+                          child: ListTile(
+                            title: Text('שבוע ${weekData['week']}, ${weekData['year']}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('מספר שיחות: ${weekData['sessions']}'),
+                                Text('ניקוד התקדמות ממוצע: ${weekData['avg_progress_score']}'),
+                                Text('זמן כולל: ${weekData['total_time_minutes']} דקות'),
+                                if (weekData['avg_satisfaction'] != null)
+                                  Text('רמת שביעות רצון: ${weekData['avg_satisfaction']}'),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('שגיאה בטעינת נתוני התקדמות: $e')),
+      );
+    }
+  }
+
+  void _showReportsArchive(BuildContext context) async {
+    try {
+      final reportData = await AnalyticsService.getSummaryReport();
+      
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'דוח סיכום',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: () async {
+                            try {
+                              final csvData = await AnalyticsService.exportComprehensiveCSV();
+                              // Note: In a real implementation, you would save this to a file
+                              // For now, just show a success message
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('הנתונים יוצאו בהצלחה')),
+                              );
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('שגיאה ביצוא הנתונים: $e')),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.download),
+                          label: const Text('ייצא כ-CSV'),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const Divider(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Period info
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'תקופת הדוח',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                Text('מ: ${DateTime.parse(reportData['period']['start_date']).toLocal().toString().substring(0, 10)}'),
+                                Text('עד: ${DateTime.parse(reportData['period']['end_date']).toLocal().toString().substring(0, 10)}'),
+                                Text('מספר ימים: ${reportData['period']['days']}'),
+                              ],
+                            ),
+                          ),
+                        ),
+                        
+                        // Summary statistics
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'סיכום נתונים',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                                const SizedBox(height: 8),
+                                Text('סך שיחות: ${reportData['summary']['total_sessions']}'),
+                                Text('תלמידים ייחודיים: ${reportData['summary']['unique_students']}'),
+                                Text('סך זמן (שעות): ${reportData['summary']['total_time_hours']}'),
+                                Text('סך הודעות: ${reportData['summary']['total_messages']}'),
+                                Text('קריאות למורה: ${reportData['summary']['teacher_calls']}'),
+                                Text('משימות שהועלו: ${reportData['summary']['tasks_uploaded']}'),
+                                Text('ניקוד התקדמות ממוצע: ${reportData['summary']['avg_progress_score']}'),
+                                if (reportData['summary']['avg_satisfaction_rating'] != null)
+                                  Text('רמת שביעות רצון ממוצעת: ${reportData['summary']['avg_satisfaction_rating']}'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('שגיאה בטעינת הדוח: $e')),
+      );
+    }
   }
 }

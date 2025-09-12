@@ -224,4 +224,152 @@ class AnalyticsService {
       throw Exception('Failed to update student: $e');
     }
   }
+
+  // Archive methods
+  
+  // Get conversation history for archive
+  static Future<List<Map<String, dynamic>>> getConversationArchive({
+    int? studentId,
+    int days = 30,
+    String? token,
+  }) async {
+    try {
+      String? authToken = token ?? await AuthServiceBackend.getStoredToken();
+      
+      if (authToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      Map<String, String> queryParams = {'days': days.toString()};
+      if (studentId != null) {
+        queryParams['student_id'] = studentId.toString();
+      }
+
+      final uri = Uri.parse('${ApiConfig.analyticsEndpoint}/archive/conversations')
+          .replace(queryParameters: queryParams);
+
+      final response = await http.get(
+        uri,
+        headers: ApiConfig.getHeaders(token: authToken),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Failed to get conversation archive');
+      }
+    } catch (e) {
+      throw Exception('Failed to get conversation archive: $e');
+    }
+  }
+
+  // Get detailed student progress for archive
+  static Future<Map<String, dynamic>> getStudentProgressArchive({
+    required int studentId,
+    String? token,
+  }) async {
+    try {
+      String? authToken = token ?? await AuthServiceBackend.getStoredToken();
+      
+      if (authToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.analyticsEndpoint}/archive/student-progress/$studentId'),
+        headers: ApiConfig.getHeaders(token: authToken),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Failed to get student progress archive');
+      }
+    } catch (e) {
+      throw Exception('Failed to get student progress archive: $e');
+    }
+  }
+
+  // Get summary report for archive
+  static Future<Map<String, dynamic>> getSummaryReport({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? token,
+  }) async {
+    try {
+      String? authToken = token ?? await AuthServiceBackend.getStoredToken();
+      
+      if (authToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      Map<String, String> queryParams = {};
+      if (startDate != null) {
+        queryParams['start_date'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['end_date'] = endDate.toIso8601String();
+      }
+
+      final uri = Uri.parse('${ApiConfig.analyticsEndpoint}/archive/reports/summary')
+          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      final response = await http.get(
+        uri,
+        headers: ApiConfig.getHeaders(token: authToken),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Failed to get summary report');
+      }
+    } catch (e) {
+      throw Exception('Failed to get summary report: $e');
+    }
+  }
+
+  // Export comprehensive analytics data as CSV
+  static Future<String> exportComprehensiveCSV({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? token,
+  }) async {
+    try {
+      String? authToken = token ?? await AuthServiceBackend.getStoredToken();
+      
+      if (authToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      Map<String, String> queryParams = {};
+      if (startDate != null) {
+        queryParams['start_date'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['end_date'] = endDate.toIso8601String();
+      }
+
+      final uri = Uri.parse('${ApiConfig.analyticsEndpoint}/export/comprehensive-csv')
+          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      final response = await http.get(
+        uri,
+        headers: ApiConfig.getHeaders(token: authToken),
+      ).timeout(ApiConfig.uploadTimeout);
+
+      if (response.statusCode == 200) {
+        return response.body; // CSV content
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Failed to export comprehensive CSV');
+      }
+    } catch (e) {
+      throw Exception('Failed to export comprehensive CSV: $e');
+    }
+  }
 }
