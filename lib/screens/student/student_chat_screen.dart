@@ -41,10 +41,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   String? _selectedModel;
   bool _showModelSelector = false;
 
+  // Typing indicator messages
+  late List<String> _typingMessages;
+  int _currentTypingMessageIndex = 0;
+
   @override
   void initState() {
     super.initState();
     _currentMode = widget.initialMode;
+    _typingMessages = [
+      'חושב...',
+      'מעבד את השאלה...',
+      'מכין תשובה...',
+      'כמעט מוכן...',
+    ];
     _loadAvailableModels();
     _createSession();
   }
@@ -164,6 +174,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
     setState(() {
       _isBotTyping = true;
+      _currentTypingMessageIndex = 0; // Reset to start from first message
       _messages.add(ChatMessage(
         id: 'typing',
         content: '...',
@@ -554,6 +565,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
     setState(() {
       _isBotTyping = true;
+      _currentTypingMessageIndex = 0; // Reset to start from first message
       _messages.add(ChatMessage(
         id: 'typing',
         content: '...',
@@ -710,11 +722,25 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             color: AppColors.botBubble,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const SizedBox(
-                            width: 50,
-                            child: Center(
-                              child: Text('...'),
-                            ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 80,
+                                height: 20,
+                                child: _buildAnimatedTypingIndicator(),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _typingMessages[_currentTypingMessageIndex % _typingMessages.length],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.primary.withOpacity(0.8),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -956,6 +982,48 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAnimatedTypingIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildTypingDot(0),
+        const SizedBox(width: 4),
+        _buildTypingDot(1),
+        const SizedBox(width: 4),
+        _buildTypingDot(2),
+      ],
+    );
+  }
+
+  Widget _buildTypingDot(int index) {
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 600 + (index * 200)),
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: 0.6 + (0.4 * (0.5 + 0.5 * (1.0 - (value - 0.5).abs() * 2).clamp(0.0, 1.0))),
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.6 + 0.4 * value),
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
+      onEnd: () {
+        // Restart animation if still typing
+        if (_isBotTyping) {
+          setState(() {
+            // Cycle through typing messages
+            _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
+          });
+        }
+      },
     );
   }
 }
