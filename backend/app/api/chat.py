@@ -94,20 +94,41 @@ async def upload_task(
     # Process with OCR
     extracted_text = await ocr_service.extract_text(content)
     
-    # Save task and process with AI
-    task = await chat_service.process_task_image(
-        db=db,
-        session_id=session_id,
-        student_id=current_user.student_profile.id,
-        image_data=content,
-        extracted_text=extracted_text
-    )
-    
-    return {
-        "task_id": task.id,
-        "extracted_text": extracted_text,
-        "message": "Task uploaded successfully. How can I help you with this?"
-    }
+    # Process with Hebrew mediation if text was extracted successfully
+    if extracted_text and not extracted_text.startswith("לא הצלחתי") and not extracted_text.startswith("שגיאה"):
+        # Save task
+        task = await chat_service.process_task_image(
+            db=db,
+            session_id=session_id,
+            student_id=current_user.student_profile.id,
+            image_data=content,
+            extracted_text=extracted_text
+        )
+        
+        # Process extracted text through Hebrew mediation system
+        ai_response = await chat_service.process_message(
+            db=db,
+            session_id=session_id,
+            user_id=current_user.id,
+            message=f"זהו הטקסט מהתמונה: {extracted_text}",
+            assistance_type=None,  # Trigger Hebrew mediation
+            provider=None
+        )
+        
+        return {
+            "task_id": task.id,
+            "extracted_text": extracted_text,
+            "ai_response": ai_response.content,
+            "message": "קראתי את התמונה בהצלחה!"
+        }
+    else:
+        # OCR failed, return error message  
+        return {
+            "task_id": None,
+            "extracted_text": extracted_text,
+            "ai_response": None,
+            "message": extracted_text
+        }
 
 @router.put("/messages/{message_id}/rate")
 async def rate_message(

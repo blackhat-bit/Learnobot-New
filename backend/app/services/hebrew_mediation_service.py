@@ -110,10 +110,13 @@ class HebrewMediationService:
             
         except Exception as e:
             logger.error(f"Error in Hebrew mediation service: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
             return {
-                "response": "מצטער, נתקלתי בבעיה. אנא נסה שוב או פנה למורה.",
-                "strategy_used": "error_fallback",
-                "comprehension_level": "error",
+                "response": "אני כאן לעזור לך! 😊 בוא ננסה שוב - איך אני יכול לעזור לך עם המשימה?",
+                "strategy_used": "service_fallback",
+                "comprehension_level": "initial",
                 "attempt_count": 0,
                 "failed_strategies": []
             }

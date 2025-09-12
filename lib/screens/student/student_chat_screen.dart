@@ -197,8 +197,38 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   Future<void> _captureTask() async {
     try {
+      // Show options to user: camera or gallery
+      final result = await showDialog<String>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('העלאת משימה'),
+            content: const Text('איך תרצה להעלות את המשימה?'),
+            actions: [
+              TextButton.icon(
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('צלם תמונה'),
+                onPressed: () => Navigator.of(context).pop('camera'),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.photo_library),
+                label: const Text('בחר מהגלריה'),
+                onPressed: () => Navigator.of(context).pop('gallery'),
+              ),
+              TextButton(
+                child: const Text('בטל'),
+                onPressed: () => Navigator.of(context).pop(null),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (result == null) return;
+
       final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(source: ImageSource.camera);
+      final ImageSource source = result == 'camera' ? ImageSource.camera : ImageSource.gallery;
+      final XFile? image = await picker.pickImage(source: source);
 
       if (image != null) {
         setState(() {
@@ -210,21 +240,45 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           type: MessageType.taskCapture,
         );
 
-        Future.delayed(const Duration(seconds: 1), () {
-          _addBotMessage('אני מעבד את המשימה שצילמת...');
-          Future.delayed(const Duration(seconds: 2), () {
-            // Simulate extracting text from the image (replace with real OCR later)
-            const extractedText =
-                'כתוב חיבור בנושא "לאהוב את הטבע שמסביבנו" בהיקף של 30-40 שורות. לאחר מכן ענה על שאלות הבנה הקשורות לנושא.';
+        _addBotMessage('אני מעבד את המשימה שצילמת...');
+
+        try {
+          // Read image bytes
+          final imageBytes = await image.readAsBytes();
+          
+          // Upload and process with OCR
+          final result = await ChatServiceBackend.uploadTask(
+            sessionId: _currentSessionId!,
+            imageBytes: imageBytes,
+            fileName: image.name,
+          );
+          
+          final extractedText = result['extracted_text'] ?? '';
+          final response = result['response'] ?? '';
+          
+          if (extractedText.isNotEmpty) {
             _lastTaskText = extractedText;
             _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
+            
+            // If there's a mediation response, show it too
+            if (response.isNotEmpty) {
+              Future.delayed(const Duration(seconds: 1), () {
+                _addBotMessage(response);
+              });
+            }
+            
             Future.delayed(const Duration(seconds: 1), () {
               setState(() {
                 _showAssistanceOptions = true;
               });
             });
-          });
-        });
+          } else {
+            _addBotMessage('מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.');
+          }
+        } catch (e) {
+          print('Upload task error: $e');
+          _addBotMessage('מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.');
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'add_conversation_state'
-down_revision = None  # Update this with the actual previous revision
+down_revision = 'd5f8fe7c9d58'  # Latest revision from history
 branch_labels = None
 depends_on = None
 

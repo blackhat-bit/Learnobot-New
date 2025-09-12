@@ -80,6 +80,80 @@ async def export_analytics_csv(
         }
     )
 
+@router.get("/export/students/csv")
+async def export_students_csv(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Export student data with analytics as CSV for Excel analysis"""
+    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
+        raise HTTPException(status_code=403, detail="Only admins and teachers can export student data")
+    
+    from app.models.user import StudentProfile
+    
+    # Get all students (admin sees all, teachers see only their students)
+    if current_user.role == UserRole.ADMIN:
+        students = db.query(StudentProfile).all()
+    else:
+        students = db.query(StudentProfile).filter(
+            StudentProfile.teacher_id == current_user.teacher_profile.id
+        ).all()
+    
+    # Prepare data for CSV export
+    export_data = []
+    for student in students:
+        # Get analytics for this student
+        analytics = AnalyticsService.get_student_analytics(db, student.id, days=30)
+        
+        # Extract summary data
+        summary = analytics.get('summary', {}) if isinstance(analytics, dict) else {}
+        engagement = analytics.get('engagement_metrics', {}) if isinstance(analytics, dict) else {}
+        assistance = analytics.get('assistance_usage', {}) if isinstance(analytics, dict) else {}
+        
+        # Create row data
+        row_data = {
+            "student_id": student.id,
+            "student_name": student.full_name,
+            "grade": student.grade,
+            "difficulty_level": student.difficulty_level,
+            "difficulties_description": student.difficulties_description,
+            "teacher_id": student.teacher_id,
+            # Analytics data
+            "total_sessions": summary.get('total_sessions', 0),
+            "total_time_minutes": summary.get('total_time_minutes', 0),
+            "total_messages": summary.get('total_messages', 0),
+            "average_session_duration_minutes": summary.get('average_session_duration_minutes', 0),
+            "average_messages_per_session": summary.get('average_messages_per_session', 0),
+            "average_satisfaction_rating": engagement.get('average_satisfaction', 'N/A'),
+            "teacher_calls": engagement.get('teacher_calls', 0),
+            "tasks_uploaded": engagement.get('tasks_uploaded', 0),
+            "error_rate": engagement.get('error_rate', 0),
+            # Assistance usage
+            "breakdown_requests": assistance.get('breakdown', 0),
+            "example_requests": assistance.get('example', 0),
+            "explain_requests": assistance.get('explain', 0),
+            "total_assistance_requests": assistance.get('breakdown', 0) + assistance.get('example', 0) + assistance.get('explain', 0),
+        }
+        
+        export_data.append(row_data)
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    if export_data:
+        writer = csv.DictWriter(output, fieldnames=export_data[0].keys())
+        writer.writeheader()
+        writer.writerows(export_data)
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=learnobot_students_{datetime.now().strftime('%Y%m%d')}.csv"
+        }
+    )
+
 @router.get("/summary/teacher/{teacher_id}")
 async def get_teacher_summary(
     teacher_id: int,

@@ -123,6 +123,33 @@ class AnalyticsService {
     }
   }
 
+  // Export student data as CSV for Excel analysis
+  static Future<String> exportStudentsCSV({
+    String? token,
+  }) async {
+    try {
+      String? authToken = token ?? await AuthServiceBackend.getStoredToken();
+      
+      if (authToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.analyticsEndpoint}/export/students/csv'),
+        headers: ApiConfig.getHeaders(token: authToken),
+      ).timeout(ApiConfig.uploadTimeout);
+
+      if (response.statusCode == 200) {
+        return response.body; // CSV content
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['detail'] ?? 'Failed to export students data');
+      }
+    } catch (e) {
+      throw Exception('Failed to export students data: $e');
+    }
+  }
+
   // Get all students for analytics
   static Future<List<Map<String, dynamic>>> getAllStudents({
     String? token,

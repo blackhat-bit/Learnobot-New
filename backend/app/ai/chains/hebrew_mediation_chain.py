@@ -16,14 +16,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class ConversationStateMemory(ConversationSummaryBufferMemory):
+class ConversationStateMemory:
     """Enhanced memory that tracks mediation state and strategy attempts"""
     
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
         self.failed_strategies = []
         self.comprehension_indicators = []
         self.attempt_count = 0
+        self.conversation_history = []
         
     def add_strategy_attempt(self, strategy: str, success: bool):
         """Track attempted strategies and their success"""
@@ -77,62 +77,32 @@ class HebrewMediationRouter:
             "teacher_escalation"    # פנייה למורה
         ]
         
-        # Hebrew strategy templates
+        # Simplified Hebrew strategy templates for fast responses
         self.strategy_templates = {
             "highlight_keywords": PromptTemplate(
                 input_variables=["instruction"],
-                template="""בוא נסתכל על המילים החשובות בהוראה:
-
-הוראה: {instruction}
-
-זה מה שחשוב לשים לב אליו:
-• מילות פעולה (מה לעשות): 
-• מילות שאלה (מה מחפשים):
-• מילים מיוחדות שחשובות להבין:
-
-איזו מילה נראית לך הכי חשובה כדי להבין מה צריך לעשות?"""
+                template="""ענה בעברית במשפט קצר: בוא נסתכל על המילים החשובות: {instruction}
+איזו מילה הכי חשובה כאן?"""
             ),
             
             "guided_reading": PromptTemplate(
                 input_variables=["instruction"],
-                template="""בוא נקרא שוב את ההוראה בזהירות, מילה אחר מילה:
-
-{instruction}
-
-עכשיו, בוא נחלק את זה לחלקים:
-1. מה מבקשים ממך לעשות? (הפעולה)
-2. על מה או על מי? (הנושא)  
-3. איך אמורה להראות התשובה? (הפורמט)
-
-קרא עוד פעם ונסה לענות על השאלה הראשונה: מה הפעולה שאתה צריך לעשות?"""
+                template="""ענה בעברית במשפט קצר: {instruction}
+מה מבקשים ממך לעשות? (רק הפעולה)"""
             ),
             
             "provide_example": PromptTemplate(
                 input_variables=["instruction", "concept"],
-                template="""אני אתן לך דוגמה שתעזור להבין:
-
-בהוראה שלך: {instruction}
-
-בוא נחשוב על זה ככה - זה כמו ש{concept}
-
-דוגמה מחיי היומיום:
-[דוגמה פשוטה ורלוונטית]
-
-עכשיו, כשאתה מבין את הדוגמה, נסה לחזור להוראה המקורית. מה אתה צריך לעשות?"""
+                template="""תן דוגמה פשוטה בעברית: {instruction}
+דוגמה קצרה מחיי היומיום:"""
             ),
             
             "breakdown_steps": PromptTemplate(
                 input_variables=["instruction"],
-                template="""בוא נפרק את המשימה לחלקים קטנים וקלים:
-
-ההוראה: {instruction}
-
-השלבים:
-1. צעד ראשון: [פעולה פשוטה ראשונה]
-2. צעד שני: [פעולה פשוטה שנייה]  
-3. צעד שלישי: [פעולה פשוטה שלישית]
-
-בוא נתחיל עם הצעד הראשון בלבד. מה אתה צריך לעשות בשלב הראשון?"""
+                template="""פרק בעברית ל-3 שלבים פשוטים: {instruction}
+1. 
+2. 
+3."""
             )
         }
 
@@ -155,17 +125,23 @@ class HebrewMediationRouter:
 class HebrewMediationChain(Chain):
     """Main chain implementing Hebrew teacher-practice conversation flow"""
     
-    input_keys = ["instruction", "student_response", "mode", "student_context"]
-    output_keys = ["response", "strategy_used", "comprehension_level"]
+    # Define allowed fields for Pydantic
+    provider: Optional[str] = None
+    router: HebrewMediationRouter = None
+    memory: ConversationStateMemory = None
     
     def __init__(self, provider: str = None):
-        super().__init__()
-        self.provider = provider
+        super().__init__(provider=provider)
         self.router = HebrewMediationRouter()
-        self.memory = ConversationStateMemory(
-            memory_key="chat_history",
-            return_messages=True
-        )
+        self.memory = ConversationStateMemory()
+    
+    @property
+    def input_keys(self) -> List[str]:
+        return ["instruction", "student_response", "mode", "student_context"]
+    
+    @property
+    def output_keys(self) -> List[str]:
+        return ["response", "strategy_used", "comprehension_level"]
         
     def _call(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Execute Hebrew mediation conversation flow"""
@@ -210,10 +186,13 @@ class HebrewMediationChain(Chain):
             
         except Exception as e:
             logger.error(f"Error in Hebrew mediation chain: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
             return {
-                "response": "אני כאן כדי לעזור לך. בוא ננסה שוב - איך אני יכול לעזור לך עם המשימה?",
-                "strategy_used": "fallback",
-                "comprehension_level": "error"
+                "response": "אני כאן כדי לעזור לך עם המשימה! 😊 איך אני יכול לעזור?",
+                "strategy_used": "error_fallback",
+                "comprehension_level": "initial"
             }
     
     def _execute_strategy(self, strategy: str, instruction: str, student_context: Dict) -> str:
@@ -239,19 +218,38 @@ class HebrewMediationChain(Chain):
             template_vars["concept"] = concept
             
         # Generate response using multi_llm_manager
-        formatted_prompt = template.format(**template_vars)
-        
-        # Add encouraging tone
-        encouragement = get_encouragement()
-        
-        response = multi_llm_manager.generate(
-            prompt=f"{formatted_prompt}\n\n{encouragement}",
-            provider=self.provider,
-            temperature=0.7,
-            max_tokens=1024
-        )
-        
-        return response
+        try:
+            formatted_prompt = template.format(**template_vars)
+            
+            # Add encouraging tone
+            encouragement = get_encouragement()
+            full_prompt = f"{formatted_prompt}\n\n{encouragement}"
+            
+            logger.info(f"Generating response for strategy: {strategy}")
+            
+            response = multi_llm_manager.generate(
+                prompt=full_prompt,
+                provider=self.provider,
+                temperature=0.3,  # Lower temperature for faster, focused responses
+                max_tokens=150    # Much shorter responses for speed
+            )
+            
+            logger.info(f"Successfully generated response for strategy: {strategy}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating response for strategy {strategy}: {str(e)}")
+            
+            # Fallback to simple Hebrew response
+            fallback_responses = {
+                "highlight_keywords": "בוא נסתכל על המילים החשובות בהוראה. איזו מילה נראית לך הכי חשובה?",
+                "guided_reading": "בוא נקרא שוב את ההוראה בזהירות, מילה אחר מילה.",
+                "provide_example": "אני אתן לך דוגמה שתעזור להבין את המשימה.",
+                "breakdown_steps": "בוא נפרק את המשימה לחלקים קטנים וקלים.",
+                "detailed_explanation": "אני אסביר לך במילים פשוטות מה צריך לעשות."
+            }
+            
+            return fallback_responses.get(strategy, "אני כאן לעזור לך. איך אני יכול לעזור?") + " 😊"
     
     def _extract_main_concept(self, instruction: str) -> str:
         """Extract main concept from Hebrew instruction for examples"""
@@ -280,10 +278,7 @@ class HebrewMediationChain(Chain):
     
     def reset_conversation(self):
         """Reset conversation state for new session"""
-        self.memory = ConversationStateMemory(
-            memory_key="chat_history", 
-            return_messages=True
-        )
+        self.memory = ConversationStateMemory()
 
 # Factory function for easy integration
 def create_hebrew_mediation_chain(provider: str = None) -> HebrewMediationChain:

@@ -7,7 +7,11 @@
       "Bash(flutter pub:*)",
       "Bash(alembic revision:*)",
       "Bash(alembic upgrade:*)",
-      "Read(//c/Users/Solo/Desktop/Haifa/Semester7/ProjectUpdated/**)"
+      "Read(//c/Users/Solo/Desktop/Haifa/Semester7/ProjectUpdated/**)",
+      "Bash(alembic current:*)",
+      "Bash(alembic:*)",
+      "Bash(sed:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
