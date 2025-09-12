@@ -266,7 +266,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           );
           
           final extractedText = result['extracted_text'] ?? '';
-          final response = result['response'] ?? '';
+          final response = result['ai_response'] ?? '';
           
           if (extractedText.isNotEmpty) {
             _lastTaskText = extractedText;
