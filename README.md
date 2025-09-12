@@ -61,13 +61,15 @@ docker exec backend-ollama-1 ollama pull aya-expanse:8b
 
 ### 7. Start Backend Server
 ```bash
+cd backend
+.venv\scripts\activate.ps1
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 8. Start Frontend
 ```bash
 # In another terminal, go back to project root
-cd ..
+cd .. 
 flutter run
 ```
 
