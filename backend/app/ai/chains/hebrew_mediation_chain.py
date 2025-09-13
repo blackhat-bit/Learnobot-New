@@ -38,15 +38,31 @@ class ConversationStateMemory:
         """Analyze Hebrew student response for comprehension indicators"""
         response_lower = student_response.lower().strip()
         
-        # Emotional indicators - check first
+        # Emotional indicators - check first (expanded for better recognition)
         emotional_phrases = [
-            "עצוב", "עצובה", "עצובים", "עצובות", "sad", "sadness",
-            "כועס", "כועסת", "כועסים", "כועסות", "angry", "anger",
-            "מפחד", "מפחדת", "מפחדים", "מפחדות", "scared", "afraid",
-            "חרד", "חרדה", "חרדים", "חרדות", "anxious", "anxiety",
-            "דואג", "דואגת", "דואגים", "דואגות", "worried", "worry",
-            "לא רוצה", "לא בא לי", "לא מתחשק לי", "don't want", "don't feel like",
-            "לא טוב לי", "רע לי", "לא בסדר", "לא טוב", "feel bad"
+            # Sadness indicators
+            "עצוב", "עצובה", "עצובים", "עצובות", "sad", "sadness", "עצוב לי", "בוכה", "בוכים", "crying",
+            
+            # Anger indicators  
+            "כועס", "כועסת", "כועסים", "כועסות", "angry", "anger", "כועס על", "נרגז", "נרגזת", "מעצבן",
+            
+            # Fear indicators
+            "מפחד", "מפחדת", "מפחדים", "מפחדות", "scared", "afraid", "פחד", "מפחיד", "מפחידה",
+            
+            # Anxiety indicators
+            "חרד", "חרדה", "חרדים", "חרדות", "anxious", "anxiety", "מלחיץ", "מלחיצה", "לחוץ", "stressed",
+            
+            # Worry indicators
+            "דואג", "דואגת", "דואגים", "דואגות", "worried", "worry", "מודאג", "מודאגת", "דאגה",
+            
+            # Frustration indicators
+            "מתוסכל", "מתוסכלת", "תסכול", "frustrated", "frustration", "נמאס לי", "נמאס", "מעצבן",
+            
+            # Discouragement indicators
+            "לא רוצה", "לא בא לי", "לא מתחשק לי", "don't want", "don't feel like", "מוותר", "לא יכול יותר",
+            
+            # General negative feelings
+            "לא טוב לי", "רע לי", "לא בסדר", "לא טוב", "feel bad", "רע", "גרוע", "נורא", "זוועה"
         ]
         
         for phrase in emotional_phrases:
@@ -54,10 +70,13 @@ class ConversationStateMemory:
                 self.comprehension_indicators.append("emotional")
                 return "emotional"
         
-        # Confusion indicators in Hebrew
+        # Confusion indicators in Hebrew (including frustration-related confusion)
         confusion_phrases = [
             "לא הבין", "לא מבין", "מה זה אומר", "לא מצליח", "קשה לי",
-            "לא יודע", "אל תבין", "מה זה", "איך עושים", "עזרה"
+            "לא יודע", "אל תבין", "מה זה", "איך עושים", "עזרה", 
+            "לא מבין כלום", "זה יותר מדי קשה", "לא מצליח בכלל", "מה קורה פה",
+            "זה לא הגיוני", "לא מבין בכלל", "מה זה הדבר הזה", "איך זה עובד",
+            "confused", "confusing", "hard", "difficult", "don't understand"
         ]
         
         # Understanding indicators  
@@ -100,14 +119,27 @@ class HebrewMediationRouter:
                 input_variables=["instruction"],
                 template="""התלמיד אמר: {instruction}
 
-זהו מצב רגשי. תגיב בעברית עם תמיכה ועידוד. אל תנתח את המילים או המשפט. תגיב לרגש בלבד.
+זהו מצב רגשי. תגיב בעברית עם תמיכה ועידוד חמה. תגיב לרגש ולא למשימה.
 
-דוגמאות לתגובות טובות:
-- "אני מבין שאתה מרגיש עצוב. זה בסדר להרגיש כך. אני כאן בשבילך."
-- "אני רואה שאתה כועס. בוא נדבר על זה."
-- "זה בסדר לפחד. אני כאן כדי לעזור לך."
+דוגמאות לתגובות טובות לפי סוג הרגש:
 
-תגיב עכשיו:"""
+עצב/דיכאון:
+- "אני מבין שאתה מרגיש עצוב. זה בסדר להרגיש כך. אני כאן בשבילך. 💙"
+- "זה מאוד קשה לפעמים. אתה לא לבד בזה."
+
+כעס/תסכול:
+- "אני רואה שאתה מתוסכל. זה ממש מובן - המשימה הזו יכולה להיות מאתגרת."
+- "אני מבין שאתה כועס. בוא ניקח נשימה עמוקה יחד."
+
+פחד/חרדה:
+- "זה בסדר לפחד. כולם מרגישים כך לפעמים. אני כאן כדי לעזור לך."
+- "אני מבין שזה מפחיד. בואו נתקדם יחד בקצב שלך."
+
+ויתור/אכזבה:
+- "אני רואה שנמאס לך. זה ממש מובן. אתה עובד קשה."
+- "אל תוותר! אתה כל כך חזק. בוא ננסה משהו אחר."
+
+תגיב עכשיו בחמימות ובהבנה:"""
             ),
             
             "highlight_keywords": PromptTemplate(

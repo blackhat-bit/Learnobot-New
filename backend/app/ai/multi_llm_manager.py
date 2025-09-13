@@ -80,6 +80,8 @@ class OllamaProvider(BaseLLMProvider):
             model=self.model_name,
             temperature=config.get("temperature", 0.7),
             top_p=config.get("top_p", 0.9),
+            timeout=120,  # 2 minute timeout for Ollama
+            request_timeout=120,
         )
         
     def generate(self, prompt: str, **kwargs) -> str:
@@ -149,9 +151,18 @@ class OpenAIProvider(BaseLLMProvider):
         print(f"OpenAI provider initialized with key: {api_key[:15]}...")
         
     def generate(self, prompt: str, **kwargs) -> str:
+        import time
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=self.api_key)
+            client = OpenAI(
+                api_key=self.api_key,
+                timeout=120.0  # 2 minute timeout
+            )
             
             response = client.chat.completions.create(
                 model=self.model,
@@ -160,9 +171,20 @@ class OpenAIProvider(BaseLLMProvider):
                 max_tokens=self.max_tokens
             )
             
+            response_time = time.time() - start_time
+            logger.info(f"OpenAI {self.model} - Response: {response_time:.2f}s")
+            
+            if response_time > 30.0:
+                logger.warning(f"OpenAI {self.model} slow response: {response_time:.2f}s")
+            
             return response.choices[0].message.content
         except Exception as e:
-            if "authentication" in str(e).lower() or "api key" in str(e).lower():
+            response_time = time.time() - start_time
+            logger.error(f"OpenAI {self.model} error after {response_time:.2f}s: {e}")
+            
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                raise ValueError(f"OpenAI API timeout after 2 minutes: {str(e)}")
+            elif "authentication" in str(e).lower() or "api key" in str(e).lower():
                 raise ValueError(f"Invalid OpenAI API key: {str(e)}")
             elif "rate limit" in str(e).lower():
                 raise ValueError(f"OpenAI rate limit exceeded: {str(e)}")
@@ -203,9 +225,19 @@ class AnthropicProvider(BaseLLMProvider):
         print(f"Anthropic provider initialized with key: {api_key[:15]}...")
         
     def generate(self, prompt: str, **kwargs) -> str:
+        import time
+        import logging
+        import httpx
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
         try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=self.api_key)
+            # Create client with timeout configuration
+            client = anthropic.Anthropic(
+                api_key=self.api_key,
+                timeout=httpx.Timeout(120.0, connect=10.0)  # 2 minute timeout, 10 second connect
+            )
             
             response = client.messages.create(
                 model=self.model,
@@ -214,10 +246,21 @@ class AnthropicProvider(BaseLLMProvider):
                 messages=[{"role": "user", "content": prompt}]
             )
             
+            response_time = time.time() - start_time
+            logger.info(f"Anthropic {self.model} - Response: {response_time:.2f}s")
+            
+            if response_time > 30.0:
+                logger.warning(f"Anthropic {self.model} slow response: {response_time:.2f}s")
+            
             return response.content[0].text
         except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Anthropic {self.model} error after {response_time:.2f}s: {e}")
+            
             # Return proper error messages for API issues
-            if "authentication" in str(e).lower() or "api key" in str(e).lower():
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                raise ValueError(f"Anthropic API timeout after 2 minutes: {str(e)}")
+            elif "authentication" in str(e).lower() or "api key" in str(e).lower():
                 raise ValueError(f"Invalid Anthropic API key: {str(e)}")
             elif "rate limit" in str(e).lower():
                 raise ValueError(f"Anthropic rate limit exceeded: {str(e)}")

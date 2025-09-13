@@ -738,7 +738,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      onPopInvoked: (didPop) {
+        if (didPop && _currentSessionId != null) {
+          ChatServiceBackend.cancelRequest(_currentSessionId!);
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('שיחה עם לרנובוט'),
         leading: IconButton(
@@ -1075,6 +1081,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             ),
         ],
       ),
+      ), // PopScope child
     );
   }
 
