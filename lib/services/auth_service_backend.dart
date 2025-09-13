@@ -178,8 +178,7 @@ class AuthServiceBackend {
   // Logout
   static Future<void> logout() async {
     try {
-      // Cancel all ongoing chat requests before logout
-      ChatServiceBackend.cancelAllRequests();
+      // Cancel all ongoing chat requests before logout.      ChatServiceBackend.cancelAllRequests();
       
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_tokenKey);

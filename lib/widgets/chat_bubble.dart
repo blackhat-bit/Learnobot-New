@@ -7,11 +7,13 @@ import '../models/chat_message.dart';
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final bool showAvatar;
+  final Function(String)? onSpeakPressed;
   
   const ChatBubble({
     Key? key,
     required this.message,
     this.showAvatar = true,
+    this.onSpeakPressed,
   }) : super(key: key);
 
   @override
@@ -70,13 +72,38 @@ class ChatBubble extends StatelessWidget {
                   
                   const SizedBox(height: 5),
                   
-                  // Timestamp
-                  Text(
-                    _formatTime(message.timestamp),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade600,
-                    ),
+                  // Bottom row with timestamp and speaker button (for bot only)
+                  Row(
+                    mainAxisAlignment: isStudent
+                        ? MainAxisAlignment.end
+                        : MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Timestamp
+                      Text(
+                        _formatTime(message.timestamp),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      
+                      // Speaker button for bot messages only
+                      if (!isStudent && onSpeakPressed != null)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.volume_up,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          onPressed: () => onSpeakPressed!(message.content),
+                          tooltip: 'הקרא בקול',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 24,
+                            minHeight: 24,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),

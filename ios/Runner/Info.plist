@@ -45,5 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Speech and microphone permissions -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>לרנובוט זקוק לגישה למיקרופון כדי שתוכל להקליט שאלות בקול</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>לרנובוט זקוק לגישה לזיהוי דיבור כדי להבין את השאלות שלך</string>
 </dict>
 </plist>

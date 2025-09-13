@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from app.api import auth, chat, teacher, student, upload
 from app.core.database import engine, SessionLocal
-from app.models import user, chat as chat_models, task, llm_config
+from app.models import user, chat as chat_models, task, llm_config, notification
 from app.models.llm_config import LLMProvider
 from app.config import settings
 from app.api import llm_management
@@ -17,6 +17,7 @@ user.Base.metadata.create_all(bind=engine)
 chat_models.Base.metadata.create_all(bind=engine)
 task.Base.metadata.create_all(bind=engine)
 llm_config.Base.metadata.create_all(bind=engine)
+notification.Base.metadata.create_all(bind=engine)
 
 def sync_providers_to_database():
     """Sync detected LLM providers to database"""

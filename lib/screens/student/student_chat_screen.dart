@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:async';
+import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/chat_message.dart';
 import '../../widgets/chat_bubble.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/chat_service_backend.dart';
+import '../../services/speech_service.dart';
 
 class StudentChatScreen extends StatefulWidget {
   final String initialMode;
@@ -48,6 +50,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   int _currentTypingMessageIndex = 0;
   int _typingAnimationKey = 0;
   Timer? _typingMessageTimer;
+
+  // Speech functionality
+  bool _isListening = false;
 
   @override
   void initState() {
@@ -350,6 +355,72 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         SnackBar(content: Text('שגיאה בצילום המשימה: $e')),
       );
     }
+  }
+
+  // === SPEECH FUNCTIONALITY ===
+  Future<void> _handleVoiceInput() async {
+    final speechService = Provider.of<SpeechService>(context, listen: false);
+    
+    if (!speechService.isSttInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('מערכת הקול אינה מופעלת על המכשיר שלך')),
+      );
+      return;
+    }
+
+    if (_isListening) {
+      // Stop listening
+      await speechService.stopListening();
+      setState(() {
+        _isListening = false;
+      });
+    } else {
+      // Start listening
+      setState(() {
+        _isListening = true;
+      });
+      
+      try {
+        await speechService.startListening(
+          onResult: (String result) {
+            setState(() {
+              _isListening = false;
+            });
+            
+            if (result.isNotEmpty) {
+              _messageController.text = result;
+              _sendMessage(); // Automatically send the message
+            }
+          },
+          onPartialResult: (String partial) {
+            // Update text field with partial results
+            if (partial.isNotEmpty) {
+              _messageController.text = partial;
+            }
+          },
+        );
+      } catch (e) {
+        setState(() {
+          _isListening = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('שגיאה בהקלטה: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _speakText(String text) async {
+    final speechService = Provider.of<SpeechService>(context, listen: false);
+    
+    if (!speechService.isTtsInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('מערכת הקריאה אינה זמינה על המכשיר שלך')),
+      );
+      return;
+    }
+
+    await speechService.speak(text);
   }
 
   // === SATISFACTION BAR LOGIC ===
@@ -824,6 +895,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             message: message,
                             showAvatar: index == 0 ||
                                 _messages[index - 1].sender != message.sender,
+                            onSpeakPressed: _speakText,
                           ),
                           if (_capturedImage != null) ...[
                             const SizedBox(height: 5),
@@ -856,6 +928,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         message: message,
                         showAvatar: index == 0 ||
                             _messages[index - 1].sender != message.sender,
+                        onSpeakPressed: _speakText,
                       ),
                       if (message.sender == SenderType.bot &&
                           (message.metadata == null ||
@@ -957,13 +1030,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 IconButton(
-                  icon: const Icon(
-                    Icons.mic,
-                    color: Colors.white,
+                  icon: Icon(
+                    _isListening ? Icons.mic_off : Icons.mic,
+                    color: _isListening ? Colors.red : Colors.white,
                   ),
-                  onPressed: () {
-                    // Do nothing or implement voice later
-                  },
+                  onPressed: _handleVoiceInput,
+                  tooltip: _isListening ? 'עצור הקלטה' : 'הקלט קול',
                 ),
                 IconButton(
                   icon: const Icon(
