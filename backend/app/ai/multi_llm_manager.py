@@ -80,8 +80,6 @@ class OllamaProvider(BaseLLMProvider):
             model=self.model_name,
             temperature=config.get("temperature", 0.7),
             top_p=config.get("top_p", 0.9),
-            timeout=120,  # 2 minute timeout for Ollama
-            request_timeout=120,
         )
         
     def generate(self, prompt: str, **kwargs) -> str:
