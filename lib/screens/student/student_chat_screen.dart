@@ -2,12 +2,15 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:async';
+import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/chat_message.dart';
 import '../../widgets/chat_bubble.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/chat_service_backend.dart';
+import '../../services/speech_service.dart';
 
 class StudentChatScreen extends StatefulWidget {
   final String initialMode;
@@ -45,16 +48,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   // Typing indicator messages
   late List<String> _typingMessages;
   int _currentTypingMessageIndex = 0;
+  int _typingAnimationKey = 0;
+  Timer? _typingMessageTimer;
+
+  // Speech functionality
+  bool _isListening = false;
 
   @override
   void initState() {
     super.initState();
     _currentMode = widget.initialMode;
     _typingMessages = [
-      'חושב...',
-      'מעבד את השאלה...',
-      'מכין תשובה...',
-      'כמעט מוכן...',
+      'מעבד את השאלה...',  // First: Processing the question
+      'חושב...',           // Then: Thinking
     ];
     _loadAvailableModels();
     _createSession();
@@ -110,6 +116,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   @override
   void dispose() {
+    // Cancel any ongoing requests
+    if (_currentSessionId != null) {
+      ChatServiceBackend.cancelRequest(_currentSessionId!);
+    }
+    // Cancel typing message timer
+    _typingMessageTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -175,7 +187,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
     setState(() {
       _isBotTyping = true;
-      _currentTypingMessageIndex = 0; // Reset to start from first message
+      _currentTypingMessageIndex = 0; // Start with "מעבד את השאלה..."
       _messages.add(ChatMessage(
         id: 'typing',
         content: '...',
@@ -186,6 +198,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
     _scrollToBottom();
 
+    // Start timer to switch to "חושב..." after 3 seconds
+    _typingMessageTimer?.cancel();
+    _typingMessageTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && _isBotTyping) {
+        setState(() {
+          _currentTypingMessageIndex = 1; // Switch to "חושב..."
+        });
+      }
+    });
+
     try {
       final response = await ChatServiceBackend.sendMessage(
         sessionId: _currentSessionId!,
@@ -193,17 +215,28 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         provider: _selectedModel,
       );
 
-      setState(() {
-        _messages.removeWhere((m) => m.id == 'typing');
-        _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
-        _isBotTyping = false;
-      });
+      if (mounted) {
+        _typingMessageTimer?.cancel(); // Cancel timer when response arrives
+        setState(() {
+          _messages.removeWhere((m) => m.id == 'typing');
+          _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
+          _isBotTyping = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _messages.removeWhere((m) => m.id == 'typing');
-        _addBotMessage('⚠️ שגיאה: $e');
-        _isBotTyping = false;
-      });
+      if (mounted) {
+        _typingMessageTimer?.cancel(); // Cancel timer on error
+        setState(() {
+          _messages.removeWhere((m) => m.id == 'typing');
+          if (e.toString().contains('Request was cancelled')) {
+            // Don't show error message for cancelled requests
+            _isBotTyping = false;
+          } else {
+            _addBotMessage('⚠️ שגיאה: $e');
+            _isBotTyping = false;
+          }
+        });
+      }
     }
   }
 
@@ -257,6 +290,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         try {
           // Read image bytes
           final imageBytes = await image.readAsBytes();
+          print('Image size: ${imageBytes.length} bytes, filename: ${image.name}');
           
           // Upload and process with OCR
           final result = await ChatServiceBackend.uploadTask(
@@ -265,10 +299,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             fileName: image.name,
           );
           
+          print('Upload result: $result');
+          
           final extractedText = result['extracted_text'] ?? '';
           final response = result['ai_response'] ?? '';
+          final message = result['message'] ?? '';
           
-          if (extractedText.isNotEmpty) {
+          // Check if OCR was successful
+          if (extractedText.isNotEmpty && 
+              !extractedText.contains('לא הצלחתי') && 
+              !extractedText.contains('שגיאה')) {
             _lastTaskText = extractedText;
             _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
             
@@ -285,11 +325,29 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               });
             });
           } else {
-            _addBotMessage('מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.');
+            // OCR failed or returned error message
+            String errorMessage = message.isNotEmpty ? message : extractedText;
+            if (errorMessage.isEmpty) {
+              errorMessage = 'מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.';
+            }
+            _addBotMessage(errorMessage);
           }
         } catch (e) {
           print('Upload task error: $e');
-          _addBotMessage('מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.');
+          String errorMessage = 'מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.';
+          
+          // Provide more specific error messages
+          if (e.toString().contains('TimeoutException')) {
+            errorMessage = 'העיבוד לוקח יותר מדי זמן. אנא נסה תמונה קטנה יותר או כתב את השאלה ידנית.';
+          } else if (e.toString().contains('Connection')) {
+            errorMessage = 'בעיית חיבור לשרת. אנא בדוק את החיבור לאינטרנט ונסה שוב.';
+          } else if (e.toString().contains('400')) {
+            errorMessage = 'התמונה לא תקינה. אנא נסה תמונה אחרת (JPG, PNG).';
+          } else if (e.toString().contains('413')) {
+            errorMessage = 'התמונה גדולה מדי. אנא נסה תמונה קטנה יותר (מתחת ל-5MB).';
+          }
+          
+          _addBotMessage(errorMessage);
         }
       }
     } catch (e) {
@@ -297,6 +355,72 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         SnackBar(content: Text('שגיאה בצילום המשימה: $e')),
       );
     }
+  }
+
+  // === SPEECH FUNCTIONALITY ===
+  Future<void> _handleVoiceInput() async {
+    final speechService = Provider.of<SpeechService>(context, listen: false);
+    
+    if (!speechService.isSttInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('מערכת הקול אינה מופעלת על המכשיר שלך')),
+      );
+      return;
+    }
+
+    if (_isListening) {
+      // Stop listening
+      await speechService.stopListening();
+      setState(() {
+        _isListening = false;
+      });
+    } else {
+      // Start listening
+      setState(() {
+        _isListening = true;
+      });
+      
+      try {
+        await speechService.startListening(
+          onResult: (String result) {
+            setState(() {
+              _isListening = false;
+            });
+            
+            if (result.isNotEmpty) {
+              _messageController.text = result;
+              _sendMessage(); // Automatically send the message
+            }
+          },
+          onPartialResult: (String partial) {
+            // Update text field with partial results
+            if (partial.isNotEmpty) {
+              _messageController.text = partial;
+            }
+          },
+        );
+      } catch (e) {
+        setState(() {
+          _isListening = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('שגיאה בהקלטה: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _speakText(String text) async {
+    final speechService = Provider.of<SpeechService>(context, listen: false);
+    
+    if (!speechService.isTtsInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('מערכת הקריאה אינה זמינה על המכשיר שלך')),
+      );
+      return;
+    }
+
+    await speechService.speak(text);
   }
 
   // === SATISFACTION BAR LOGIC ===
@@ -566,7 +690,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
     setState(() {
       _isBotTyping = true;
-      _currentTypingMessageIndex = 0; // Reset to start from first message
+      _currentTypingMessageIndex = 0; // Start with "מעבד את השאלה..."
       _messages.add(ChatMessage(
         id: 'typing',
         content: '...',
@@ -577,6 +701,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
     _scrollToBottom();
 
+    // Start timer to switch to "חושב..." after 3 seconds
+    _typingMessageTimer?.cancel();
+    _typingMessageTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && _isBotTyping) {
+        setState(() {
+          _currentTypingMessageIndex = 1; // Switch to "חושב..."
+        });
+      }
+    });
+
     try {
       final response = await ChatServiceBackend.sendMessage(
         sessionId: _currentSessionId!,
@@ -585,12 +719,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         provider: _selectedModel,
       );
 
+      _typingMessageTimer?.cancel(); // Cancel timer when response arrives
       setState(() {
         _messages.removeWhere((m) => m.id == 'typing');
         _addBotMessage(response['content'] ?? 'תשובה לא זמינה');
         _isBotTyping = false;
       });
     } catch (e) {
+      _typingMessageTimer?.cancel(); // Cancel timer on error
       setState(() {
         _messages.removeWhere((m) => m.id == 'typing');
         _addBotMessage('⚠️ שגיאה: $e');
@@ -759,6 +895,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             message: message,
                             showAvatar: index == 0 ||
                                 _messages[index - 1].sender != message.sender,
+                            onSpeakPressed: _speakText,
                           ),
                           if (_capturedImage != null) ...[
                             const SizedBox(height: 5),
@@ -791,6 +928,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         message: message,
                         showAvatar: index == 0 ||
                             _messages[index - 1].sender != message.sender,
+                        onSpeakPressed: _speakText,
                       ),
                       if (message.sender == SenderType.bot &&
                           (message.metadata == null ||
@@ -892,13 +1030,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 IconButton(
-                  icon: const Icon(
-                    Icons.mic,
-                    color: Colors.white,
+                  icon: Icon(
+                    _isListening ? Icons.mic_off : Icons.mic,
+                    color: _isListening ? Colors.red : Colors.white,
                   ),
-                  onPressed: () {
-                    // Do nothing or implement voice later
-                  },
+                  onPressed: _handleVoiceInput,
+                  tooltip: _isListening ? 'עצור הקלטה' : 'הקלט קול',
                 ),
                 IconButton(
                   icon: const Icon(
@@ -994,7 +1131,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 3),
             child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 800),
+              key: ValueKey('typing_${_typingAnimationKey}_$i'),
+              duration: const Duration(milliseconds: 600),
               tween: Tween(begin: 0.0, end: 1.0),
               builder: (context, value, child) {
                 // Create a wave that moves left to right, then right to left
@@ -1023,11 +1161,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 );
               },
               onEnd: () {
+                // Continuously restart animation while typing (dots only, not text)
                 if (_isBotTyping && mounted) {
-                  Future.delayed(const Duration(milliseconds: 50), () {
+                  Future.delayed(const Duration(milliseconds: 100), () {
                     if (_isBotTyping && mounted) {
                       setState(() {
-                        _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
+                        _typingAnimationKey++;
+                        // Don't cycle through messages - timer handles that
                       });
                     }
                   });

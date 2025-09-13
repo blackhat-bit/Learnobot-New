@@ -10,7 +10,7 @@ import io
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User, UserRole
-from app.models.chat import ChatSession
+from app.models.chat import ChatSession, ChatMessage
 from app.services.analytics_service import AnalyticsService
 from app.models.analytics import SessionAnalytics, StudentProgress
 
@@ -86,18 +86,13 @@ async def export_students_csv(
     db: Session = Depends(get_db)
 ):
     """Export student data with analytics as CSV for Excel analysis"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
-        raise HTTPException(status_code=403, detail="Only admins and teachers can export student data")
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can export student data")
     
     from app.models.user import StudentProfile
     
-    # Get all students (admin sees all, teachers see only their students)
-    if current_user.role == UserRole.ADMIN:
-        students = db.query(StudentProfile).all()
-    else:
-        students = db.query(StudentProfile).filter(
-            StudentProfile.teacher_id == current_user.teacher_profile.id
-        ).all()
+    # Get all students (admin only)
+    students = db.query(StudentProfile).all()
     
     # Prepare data for CSV export
     export_data = []
@@ -288,7 +283,8 @@ async def get_all_students(
             "grade": student.grade,
             "difficulty_level": student.difficulty_level,
             "difficulties_description": student.difficulties_description,
-            "teacher_id": student.teacher_id
+            "teacher_id": student.teacher_id,
+            "profile_image_url": student.profile_image_url
         }
         for student in students
     ]
@@ -337,3 +333,354 @@ async def update_student_profile(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update student: {str(e)}")
+
+# Archive endpoints
+@router.get("/archive/conversations")
+async def get_conversations_archive(
+    student_id: Optional[int] = Query(None),
+    days: int = Query(30, description="Number of days to retrieve"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get conversation history for archive - Teachers see their students, Admins see all"""
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    from app.models.user import StudentProfile
+    
+    # Build query for sessions
+    try:
+        query = db.query(ChatSession).join(
+            StudentProfile, 
+            ChatSession.student_id == StudentProfile.id
+        )
+        
+        # Add date filter
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(ChatSession.started_at >= cutoff_date)
+        
+        # Filter by access permissions
+        if current_user.role == UserRole.TEACHER:
+            if hasattr(current_user, 'teacher_profile') and current_user.teacher_profile:
+                query = query.filter(StudentProfile.teacher_id == current_user.teacher_profile.id)
+            else:
+                # If no teacher profile, return empty result
+                return []
+        
+        # Filter by specific student if requested
+        if student_id:
+            query = query.filter(ChatSession.student_id == student_id)
+        
+        sessions = query.order_by(ChatSession.started_at.desc()).all()
+    except Exception as e:
+        print(f"Database query error in conversations archive: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+    
+    # Format conversation data
+    conversations = []
+    for session in sessions:
+        # Get messages for this session
+        messages = db.query(ChatMessage).filter(
+            ChatMessage.session_id == session.id
+        ).order_by(ChatMessage.timestamp).all()
+        
+        conversation = {
+            "session_id": session.id,
+            "student_id": session.student_id,
+            "student_name": session.student.full_name,
+            "mode": session.mode.value,
+            "started_at": session.started_at.isoformat(),
+            "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+            "message_count": len(messages),
+            "duration_minutes": round((session.ended_at - session.started_at).total_seconds() / 60, 1) if session.ended_at else None,
+            "messages": [
+                {
+                    "id": msg.id,
+                    "role": msg.role.value,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat(),
+                    "satisfaction_rating": msg.satisfaction_rating
+                }
+                for msg in messages
+            ]
+        }
+        conversations.append(conversation)
+    
+    return conversations
+
+@router.get("/archive/student-progress/{student_id}")
+async def get_student_progress_archive(
+    student_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed progress history for a student"""
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Get student profile
+    from app.models.user import StudentProfile
+    student = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Check access permissions
+    if current_user.role == UserRole.TEACHER:
+        if hasattr(current_user, 'teacher_profile') and current_user.teacher_profile:
+            if student.teacher_id != current_user.teacher_profile.id:
+                raise HTTPException(status_code=403, detail="Access denied")
+        else:
+            raise HTTPException(status_code=403, detail="No teacher profile found")
+    
+    # Get progress data over time (last 90 days with weekly aggregation)
+    from sqlalchemy import func
+    cutoff_date = datetime.utcnow() - timedelta(days=90)
+    
+    try:
+        weekly_progress = db.query(
+            func.extract('week', ChatSession.started_at).label('week'),
+            func.extract('year', ChatSession.started_at).label('year'),
+            func.count(ChatSession.id).label('sessions'),
+            func.avg(SessionAnalytics.learning_progress_score).label('avg_progress'),
+            func.sum(SessionAnalytics.total_duration_seconds).label('total_time'),
+            func.avg(SessionAnalytics.average_satisfaction).label('avg_satisfaction')
+        ).join(
+            SessionAnalytics, ChatSession.id == SessionAnalytics.session_id
+        ).filter(
+            ChatSession.student_id == student_id,
+            ChatSession.started_at >= cutoff_date
+        ).group_by(
+            func.extract('week', ChatSession.started_at),
+            func.extract('year', ChatSession.started_at)
+        ).order_by('year', 'week').all()
+    except Exception as e:
+        print(f"Database query error in student progress archive: {e}")
+        # Return basic student data with empty progress
+        weekly_progress = []
+    
+    progress_data = [
+        {
+            "week": int(row.week),
+            "year": int(row.year),
+            "sessions": int(row.sessions),
+            "avg_progress_score": float(row.avg_progress) if row.avg_progress else 0,
+            "total_time_minutes": round(float(row.total_time) / 60, 1) if row.total_time else 0,
+            "avg_satisfaction": float(row.avg_satisfaction) if row.avg_satisfaction else None
+        }
+        for row in weekly_progress
+    ]
+    
+    return {
+        "student": {
+            "id": student.id,
+            "name": student.full_name,
+            "grade": student.grade,
+            "difficulty_level": student.difficulty_level,
+            "difficulties_description": student.difficulties_description
+        },
+        "progress_timeline": progress_data,
+        "overall_stats": AnalyticsService.get_student_analytics(db, student_id, 90)
+    }
+
+@router.get("/archive/reports/summary")
+async def get_summary_report(
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generate summary report for archive"""
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Set default date range if not provided
+    if not end_date:
+        end_date = datetime.utcnow()
+    if not start_date:
+        start_date = end_date - timedelta(days=30)
+    
+    from app.models.user import StudentProfile
+    
+    # Base query for sessions
+    try:
+        sessions_query = db.query(ChatSession).join(
+            StudentProfile,
+            ChatSession.student_id == StudentProfile.id
+        )
+        
+        # Filter by date range
+        sessions_query = sessions_query.filter(
+            ChatSession.started_at >= start_date,
+            ChatSession.started_at <= end_date
+        )
+        
+        # Filter by access permissions
+        if current_user.role == UserRole.TEACHER:
+            if hasattr(current_user, 'teacher_profile') and current_user.teacher_profile:
+                sessions_query = sessions_query.filter(
+                    StudentProfile.teacher_id == current_user.teacher_profile.id
+                )
+            else:
+                # Return empty data if no teacher profile
+                return {
+                    "period": {
+                        "start_date": start_date.isoformat(),
+                        "end_date": end_date.isoformat(),
+                        "days": (end_date - start_date).days
+                    },
+                    "summary": {
+                        "total_sessions": 0,
+                        "unique_students": 0,
+                        "total_time_hours": 0,
+                        "total_messages": 0,
+                        "teacher_calls": 0,
+                        "tasks_uploaded": 0,
+                        "avg_progress_score": 0,
+                        "avg_satisfaction_rating": None
+                    },
+                    "daily_breakdown": []
+                }
+        
+        sessions = sessions_query.all()
+    except Exception as e:
+        print(f"Database query error in summary report: {e}")
+        sessions = []
+    
+    # Calculate summary statistics
+    total_sessions = len(sessions)
+    total_students = len(set(s.student_id for s in sessions))
+    
+    # Get analytics data
+    analytics_data = db.query(SessionAnalytics).filter(
+        SessionAnalytics.session_id.in_([s.id for s in sessions])
+    ).all()
+    
+    total_time_seconds = sum(a.total_duration_seconds or 0 for a in analytics_data)
+    total_messages = sum(a.total_messages or 0 for a in analytics_data)
+    teacher_calls = sum(a.teacher_calls or 0 for a in analytics_data)
+    tasks_uploaded = sum(a.tasks_uploaded or 0 for a in analytics_data)
+    
+    # Calculate averages
+    avg_progress = sum(a.learning_progress_score or 0 for a in analytics_data) / len(analytics_data) if analytics_data else 0
+    # Calculate average satisfaction safely
+    satisfaction_data = [a for a in analytics_data if a.average_satisfaction is not None]
+    avg_satisfaction = sum(a.average_satisfaction for a in satisfaction_data) / len(satisfaction_data) if satisfaction_data else None
+    
+    return {
+        "period": {
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "days": (end_date - start_date).days
+        },
+        "summary": {
+            "total_sessions": total_sessions,
+            "unique_students": total_students,
+            "total_time_hours": round(total_time_seconds / 3600, 1),
+            "total_messages": total_messages,
+            "teacher_calls": teacher_calls,
+            "tasks_uploaded": tasks_uploaded,
+            "avg_progress_score": round(avg_progress, 1),
+            "avg_satisfaction_rating": round(avg_satisfaction, 1) if avg_satisfaction else None
+        },
+        "daily_breakdown": [
+            # This would be filled with daily statistics - simplified for now
+        ]
+    }
+
+@router.get("/export/comprehensive-csv")
+async def export_comprehensive_csv(
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Export comprehensive analytics data as CSV with all metrics"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only admins can export comprehensive data")
+    
+    # Set default date range if not provided
+    if not end_date:
+        end_date = datetime.utcnow()
+    if not start_date:
+        start_date = end_date - timedelta(days=30)
+    
+    from app.models.user import StudentProfile
+    
+    # Get all relevant data
+    try:
+        sessions_query = db.query(ChatSession).join(
+            StudentProfile,
+            ChatSession.student_id == StudentProfile.id
+        ).filter(
+            ChatSession.started_at >= start_date,
+            ChatSession.started_at <= end_date
+        )
+        
+        # Admin only - no filtering needed
+        
+        sessions = sessions_query.all()
+    except Exception as e:
+        print(f"Database query error in comprehensive CSV export: {e}")
+        sessions = []
+    
+    # Prepare comprehensive CSV data
+    export_data = []
+    for session in sessions:
+        # Get analytics for this session
+        analytics = db.query(SessionAnalytics).filter(
+            SessionAnalytics.session_id == session.id
+        ).first()
+        
+        # Get messages count for this session
+        message_count = db.query(ChatMessage).filter(
+            ChatMessage.session_id == session.id
+        ).count()
+        
+        # Create comprehensive row
+        row_data = {
+            "session_id": session.id,
+            "student_id": session.student_id,
+            "student_name": session.student.full_name,
+            "grade": session.student.grade,
+            "difficulty_level": session.student.difficulty_level,
+            "teacher_id": session.student.teacher_id,
+            "mode": session.mode.value,
+            "started_at": session.started_at.isoformat(),
+            "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+            "duration_seconds": analytics.total_duration_seconds if analytics else None,
+            "duration_minutes": round(analytics.total_duration_seconds / 60, 2) if analytics and analytics.total_duration_seconds else None,
+            "total_messages": analytics.total_messages if analytics else message_count,
+            "student_messages": analytics.student_messages if analytics else 0,
+            "ai_messages": analytics.ai_messages if analytics else 0,
+            "teacher_calls": analytics.teacher_calls if analytics else 0,
+            "tasks_uploaded": analytics.tasks_uploaded if analytics else 0,
+            "errors_encountered": analytics.errors_encountered if analytics else 0,
+            "breakdown_requests": analytics.breakdown_count if analytics else 0,
+            "example_requests": analytics.example_count if analytics else 0,
+            "explain_requests": analytics.explain_count if analytics else 0,
+            "total_assistance_requests": (analytics.breakdown_count or 0) + (analytics.example_count or 0) + (analytics.explain_count or 0) if analytics else 0,
+            "learning_progress_score": analytics.learning_progress_score if analytics else None,
+            "average_satisfaction": analytics.average_satisfaction if analytics else None,
+            "average_response_time_ms": analytics.average_response_time_ms if analytics else None,
+            "completed_successfully": analytics.completed_successfully if analytics else None,
+            "difficulties_description": session.student.difficulties_description,
+        }
+        
+        export_data.append(row_data)
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    if export_data:
+        writer = csv.DictWriter(output, fieldnames=export_data[0].keys())
+        writer.writeheader()
+        writer.writerows(export_data)
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=learnobot_comprehensive_{datetime.now().strftime('%Y%m%d')}.csv"
+        }
+    )

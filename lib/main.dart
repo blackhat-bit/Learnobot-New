@@ -10,6 +10,7 @@ import 'services/auth_service.dart';
 import 'services/chat_service.dart';
 import 'services/database_service.dart';
 import 'services/notification_service.dart';
+import 'services/speech_service.dart';
 import 'utils/router.dart';
 
 // Global SharedPreferences instance
@@ -44,6 +45,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ChatService()),
         ChangeNotifierProvider(create: (_) => DatabaseService()),
         ChangeNotifierProvider(create: (_) => NotificationService()),
+        ChangeNotifierProvider(create: (_) => SpeechService()),
       ],
       child: MaterialApp(
         title: 'LearnoBot',

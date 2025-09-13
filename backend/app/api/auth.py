@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.config import settings
-from app.schemas.user import UserCreate, User, Token, UserLogin
+from app.schemas.user import UserCreate, User, Token, UserLogin, UserProfileUpdate, PasswordChange
 from app.models.user import User as UserModel, UserRole, TeacherProfile, StudentProfile
 
 router = APIRouter()
@@ -133,24 +133,60 @@ async def logout():
     # This endpoint exists for frontend convenience
     return {"message": "Logged out successfully"}
 
+@router.put("/profile", response_model=User)
+async def update_profile(
+    profile_data: UserProfileUpdate,
+    current_user: UserModel = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user profile information"""
+    
+    # Check if email is already taken by another user
+    if profile_data.email and profile_data.email != current_user.email:
+        existing_user = db.query(UserModel).filter(
+            UserModel.email == profile_data.email,
+            UserModel.id != current_user.id
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Email already registered by another user"
+            )
+        
+        # Update user email
+        current_user.email = profile_data.email
+    
+    # Update profile based on role
+    if current_user.role == UserRole.STUDENT and current_user.student_profile:
+        if profile_data.full_name:
+            current_user.student_profile.full_name = profile_data.full_name
+    elif current_user.role == UserRole.TEACHER and current_user.teacher_profile:
+        if profile_data.full_name:
+            current_user.teacher_profile.full_name = profile_data.full_name
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    return current_user
+
 @router.post("/change-password")
 async def change_password(
-    old_password: str,
-    new_password: str,
+    password_data: PasswordChange,
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Change user password"""
     
     # Verify old password
-    if not verify_password(old_password, current_user.hashed_password):
+    if not verify_password(password_data.old_password, current_user.hashed_password):
         raise HTTPException(
             status_code=400,
             detail="Incorrect password"
         )
     
     # Update password
-    current_user.hashed_password = get_password_hash(new_password)
+    current_user.hashed_password = get_password_hash(password_data.new_password)
     db.commit()
     
     return {"message": "Password updated successfully"}

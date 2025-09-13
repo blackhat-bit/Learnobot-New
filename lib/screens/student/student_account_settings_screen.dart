@@ -1,20 +1,18 @@
-// lib/screens/teacher/account_settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../constants/app_colors.dart';
-import '../../constants/app_strings.dart';
 import '../../services/auth_service_backend.dart';
 import '../../services/upload_service.dart';
 
-class AccountSettingsScreen extends StatefulWidget {
-  const AccountSettingsScreen({Key? key}) : super(key: key);
+class StudentAccountSettingsScreen extends StatefulWidget {
+  const StudentAccountSettingsScreen({Key? key}) : super(key: key);
 
   @override
-  State<AccountSettingsScreen> createState() => _AccountSettingsScreenState();
+  State<StudentAccountSettingsScreen> createState() => _StudentAccountSettingsScreenState();
 }
 
-class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
+class _StudentAccountSettingsScreenState extends State<StudentAccountSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -24,8 +22,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   
   bool _isEditing = false;
   bool _isLoading = true;
-  bool _notificationsEnabled = true;
-  bool _darkModeEnabled = false;
   Map<String, dynamic>? _userData;
   String? _profileImageUrl;
   final ImagePicker _picker = ImagePicker();
@@ -84,7 +80,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(AppStrings.accountSettings),
+        title: const Text('עדכון פרטים אישיים'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -129,7 +125,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                             )
                           : null,
                     ),
-                    if (_isEditing) ...[
+                    if (_isEditing) ...[ 
                       const SizedBox(height: 10),
                       TextButton.icon(
                         onPressed: () => _showProfilePictureOptions(),
@@ -271,65 +267,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ],
               const SizedBox(height: 30),
               
-              // App Settings Section
-              const Text(
-                'הגדרות אפליקציה',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 15),
-              
-              // Notification Settings
-              _buildSettingItem(
-                'התראות',
-                'קבלת התראות מתלמידים',
-                Icons.notifications,
-                _notificationsEnabled,
-              ),
-              
-              // Dark Mode
-              _buildSettingItem(
-                'מצב כהה',
-                'שינוי ערכת הצבעים של האפליקציה',
-                Icons.dark_mode,
-                _darkModeEnabled,
-              ),
-              
-              // Language Settings
-              _buildSettingItem(
-                'שפה',
-                'עברית',
-                Icons.language,
-                null,
-                onTap: () {
-                  // Show language selection dialog
-                  _showLanguageDialog(context);
-                },
-              ),
-              
-              const SizedBox(height: 20),
-              
               // Save Button (only when editing)
               if (_isEditing)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        // Save changes
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('הפרטים נשמרו בהצלחה'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                        setState(() {
-                          _isEditing = false;
-                        });
-                      }
-                    },
+                    onPressed: () => _saveChanges(),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 15),
                     ),
@@ -342,22 +285,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               
               const SizedBox(height: 20),
               
-              // Logout Button
+              // Back Button
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () {
-                    // Show logout confirmation
-                    _showLogoutDialog(context);
-                  },
+                  onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 15),
-                    side: const BorderSide(color: Colors.red),
+                    side: const BorderSide(color: AppColors.primary),
                   ),
                   child: const Text(
-                    'התנתק',
+                    'חזור',
                     style: TextStyle(
-                      color: Colors.red,
+                      color: AppColors.primary,
                       fontSize: 16,
                     ),
                   ),
@@ -366,121 +306,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-  
-  Widget _buildSettingItem(
-    String title,
-    String subtitle,
-    IconData icon,
-    bool? switchValue, {
-    VoidCallback? onTap,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: AppColors.primary,
-                size: 28,
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textLight,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (switchValue != null)
-                Switch(
-                  value: switchValue,
-                  onChanged: (value) {
-                    setState(() {
-                      if (title == 'התראות') {
-                        _notificationsEnabled = value;
-                      } else if (title == 'מצב כהה') {
-                        _darkModeEnabled = value;
-                      }
-                    });
-                  },
-                  activeColor: AppColors.primary,
-                )
-              else
-                const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: AppColors.textLight,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  
-  void _showLanguageDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text(
-          'בחר שפה',
-          textAlign: TextAlign.center,
-        ),
-        children: [
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text(
-              'עברית',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(context);
-              // Would change language in a real app
-            },
-            child: const Text(
-              'English',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(context);
-              // Would change language in a real app
-            },
-            child: const Text(
-              'العربية',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -640,30 +465,70 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     }
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('התנתקות'),
-        content: const Text('האם אתה בטוח שברצונך להתנתק?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('ביטול'),
+  Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Update profile (name and email)
+      final profileUpdates = <String, dynamic>{};
+      
+      if (_nameController.text != (_userData?['full_name'] ?? _userData?['username'] ?? '')) {
+        profileUpdates['full_name'] = _nameController.text;
+      }
+      
+      if (_emailController.text != (_userData?['email'] ?? '')) {
+        profileUpdates['email'] = _emailController.text;
+      }
+
+      // Update profile if there are changes
+      if (profileUpdates.isNotEmpty) {
+        await AuthServiceBackend.updateProfile(updates: profileUpdates);
+      }
+
+      // Change password if provided
+      if (_newPasswordController.text.isNotEmpty) {
+        await AuthServiceBackend.changePassword(
+          oldPassword: _currentPasswordController.text,
+          newPassword: _newPasswordController.text,
+        );
+        
+        // Clear password fields
+        _currentPasswordController.clear();
+        _newPasswordController.clear();
+        _confirmPasswordController.clear();
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isEditing = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('הפרטים עודכנו בהצלחה'),
+            backgroundColor: AppColors.success,
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Navigate to login screen
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            child: const Text(
-              'התנתק',
-              style: TextStyle(color: Colors.red),
-            ),
+        );
+        
+        // Reload user data
+        _loadUserData();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה בעדכון הפרטים: $e'),
+            backgroundColor: Colors.red,
           ),
-        ],
-      ),
-    );
+        );
+      }
+    }
   }
 }

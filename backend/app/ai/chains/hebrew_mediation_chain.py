@@ -38,6 +38,22 @@ class ConversationStateMemory:
         """Analyze Hebrew student response for comprehension indicators"""
         response_lower = student_response.lower().strip()
         
+        # Emotional indicators - check first
+        emotional_phrases = [
+            "עצוב", "עצובה", "עצובים", "עצובות", "sad", "sadness",
+            "כועס", "כועסת", "כועסים", "כועסות", "angry", "anger",
+            "מפחד", "מפחדת", "מפחדים", "מפחדות", "scared", "afraid",
+            "חרד", "חרדה", "חרדים", "חרדות", "anxious", "anxiety",
+            "דואג", "דואגת", "דואגים", "דואגות", "worried", "worry",
+            "לא רוצה", "לא בא לי", "לא מתחשק לי", "don't want", "don't feel like",
+            "לא טוב לי", "רע לי", "לא בסדר", "לא טוב", "feel bad"
+        ]
+        
+        for phrase in emotional_phrases:
+            if phrase in response_lower:
+                self.comprehension_indicators.append("emotional")
+                return "emotional"
+        
         # Confusion indicators in Hebrew
         confusion_phrases = [
             "לא הבין", "לא מבין", "מה זה אומר", "לא מצליח", "קשה לי",
@@ -69,6 +85,7 @@ class HebrewMediationRouter:
     def __init__(self):
         # Hierarchical strategy order based on Hebrew examples
         self.strategy_hierarchy = [
+            "emotional_support",    # תמיכה רגשית
             "highlight_keywords",    # הדגשת מילות מפתח
             "guided_reading",       # הנחיה לקריאה בעיון
             "provide_example",      # מתן דוגמה
@@ -79,6 +96,20 @@ class HebrewMediationRouter:
         
         # Simplified Hebrew strategy templates for fast responses
         self.strategy_templates = {
+            "emotional_support": PromptTemplate(
+                input_variables=["instruction"],
+                template="""התלמיד אמר: {instruction}
+
+זהו מצב רגשי. תגיב בעברית עם תמיכה ועידוד. אל תנתח את המילים או המשפט. תגיב לרגש בלבד.
+
+דוגמאות לתגובות טובות:
+- "אני מבין שאתה מרגיש עצוב. זה בסדר להרגיש כך. אני כאן בשבילך."
+- "אני רואה שאתה כועס. בוא נדבר על זה."
+- "זה בסדר לפחד. אני כאן כדי לעזור לך."
+
+תגיב עכשיו:"""
+            ),
+            
             "highlight_keywords": PromptTemplate(
                 input_variables=["instruction"],
                 template="""ענה בעברית במשפט קצר: בוא נסתכל על המילים החשובות: {instruction}
@@ -109,6 +140,10 @@ class HebrewMediationRouter:
     def route_strategy(self, comprehension_level: str, failed_strategies: List[str], 
                       mode: str = "practice") -> Optional[str]:
         """Route to next appropriate strategy based on Hebrew decision tree"""
+        
+        # Emotional responses get immediate emotional support
+        if comprehension_level == "emotional":
+            return "emotional_support"
         
         # Test mode: limit to 3 attempts
         if mode == "test" and len(failed_strategies) >= 3:
@@ -195,8 +230,41 @@ class HebrewMediationChain(Chain):
                 "comprehension_level": "initial"
             }
     
+    def _get_direct_emotional_response(self, instruction: str) -> str:
+        """Get direct emotional response for local models (bypasses LLM generation)"""
+        instruction_lower = instruction.lower().strip()
+        
+        # Direct emotional response mapping for local models
+        emotional_responses = {
+            "עצוב": "אני מבין שאתה מרגיש עצוב. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טוב? 💙",
+            "עצובה": "אני מבין שאתה מרגיש עצובה. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טובה? 💙",
+            "כועס": "אני רואה שאתה כועס. זה בסדר להרגיש כך. בוא נדבר על מה שמפריע לך. אני כאן להקשיב. 💪",
+            "כועסת": "אני רואה שאתה כועסת. זה בסדר להרגיש כך. בוא נדבר על מה שמפריע לך. אני כאן להקשיב. 💪",
+            "מפחד": "אני מבין שאתה מפחד. זה בסדר לפחד. אני כאן כדי לעזור לך להרגיש בטוח יותר. איך אני יכול לתמוך בך? 🤗",
+            "מפחדת": "אני מבין שאתה מפחדת. זה בסדר לפחד. אני כאן כדי לעזור לך להרגיש בטוחה יותר. איך אני יכול לתמוך בך? 🤗",
+            "דואג": "אני רואה שאתה דואג. זה טבעי לדאוג לפעמים. אני כאן כדי לעזור לך. בוא נדבר על מה שמדאיג אותך. 💙",
+            "דואגת": "אני רואה שאתה דואגת. זה טבעי לדאוג לפעמים. אני כאן כדי לעזור לך. בוא נדבר על מה שמדאיג אותך. 💙",
+            "לא רוצה": "אני מבין שאתה לא רוצה לעשות את זה עכשיו. זה בסדר. אולי נוכל לנסות משהו אחר או לחזור לזה מאוחר יותר? 😊",
+            "לא בא לי": "אני מבין שאתה לא מרגיש מוכן לזה עכשיו. זה בסדר. איך אני יכול לעזור לך להרגיש יותר מוכן? 🌟",
+            "לא טוב לי": "אני מבין שאתה לא מרגיש טוב. זה בסדר. אני כאן כדי לעזור לך. איך אני יכול לתמוך בך? 💙",
+            "רע לי": "אני מבין שאתה מרגיש רע. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טוב? 💙"
+        }
+        
+        # Check for emotional keywords
+        for keyword, response in emotional_responses.items():
+            if keyword in instruction_lower:
+                return response
+                
+        return None  # No direct response found, use LLM generation
+
     def _execute_strategy(self, strategy: str, instruction: str, student_context: Dict) -> str:
         """Execute specific mediation strategy"""
+        
+        # For emotional support, try direct response first (better for local models)
+        if strategy == "emotional_support":
+            direct_response = self._get_direct_emotional_response(instruction)
+            if direct_response:
+                return direct_response
         
         if strategy == "teacher_escalation":
             return ("נראה לי שהמשימה הזו מורכבת. "
@@ -242,6 +310,7 @@ class HebrewMediationChain(Chain):
             
             # Fallback to simple Hebrew response
             fallback_responses = {
+                "emotional_support": "אני מבין שאתה מרגיש עצוב. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טוב? 💙",
                 "highlight_keywords": "בוא נסתכל על המילים החשובות בהוראה. איזו מילה נראית לך הכי חשובה?",
                 "guided_reading": "בוא נקרא שוב את ההוראה בזהירות, מילה אחר מילה.",
                 "provide_example": "אני אתן לך דוגמה שתעזור להבין את המשימה.",

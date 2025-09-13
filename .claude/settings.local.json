@@ -11,7 +11,10 @@
       "Bash(alembic current:*)",
       "Bash(alembic:*)",
       "Bash(sed:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(.venv/Scripts/activate.ps1)",
+      "Bash(source:*)"
     ],
     "deny": [],
     "ask": []

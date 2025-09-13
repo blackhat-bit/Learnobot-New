@@ -293,22 +293,55 @@ def rate_message(db: Session, message_id: int, rating: int, user_id: int):
 
 async def call_teacher(db: Session, session_id: int, student_id: int):
     """Send a help request notification to the teacher"""
+    from app.models.notification import TeacherNotification, NotificationType, NotificationPriority
+    from app.models.user import StudentProfile
     
-    # Log teacher call event
+    # Get student information
+    student = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
+    if not student:
+        raise ValueError("Student not found")
+    
+    if not student.teacher_id:
+        raise ValueError("Student is not assigned to a teacher")
+    
+    # Create notification record
+    notification = TeacherNotification(
+        teacher_id=student.teacher_id,
+        student_id=student_id,
+        session_id=session_id,
+        type=NotificationType.TEACHER_CALL,
+        priority=NotificationPriority.HIGH,
+        title="בקשת עזרה מתלמיד",
+        message=f"{student.full_name} מבקש עזרה במהלך השיחה עם הבוט",
+        extra_data=f'{{"timestamp": "{datetime.utcnow().isoformat()}", "session_id": {session_id}}}'
+    )
+    
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+    
+    # Log teacher call event for analytics
     AnalyticsService.log_event(
         db=db,
         session_id=session_id,
         user_id=student_id,
         event_type=EventType.TEACHER_CALLED,
-        event_data={"timestamp": datetime.utcnow().isoformat()}
+        event_data={
+            "timestamp": datetime.utcnow().isoformat(),
+            "notification_id": notification.id
+        }
     )
     
-    # In a real implementation, this would send a push notification
-    # For now, we'll just log it
-    logger.info(f"Teacher called by student {student_id} in session {session_id}")
+    # TODO: In a production implementation, this would send a real-time push notification
+    # For now, we create a database record that teachers can check
+    logger.info(f"Teacher call notification created: {notification.id} for student {student_id} in session {session_id}")
     
-    # You could also save this to a notifications table
-    return {"message": "Teacher has been notified"}
+    return {
+        "message": "הודעה נשלחה למורה",
+        "notification_id": notification.id,
+        "teacher_id": student.teacher_id,
+        "timestamp": notification.created_at.isoformat()
+    }
 
 # Additional analytics helpers
 

@@ -1,10 +1,12 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from datetime import datetime
-from app.api import auth, chat, teacher, student
+from pathlib import Path
+from app.api import auth, chat, teacher, student, upload
 from app.core.database import engine, SessionLocal
-from app.models import user, chat as chat_models, task, llm_config
+from app.models import user, chat as chat_models, task, llm_config, notification
 from app.models.llm_config import LLMProvider
 from app.config import settings
 from app.api import llm_management
@@ -15,6 +17,7 @@ user.Base.metadata.create_all(bind=engine)
 chat_models.Base.metadata.create_all(bind=engine)
 task.Base.metadata.create_all(bind=engine)
 llm_config.Base.metadata.create_all(bind=engine)
+notification.Base.metadata.create_all(bind=engine)
 
 def sync_providers_to_database():
     """Sync detected LLM providers to database"""
@@ -67,14 +70,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Create uploads directory
+uploads_dir = Path("uploads")
+uploads_dir.mkdir(exist_ok=True)
+
+# Mount static files for serving uploaded images
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 # Include routers
 app.include_router(auth.router, prefix=f"{settings.API_PREFIX}/auth", tags=["auth"])
 app.include_router(chat.router, prefix=f"{settings.API_PREFIX}/chat", tags=["chat"])
 app.include_router(teacher.router, prefix=f"{settings.API_PREFIX}/teacher", tags=["teacher"])
 app.include_router(student.router, prefix=f"{settings.API_PREFIX}/student", tags=["student"])
 app.include_router(llm_management.router, prefix=f"{settings.API_PREFIX}/llm", tags=["llm_management"])
+app.include_router(upload.router, prefix=f"{settings.API_PREFIX}/upload", tags=["upload"])
 
-# Import analytics router (we'll create this next)
+# Import analytics router
 from app.api import analytics
 app.include_router(analytics.router, prefix=f"{settings.API_PREFIX}/analytics", tags=["analytics"])
 

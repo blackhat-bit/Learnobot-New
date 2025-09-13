@@ -68,15 +68,33 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
 
   Future<void> _loadConversationHistory() async {
     try {
-      // TODO: Implement real chat history API call
-      // For now, show empty history until we have the API endpoint
+      final token = await AuthServiceBackend.getStoredToken();
+      final conversations = await AnalyticsService.getConversationArchive(
+        studentId: int.parse(widget.student.id),
+        token: token,
+      );
+      
+      // Convert conversation data to ChatMessage format
+      List<ChatMessage> messages = [];
+      for (var conversation in conversations) {
+        for (var msg in conversation['messages']) {
+          messages.add(ChatMessage(
+            id: msg['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+            content: msg['content'],
+            sender: msg['role'] == 'user' ? SenderType.student : SenderType.bot,
+            timestamp: DateTime.parse(msg['timestamp']),
+          ));
+        }
+      }
+      
       setState(() {
-        _conversationHistory = [];
+        _conversationHistory = messages;
         _isLoadingHistory = false;
       });
     } catch (e) {
       print('Error loading conversation history: $e');
       setState(() {
+        _conversationHistory = [];
         _isLoadingHistory = false;
       });
     }
@@ -115,42 +133,44 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
         ],
       ),
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         color: AppColors.primary,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Back Button
-            TextButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              label: const Text(
-                AppStrings.back,
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            
-            // View Profile Button (removed unwanted chat button)
-            ElevatedButton.icon(
-              onPressed: () {
-                // Just close this screen or show info
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('פרופיל תלמיד - ניתן לערוך פרטים'),
-                    backgroundColor: Colors.blue,
+        child: SafeArea(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Back Button
+              Flexible(
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                  label: const Text(
+                    AppStrings.back,
+                    style: TextStyle(color: Colors.white, fontSize: 14),
                   ),
-                );
-              },
-              icon: const Icon(Icons.info_outline),
-              label: const Text('פרטי תלמיד'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppColors.primary,
+                ),
               ),
-            ),
-          ],
+              
+              // Start Chat Button - Single button with proper app styling
+              ElevatedButton.icon(
+                onPressed: () {
+                  _startChatWithStudent(context);
+                },
+                icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                label: const Text('התחל שיחה חדשה', style: TextStyle(fontSize: 16)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -172,17 +192,45 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // Avatar
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: AppColors.primaryLight,
-                    child: Text(
-                      widget.student.name.substring(0, 1),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 36,
-                      ),
+                  // Avatar with Profile Picture functionality
+                  GestureDetector(
+                    onTap: () => _showProfilePictureOptions(context),
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: AppColors.primaryLight,
+                          backgroundImage: widget.student.profileImageUrl.isNotEmpty
+                              ? NetworkImage(widget.student.profileImageUrl)
+                              : null,
+                          child: widget.student.profileImageUrl.isEmpty
+                              ? Text(
+                                  widget.student.name.substring(0, 1),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 36,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 20,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 15),
@@ -320,7 +368,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
 
     final summary = _studentAnalytics?['summary'] ?? {};
     final engagement = _studentAnalytics?['engagement_metrics'] ?? {};
-    final assistance = _studentAnalytics?['assistance_usage'] ?? {};
 
     return Card(
       elevation: 2,
@@ -756,6 +803,155 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _startChatWithStudent(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text(
+          'התחלת שיחה חדשה',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'השיחה תראה כמו שהתלמיד ${widget.student.name} התחיל אותה.',
+              style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 15),
+            const Text(
+              'בחר מצב שיחה:',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ביטול'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _navigateToChat(context, 'practice');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('תרגול'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _navigateToChat(context, 'test');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('מבחן'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToChat(BuildContext context, String mode) {
+    // Import the student chat screen
+    Navigator.pushNamed(
+      context,
+      '/student_chat',
+      arguments: {
+        'student': widget.student,
+        'mode': mode,
+        'isTeacherInitiated': true, // Flag to indicate teacher started this chat
+      },
+    ).then((_) {
+      // Refresh conversation history when returning from chat
+      _loadConversationHistory();
+    });
+  }
+
+  void _showProfilePictureOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('צלם תמונה'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromCamera();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('בחר מהגלריה'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromGallery();
+              },
+            ),
+            if (widget.student.profileImageUrl.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('הסר תמונה', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _removeProfilePicture();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.cancel),
+              title: const Text('ביטול'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _pickImageFromCamera() {
+    // TODO: Implement camera image picking
+    // For now, show placeholder message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('פיצ׳ר צילום תמונה יתווסף בקרוב'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  void _pickImageFromGallery() {
+    // TODO: Implement gallery image picking
+    // For now, show placeholder message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('פיצ׳ר בחירת תמונה מהגלריה יתווסף בקרוב'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  void _removeProfilePicture() {
+    // TODO: Implement profile picture removal
+    // For now, show placeholder message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('הסרת תמונת פרופיל תתווסף בקרוב'),
+        backgroundColor: Colors.orange,
       ),
     );
   }
