@@ -313,7 +313,7 @@ async def call_teacher(db: Session, session_id: int, student_id: int):
         priority=NotificationPriority.HIGH,
         title="בקשת עזרה מתלמיד",
         message=f"{student.full_name} מבקש עזרה במהלך השיחה עם הבוט",
-        metadata=f'{{"timestamp": "{datetime.utcnow().isoformat()}", "session_id": {session_id}}}'
+        extra_data=f'{{"timestamp": "{datetime.utcnow().isoformat()}", "session_id": {session_id}}}'
     )
     
     db.add(notification)

@@ -38,7 +38,7 @@ class TeacherNotification(Base):
     handled_at = Column(DateTime, nullable=True)
     
     # Optional metadata for additional context
-    metadata = Column(Text, nullable=True)  # JSON string
+    extra_data = Column(Text, nullable=True)  # JSON string
     
     # Relationships
     teacher = relationship("TeacherProfile", back_populates="notifications")
@@ -59,7 +59,7 @@ class TeacherNotification(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "read_at": self.read_at.isoformat() if self.read_at else None,
             "handled_at": self.handled_at.isoformat() if self.handled_at else None,
-            "metadata": self.metadata,
+            "metadata": self.extra_data,
             "student_name": self.student.full_name if self.student else None,
         }
 
