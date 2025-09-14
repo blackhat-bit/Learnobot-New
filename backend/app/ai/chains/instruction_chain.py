@@ -64,25 +64,32 @@ class InstructionProcessor:
     def analyze_instruction(self, instruction: str, student_context: dict, provider: str = None) -> dict:
         """Analyze an instruction to understand what needs to be done"""
         
-        # For cloud models, use educational guidance prompts
+        # For cloud models, use educational guidance prompts with structured formats
         if provider and not provider.startswith("ollama-"):
             # Educational guidance prompt for cloud models
             prompt_text = f"""אתה מורה חכם וסבלני שמסייע לתלמידים ללמוד. התלמיד שאל: "{instruction}"
 
 המטרה שלך היא לעזור לתלמיד ללמוד ולהבין, לא לתת תשובות ישירות.
 
-אם התלמיד שואל על משמעות מילה:
-- תן רמז או דוגמה שמסייעת לו להבין
-- שאל שאלות מנחות: "מה אתה חושב שזה אומר?"
-- תן דוגמה מהחיים שיעזור לו להבין
+השתמש באחת מהפורמטים החינוכיים הבאים:
 
-אם התלמיד מבקש עזרה במשימה:
-- אל תיתן את התשובה ישירות
-- שאל שאלות מנחות: "מה אתה כבר יודע על זה?"
-- תן רמזים שיעזרו לו לחשוב
-- עזור לו לפרק את הבעיה לחלקים קטנים
+**פורמט "הסבר"** - אם התלמיד שואל על משמעות או מושג:
+- הסבר במילים פשוטות מה זה אומר
+- תן דוגמה מהחיים
+- שאל שאלה מנחה: "עכשיו אתה מבין? איך זה קשור למה שאתה לומד?"
 
-אם התלמיד עצוב או מתוסכל:
+**פורמט "פירוק לשלבים"** - אם התלמיד מבקש עזרה במשימה:
+- פרק את המשימה ל-3-4 שלבים פשוטים
+- כל שלב צריך להיות קצר וברור
+- השתמש במילים: "שלב ראשון", "אחר כך", "בסוף"
+- שאל: "איזה שלב אתה רוצה להתחיל איתו?"
+
+**פורמט "דוגמה"** - אם התלמיד צריך להבין איך לעשות משהו:
+- תן דוגמה קונקרטית מהחיים
+- השתמש במילים: "לדוגמה", "זה כמו", "תחשוב על זה כך"
+- שאל: "עכשיו אתה יכול לחשוב על דוגמה משלך?"
+
+**פורמט "תמיכה רגשית"** - אם התלמיד עצוב או מתוסכל:
 - תן תמיכה רגשית: "אני מבין שזה קשה"
 - עזור לו להבין שזה בסדר להתקשות
 - הצע דרך פשוטה להתחיל
@@ -115,33 +122,76 @@ class InstructionProcessor:
     
     def breakdown_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None) -> str:
         """Break down instruction into simple steps"""
-        prompts = self._get_prompts_for_language(language_preference)
         
-        prompt_text = prompts['breakdown'].format(
-            instruction=instruction,
-            student_level=student_level
-        )
+        # For cloud models, use structured breakdown format
+        if provider and not provider.startswith("ollama-"):
+            prompt_text = f"""אתה מורה חכם שמסייע לתלמידים ללמוד. התלמיד מבקש עזרה במשימה: "{instruction}"
+
+השתמש בפורמט "פירוק לשלבים":
+- פרק את המשימה ל-3-4 שלבים פשוטים
+- כל שלב צריך להיות קצר וברור
+- השתמש במילים: "שלב ראשון", "אחר כך", "בסוף"
+- שאל: "איזה שלב אתה רוצה להתחיל איתו?"
+
+תמיד השתמש בשפה חמה, ניטרלית ומעודדת. תגיב ב-2-3 משפטים.
+
+תגובה:"""
+        else:
+            # Use existing prompts for local models
+            prompts = self._get_prompts_for_language(language_preference)
+            prompt_text = prompts['breakdown'].format(
+                instruction=instruction,
+                student_level=student_level
+            )
         
         return multi_llm_manager.generate(prompt_text, provider=provider)
     
     def provide_example(self, instruction: str, concept: str, language_preference: str = "he", provider: str = None) -> str:
         """Provide a relatable example"""
-        prompts = self._get_prompts_for_language(language_preference)
         
-        prompt_text = prompts['example'].format(
-            instruction=instruction,
-            concept=concept
-        )
+        # For cloud models, use structured example format
+        if provider and not provider.startswith("ollama-"):
+            prompt_text = f"""אתה מורה חכם שמסייע לתלמידים ללמוד. התלמיד מבקש דוגמה: "{instruction}"
+
+השתמש בפורמט "דוגמה":
+- תן דוגמה קונקרטית מהחיים
+- השתמש במילים: "לדוגמה", "זה כמו", "תחשוב על זה כך"
+- שאל: "עכשיו אתה יכול לחשוב על דוגמה משלך?"
+
+תמיד השתמש בשפה חמה, ניטרלית ומעודדת. תגיב ב-2-3 משפטים.
+
+תגובה:"""
+        else:
+            # Use existing prompts for local models
+            prompts = self._get_prompts_for_language(language_preference)
+            prompt_text = prompts['example'].format(
+                instruction=instruction,
+                concept=concept
+            )
         
         return multi_llm_manager.generate(prompt_text, provider=provider)
     
     def explain_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None) -> str:
         """Explain instruction in simple terms"""
-        prompts = self._get_prompts_for_language(language_preference)
         
-        prompt_text = prompts['explain'].format(
-            instruction=instruction,
-            student_level=student_level
-        )
+        # For cloud models, use structured explain format
+        if provider and not provider.startswith("ollama-"):
+            prompt_text = f"""אתה מורה חכם שמסייע לתלמידים ללמוד. התלמיד מבקש הסבר: "{instruction}"
+
+השתמש בפורמט "הסבר":
+- הסבר במילים פשוטות מה זה אומר
+- תן דוגמה מהחיים
+- שאל שאלה מנחה: "עכשיו אתה מבין? איך זה קשור למה שאתה לומד?"
+
+תמיד השתמש בשפה חמה, ניטרלית ומעודדת. תגיב ב-2-3 משפטים.
+
+תגובה:"""
+        else:
+            # Use existing prompts for local models
+            prompts = self._get_prompts_for_language(language_preference)
+            prompt_text = prompts['explain'].format(
+                instruction=instruction,
+                student_level=student_level
+            )
         
         return multi_llm_manager.generate(prompt_text, provider=provider)
