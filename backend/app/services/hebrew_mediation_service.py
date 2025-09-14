@@ -38,12 +38,13 @@ class HebrewMediationService:
         return self.mediation_chains[session_id]
     
     def process_mediated_response(
-        self, 
+        self,
         db: Session,
         session_id: int,
         instruction: str,
         student_response: str = "",
-        provider: str = None
+        provider: str = None,
+        assistance_type: str = None
     ) -> Dict[str, Any]:
         """Process message through Hebrew mediation system"""
         
@@ -79,7 +80,8 @@ class HebrewMediationService:
                 "instruction": instruction,
                 "student_response": student_response,
                 "mode": session.mode.value,
-                "student_context": student_context
+                "student_context": student_context,
+                "assistance_type": assistance_type
             }
             
             # Execute mediation chain
@@ -123,15 +125,15 @@ class HebrewMediationService:
     
     def should_use_mediation(self, session: ChatSession, assistance_type: str = None) -> bool:
         """Determine if Hebrew mediation should be used"""
-        
-        # Always use mediation for Practice mode in Agent Selection
-        if session.mode == InteractionMode.PRACTICE and not assistance_type:
+
+        # Always use mediation for Practice mode (both Agent Selection and Student Selection)
+        if session.mode == InteractionMode.PRACTICE:
             return True
-            
+
         # Use mediation for Test mode (limited attempts)
         if session.mode == InteractionMode.TEST:
             return True
-            
+
         return False
     
     def reset_session_chain(self, session_id: int):

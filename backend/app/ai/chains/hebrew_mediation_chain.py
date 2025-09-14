@@ -41,28 +41,28 @@ class ConversationStateMemory:
         # Emotional indicators - check first (expanded for better recognition)
         emotional_phrases = [
             # Sadness indicators
-            "עצוב", "עצובה", "עצובים", "עצובות", "sad", "sadness", "עצוב לי", "בוכה", "בוכים", "crying",
-            
-            # Anger indicators  
-            "כועס", "כועסת", "כועסים", "כועסות", "angry", "anger", "כועס על", "נרגז", "נרגזת", "מעצבן",
-            
+            "אני עצוב", "אני עצובה", "עצוב", "עצובה", "עצובים", "עצובות", "עצוב לי", "בוכה", "בוכים", "אני בוכה",
+
+            # Anger indicators
+            "אני כועס", "אני כועסת", "כועס", "כועסת", "כועסים", "כועסות", "כועס על", "נרגז", "נרגזת", "מעצבן", "אני נרגז",
+
             # Fear indicators
-            "מפחד", "מפחדת", "מפחדים", "מפחדות", "scared", "afraid", "פחד", "מפחיד", "מפחידה",
-            
+            "אני מפחד", "אני מפחדת", "מפחד", "מפחדת", "מפחדים", "מפחדות", "פחד", "מפחיד", "מפחידה",
+
             # Anxiety indicators
-            "חרד", "חרדה", "חרדים", "חרדות", "anxious", "anxiety", "מלחיץ", "מלחיצה", "לחוץ", "stressed",
-            
+            "אני חרד", "אני חרדה", "חרד", "חרדה", "חרדים", "חרדות", "מלחיץ", "מלחיצה", "לחוץ", "אני לחוץ",
+
             # Worry indicators
-            "דואג", "דואגת", "דואגים", "דואגות", "worried", "worry", "מודאג", "מודאגת", "דאגה",
-            
+            "אני דואג", "אני דואגת", "דואג", "דואגת", "דואגים", "דואגות", "מודאג", "מודאגת", "דאגה",
+
             # Frustration indicators
-            "מתוסכל", "מתוסכלת", "תסכול", "frustrated", "frustration", "נמאס לי", "נמאס", "מעצבן",
-            
+            "אני מתוסכל", "אני מתוסכלת", "מתוסכל", "מתוסכלת", "תסכול", "נמאס לי", "נמאס", "מעצבן",
+
             # Discouragement indicators
-            "לא רוצה", "לא בא לי", "לא מתחשק לי", "don't want", "don't feel like", "מוותר", "לא יכול יותר",
-            
+            "לא רוצה", "לא בא לי", "לא מתחשק לי", "מוותר", "לא יכול יותר", "אני לא רוצה", "אני מוותר",
+
             # General negative feelings
-            "לא טוב לי", "רע לי", "לא בסדר", "לא טוב", "feel bad", "רע", "גרוע", "נורא", "זוועה"
+            "לא טוב לי", "רע לי", "לא בסדר", "לא טוב", "רע", "גרוע", "נורא", "זוועה", "אני לא מרגיש טוב"
         ]
         
         for phrase in emotional_phrases:
@@ -119,60 +119,58 @@ class HebrewMediationRouter:
                 input_variables=["instruction"],
                 template="""התלמיד אמר: {instruction}
 
-זהו מצב רגשי. תגיב בעברית עם תמיכה ועידוד חמה. תגיב לרגש ולא למשימה.
-
-דוגמאות לתגובות טובות לפי סוג הרגש:
-
-עצב/דיכאון:
-- "אני מבין שאתה מרגיש עצוב. זה בסדר להרגיש כך. אני כאן בשבילך. 💙"
-- "זה מאוד קשה לפעמים. אתה לא לבד בזה."
-
-כעס/תסכול:
-- "אני רואה שאתה מתוסכל. זה ממש מובן - המשימה הזו יכולה להיות מאתגרת."
-- "אני מבין שאתה כועס. בוא ניקח נשימה עמוקה יחד."
-
-פחד/חרדה:
-- "זה בסדר לפחד. כולם מרגישים כך לפעמים. אני כאן כדי לעזור לך."
-- "אני מבין שזה מפחיד. בואו נתקדם יחד בקצב שלך."
-
-ויתור/אכזבה:
-- "אני רואה שנמאס לך. זה ממש מובן. אתה עובד קשה."
-- "אל תוותר! אתה כל כך חזק. בוא ננסה משהו אחר."
-
-תגיב עכשיו בחמימות ובהבנה:"""
+תגיב בעברית בחמימות ותמיכה. תגיב לרגש, לא למשימה.
+משפט אחד או שניים עם הבנה ועידוד:"""
             ),
             
             "highlight_keywords": PromptTemplate(
                 input_variables=["instruction"],
-                template="""ענה בעברית במשפט קצר: בוא נסתכל על המילים החשובות: {instruction}
-איזו מילה הכי חשובה כאן?"""
+                template="""בוא נסתכל על המילים החשובות: {instruction}
+איזו מילה הכי חשובה? (עברית, משפט אחד)"""
             ),
-            
+
             "guided_reading": PromptTemplate(
                 input_variables=["instruction"],
-                template="""ענה בעברית במשפט קצר: {instruction}
-מה מבקשים ממך לעשות? (רק הפעולה)"""
+                template="""{instruction}
+מה מבקשים לעשות? (עברית, רק הפעולה)"""
             ),
-            
+
             "provide_example": PromptTemplate(
                 input_variables=["instruction", "concept"],
-                template="""תן דוגמה פשוטה בעברית: {instruction}
-דוגמה קצרה מחיי היומיום:"""
+                template="""דוגמה פשוטה ל: {instruction}
+(עברית, דוגמה אחת מהחיים)"""
             ),
-            
+
             "breakdown_steps": PromptTemplate(
                 input_variables=["instruction"],
-                template="""פרק בעברית ל-3 שלבים פשוטים: {instruction}
-1. 
-2. 
+                template="""{instruction}
+פרק ל-3 שלבים פשוטים (עברית):
+1.
+2.
 3."""
+            ),
+
+            "detailed_explanation": PromptTemplate(
+                input_variables=["instruction"],
+                template="""{instruction}
+הסבר במילים פשוטות מה צריך לעשות (עברית, 2-3 משפטים):"""
             )
         }
 
-    def route_strategy(self, comprehension_level: str, failed_strategies: List[str], 
-                      mode: str = "practice") -> Optional[str]:
+    def route_strategy(self, comprehension_level: str, failed_strategies: List[str],
+                      mode: str = "practice", assistance_type: str = None) -> Optional[str]:
         """Route to next appropriate strategy based on Hebrew decision tree"""
-        
+
+        # Handle specific assistance type requests (Student Selection mode)
+        if assistance_type:
+            assistance_strategy_map = {
+                "explain": "detailed_explanation",      # הסבר
+                "breakdown": "breakdown_steps",        # פירוק לשלבים
+                "example": "provide_example"           # מתן דוגמה
+            }
+            if assistance_type in assistance_strategy_map:
+                return assistance_strategy_map[assistance_type]
+
         # Emotional responses get immediate emotional support
         if comprehension_level == "emotional":
             return "emotional_support"
@@ -204,7 +202,7 @@ class HebrewMediationChain(Chain):
     
     @property
     def input_keys(self) -> List[str]:
-        return ["instruction", "student_response", "mode", "student_context"]
+        return ["instruction", "student_response", "mode", "student_context", "assistance_type"]
     
     @property
     def output_keys(self) -> List[str]:
@@ -218,6 +216,7 @@ class HebrewMediationChain(Chain):
             student_response = inputs.get("student_response", "")
             mode = inputs.get("mode", "practice")
             student_context = inputs.get("student_context", {})
+            assistance_type = inputs.get("assistance_type")
             
             # Assess student comprehension from their response
             if student_response:
@@ -228,16 +227,24 @@ class HebrewMediationChain(Chain):
             # Get failed strategies from memory
             failed_strategies = self.memory.get_failed_strategies()
             
-            # Route to appropriate strategy
-            strategy = self.router.route_strategy(comprehension, failed_strategies, mode)
-            
+            # Handle initial conversation with proper greeting (from Hebrew document)
+            if comprehension == "initial" and not student_response and not assistance_type:
+                return {
+                    "response": "היי, אני לרנובוט, ואני פה כדי לעזור לך להבין את המשימות שלך. מה שלומך? 😊",
+                    "strategy_used": "initial_greeting",
+                    "comprehension_level": comprehension
+                }
+
+            # Route to appropriate strategy (considering assistance type)
+            strategy = self.router.route_strategy(comprehension, failed_strategies, mode, assistance_type)
+
             if not strategy:
                 return {
                     "response": "בוא ננסה גישה אחרת. איך אתה מרגיש עם המשימה הזו?",
                     "strategy_used": "open_question",
                     "comprehension_level": comprehension
                 }
-            
+
             # Generate response based on strategy
             response = self._execute_strategy(strategy, instruction, student_context)
             
@@ -266,20 +273,30 @@ class HebrewMediationChain(Chain):
         """Get direct emotional response for local models (bypasses LLM generation)"""
         instruction_lower = instruction.lower().strip()
         
-        # Direct emotional response mapping for local models
+        # Direct emotional response mapping for immediate responses (no LLM generation needed)
         emotional_responses = {
+            "אני עצוב": "אני מבין שאתה מרגיש עצוב. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טוב? 💙",
+            "אני עצובה": "אני מבינה שאת מרגישה עצובה. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טובה? 💙",
             "עצוב": "אני מבין שאתה מרגיש עצוב. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טוב? 💙",
-            "עצובה": "אני מבין שאתה מרגיש עצובה. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טובה? 💙",
+            "עצובה": "אני מבינה שאת מרגישה עצובה. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טובה? 💙",
+            "אני כועס": "אני רואה שאתה כועס. זה בסדר להרגיש כך. בוא נדבר על מה שמפריע לך. אני כאן להקשיב. 💪",
+            "אני כועסת": "אני רואה שאת כועסת. זה בסדר להרגיש כך. בואי נדבר על מה שמפריע לך. אני כאן להקשיב. 💪",
             "כועס": "אני רואה שאתה כועס. זה בסדר להרגיש כך. בוא נדבר על מה שמפריע לך. אני כאן להקשיב. 💪",
-            "כועסת": "אני רואה שאתה כועסת. זה בסדר להרגיש כך. בוא נדבר על מה שמפריע לך. אני כאן להקשיב. 💪",
+            "כועסת": "אני רואה שאת כועסת. זה בסדר להרגיש כך. בואי נדבר על מה שמפריע לך. אני כאן להקשיב. 💪",
+            "אני מפחד": "אני מבין שאתה מפחד. זה בסדר לפחד. אני כאן כדי לעזור לך להרגיש בטוח יותר. איך אני יכול לתמוך בך? 🤗",
+            "אני מפחדת": "אני מבינה שאת מפחדת. זה בסדר לפחד. אני כאן כדי לעזור לך להרגיש בטוחה יותר. איך אני יכול לתמוך בך? 🤗",
             "מפחד": "אני מבין שאתה מפחד. זה בסדר לפחד. אני כאן כדי לעזור לך להרגיש בטוח יותר. איך אני יכול לתמוך בך? 🤗",
-            "מפחדת": "אני מבין שאתה מפחדת. זה בסדר לפחד. אני כאן כדי לעזור לך להרגיש בטוחה יותר. איך אני יכול לתמוך בך? 🤗",
+            "מפחדת": "אני מבינה שאת מפחדת. זה בסדר לפחד. אני כאן כדי לעזור לך להרגיש בטוחה יותר. איך אני יכול לתמוך בך? 🤗",
+            "אני דואג": "אני רואה שאתה דואג. זה טבעי לדאוג לפעמים. אני כאן כדי לעזור לך. בוא נדבר על מה שמדאיג אותך. 💙",
+            "אני דואגת": "אני רואה שאת דואגת. זה טבעי לדאוג לפעמים. אני כאן כדי לעזור לך. בואי נדבר על מה שמדאיג אותך. 💙",
             "דואג": "אני רואה שאתה דואג. זה טבעי לדאוג לפעמים. אני כאן כדי לעזור לך. בוא נדבר על מה שמדאיג אותך. 💙",
-            "דואגת": "אני רואה שאתה דואגת. זה טבעי לדאוג לפעמים. אני כאן כדי לעזור לך. בוא נדבר על מה שמדאיג אותך. 💙",
+            "דואגת": "אני רואה שאת דואגת. זה טבעי לדאוג לפעמים. אני כאן כדי לעזור לך. בואי נדבר על מה שמדאיג אותך. 💙",
             "לא רוצה": "אני מבין שאתה לא רוצה לעשות את זה עכשיו. זה בסדר. אולי נוכל לנסות משהו אחר או לחזור לזה מאוחר יותר? 😊",
+            "אני לא רוצה": "אני מבין שאתה לא רוצה לעשות את זה עכשיו. זה בסדר. אולי נוכל לנסות משהו אחר או לחזור לזה מאוחר יותר? 😊",
             "לא בא לי": "אני מבין שאתה לא מרגיש מוכן לזה עכשיו. זה בסדר. איך אני יכול לעזור לך להרגיש יותר מוכן? 🌟",
             "לא טוב לי": "אני מבין שאתה לא מרגיש טוב. זה בסדר. אני כאן כדי לעזור לך. איך אני יכול לתמוך בך? 💙",
-            "רע לי": "אני מבין שאתה מרגיש רע. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טוב? 💙"
+            "רע לי": "אני מבין שאתה מרגיש רע. זה בסדר להרגיש כך. אני כאן בשבילך. איך אני יכול לעזור לך להרגיש יותר טוב? 💙",
+            "אני לא מרגיש טוב": "אני מבין שאתה לא מרגיש טוב. זה בסדר. אני כאן כדי לעזור לך. איך אני יכול לתמוך בך? 💙"
         }
         
         # Check for emotional keywords
@@ -320,18 +337,14 @@ class HebrewMediationChain(Chain):
         # Generate response using multi_llm_manager
         try:
             formatted_prompt = template.format(**template_vars)
-            
-            # Add encouraging tone
-            encouragement = get_encouragement()
-            full_prompt = f"{formatted_prompt}\n\n{encouragement}"
-            
+
             logger.info(f"Generating response for strategy: {strategy}")
-            
+
             response = multi_llm_manager.generate(
-                prompt=full_prompt,
+                prompt=formatted_prompt,
                 provider=self.provider,
-                temperature=0.3,  # Lower temperature for faster, focused responses
-                max_tokens=150    # Much shorter responses for speed
+                temperature=0.2,  # Even lower temperature for faster, focused responses
+                max_tokens=100    # Shorter responses for speed
             )
             
             logger.info(f"Successfully generated response for strategy: {strategy}")

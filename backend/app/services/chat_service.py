@@ -125,7 +125,7 @@ async def process_message(
         # Track AI generation time separately from educational delay
         ai_generation_start = time.time()
         
-        # Check if Hebrew mediation should be used (Agent Selection mode or Test mode)
+        # Check if Hebrew mediation should be used (both modes now use Hebrew mediation)
         if hebrew_mediation_service.should_use_mediation(session, assistance_type):
             # Use sophisticated Hebrew mediation system
             mediation_result = hebrew_mediation_service.process_mediated_response(
@@ -133,7 +133,8 @@ async def process_message(
                 session_id=session_id,
                 instruction=message,
                 student_response="",  # First message in conversation
-                provider=provider
+                provider=provider,
+                assistance_type=assistance_type
             )
             
             ai_response = mediation_result["response"]
@@ -190,16 +191,8 @@ async def process_message(
             
             ai_generation_time = time.time() - ai_generation_start
         
-        # Educational response delay (60-120 seconds as per conversation requirements)
-        import random
-        import asyncio
-        
-        # Generate random delay between 60-120 seconds for educational effectiveness
-        delay_seconds = random.uniform(60.0, 120.0)
-        logger.info(f"Educational delay: {delay_seconds:.1f}s before responding")
-        
-        # Add the delay
-        await asyncio.sleep(delay_seconds)
+        # Educational response delay removed for better user experience
+        # Models now respond immediately after generation
         
         # Calculate total response time (including delay)
         total_time = time.time() - start_time
@@ -216,7 +209,7 @@ async def process_message(
                 "mode": session.mode.value,
                 "provider": getattr(instruction_processor, 'provider', 'default'),
                 "ai_generation_time_ms": int(ai_generation_time * 1000),
-                "educational_delay_seconds": delay_seconds,
+                "educational_delay_seconds": 0,  # Delay removed for better UX
                 "total_response_time_ms": response_time_ms
             },
             response_time_ms=response_time_ms
