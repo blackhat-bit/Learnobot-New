@@ -1,7 +1,6 @@
 // lib/screens/student/student_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../services/auth_service_backend.dart';
@@ -359,7 +358,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       );
       
       if (image != null) {
-        await _uploadProfilePicture(File(image.path));
+        await _uploadProfilePicture(image);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -381,7 +380,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       );
       
       if (image != null) {
-        await _uploadProfilePicture(File(image.path));
+        await _uploadProfilePicture(image);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -393,7 +392,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     }
   }
 
-  Future<void> _uploadProfilePicture(File imageFile) async {
+  Future<void> _uploadProfilePicture(XFile imageFile) async {
     try {
       // Show loading indicator
       showDialog(

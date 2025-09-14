@@ -44,7 +44,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
           grade: studentData['grade'] ?? 'N/A',
           difficultyLevel: studentData['difficulty_level'] ?? 3,
           description: studentData['difficulties_description'] ?? 'No description available',
-          profileImageUrl: '',
+          profileImageUrl: studentData['profile_image_url'] ?? '',
         );
       }).toList();
       
@@ -211,14 +211,19 @@ class _StudentListScreenState extends State<StudentListScreen> {
               CircleAvatar(
                 radius: 25,
                 backgroundColor: AppColors.primaryLight,
-                child: Text(
-                  student.name.substring(0, 1),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
+                backgroundImage: student.profileImageUrl.isNotEmpty
+                    ? NetworkImage(student.profileImageUrl)
+                    : null,
+                child: student.profileImageUrl.isEmpty
+                    ? Text(
+                        student.name.substring(0, 1),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 15),
               

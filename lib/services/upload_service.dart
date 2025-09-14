@@ -7,7 +7,7 @@ import 'auth_service_backend.dart';
 class UploadService {
   /// Upload profile picture for current user
   static Future<Map<String, dynamic>> uploadProfilePicture({
-    required File imageFile,
+    required dynamic imageFile, // Can be File or XFile
     String? token,
   }) async {
     try {
@@ -25,9 +25,27 @@ class UploadService {
       // Add authorization header
       request.headers['Authorization'] = 'Bearer $authToken';
       
-      // Add file
+      // Handle both File and XFile
+      List<int> bytes;
+      String filename;
+      
+      if (imageFile is File) {
+        // For File objects (web/desktop)
+        bytes = await imageFile.readAsBytes();
+        filename = imageFile.path.split('/').last;
+      } else {
+        // For XFile objects (mobile)
+        bytes = await imageFile.readAsBytes();
+        filename = imageFile.name;
+      }
+      
+      // Add file using bytes
       request.files.add(
-        await http.MultipartFile.fromPath('file', imageFile.path),
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: filename,
+        ),
       );
 
       // Send request
@@ -99,7 +117,7 @@ class UploadService {
 
   /// Upload profile picture for a specific student (Teacher/Admin only)
   static Future<Map<String, dynamic>> uploadStudentProfilePicture({
-    required File imageFile,
+    required dynamic imageFile, // Can be File or XFile
     required int studentId,
     String? token,
   }) async {
@@ -118,9 +136,27 @@ class UploadService {
       // Add authorization header
       request.headers['Authorization'] = 'Bearer $authToken';
       
-      // Add file
+      // Handle both File and XFile
+      List<int> bytes;
+      String filename;
+      
+      if (imageFile is File) {
+        // For File objects (web/desktop)
+        bytes = await imageFile.readAsBytes();
+        filename = imageFile.path.split('/').last;
+      } else {
+        // For XFile objects (mobile)
+        bytes = await imageFile.readAsBytes();
+        filename = imageFile.name;
+      }
+      
+      // Add file using bytes
       request.files.add(
-        await http.MultipartFile.fromPath('file', imageFile.path),
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: filename,
+        ),
       );
 
       // Send request
