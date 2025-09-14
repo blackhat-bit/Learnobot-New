@@ -38,6 +38,10 @@ class ConversationStateMemory:
         """Analyze Hebrew student response for comprehension indicators"""
         response_lower = student_response.lower().strip()
         
+        # If response is empty or just greetings, treat as initial
+        if not response_lower or response_lower in ["", "היי", "שלום", "הי", "שלום שלום"]:
+            return "initial"
+        
         # Emotional indicators - check first (expanded for better recognition)
         emotional_phrases = [
             # Sadness indicators
@@ -76,7 +80,10 @@ class ConversationStateMemory:
             "לא יודע", "אל תבין", "מה זה", "איך עושים", "עזרה", 
             "לא מבין כלום", "זה יותר מדי קשה", "לא מצליח בכלל", "מה קורה פה",
             "זה לא הגיוני", "לא מבין בכלל", "מה זה הדבר הזה", "איך זה עובד",
-            "confused", "confusing", "hard", "difficult", "don't understand"
+            "confused", "confusing", "hard", "difficult", "don't understand",
+            # Add more question patterns
+            "?", "שאלה", "question", "תעזור", "תעזרי", "איך", "למה", "מתי", "איפה", "מי", "מה", "איזה",
+            "help", "what is", "how", "why", "when", "where", "who", "what", "which"
         ]
         
         # Understanding indicators  
@@ -93,6 +100,11 @@ class ConversationStateMemory:
             if phrase in response_lower:
                 self.comprehension_indicators.append("understood")
                 return "understood"
+        
+        # If it's a substantial message (more than just a word), treat as confused/question
+        if len(response_lower.split()) > 1:
+            self.comprehension_indicators.append("confused")
+            return "confused"
                 
         # Default to partial understanding
         self.comprehension_indicators.append("partial")
@@ -119,41 +131,73 @@ class HebrewMediationRouter:
                 input_variables=["instruction"],
                 template="""התלמיד אמר: {instruction}
 
-תגיב בעברית בחמימות ותמיכה. תגיב לרגש, לא למשימה.
-משפט אחד או שניים עם הבנה ועידוד:"""
+תגיב בעברית בחמימות ותמיכה. תגיב לרגש של התלמיד, לא למשימה.
+השתמש במילים כמו: "אני כאן בשבילך", "אני מבין", "בוא ננסה יחד", "אל תדאג", "אני אעזור לך".
+תגיב בשפה חמה ומעודדת, 1-2 משפטים קצרים.
+התאם את התגובה למה שהתלמיד אמר - אם התלמיד עצוב, תגיב בהבנה. אם התלמיד כועס, תגיב בסבלנות.
+השתמש בשפה ניטרלית או התאם למין שהתלמיד הזכיר.
+
+תגובה:"""
             ),
             
             "highlight_keywords": PromptTemplate(
                 input_variables=["instruction"],
-                template="""בוא נסתכל על המילים החשובות: {instruction}
-איזו מילה הכי חשובה? (עברית, משפט אחד)"""
+                template="""בוא נסתכל על המילים החשובות בהוראה: {instruction}
+
+זהה 2-3 מילות מפתח חשובות בהוראה.
+הסבר מה כל מילה אומרת במילים פשוטות.
+השתמש במילים כמו: "המילה החשובה היא", "זה אומר", "הכוונה היא".
+השתמש בשפה ניטרלית או התאם למין שהתלמיד הזכיר.
+
+תגובה:"""
             ),
 
             "guided_reading": PromptTemplate(
                 input_variables=["instruction"],
-                template="""{instruction}
-מה מבקשים לעשות? (עברית, רק הפעולה)"""
+                template="""בוא נקרא את ההוראה יחד: {instruction}
+
+קרא את ההוראה מילה אחר מילה.
+שאל את התלמיד מה התלמיד חושב שמבקשים לעשות.
+השתמש במילים כמו: "בוא נקרא יחד", "מה אתה/את חושב/ת", "מה מבקשים".
+השתמש בשפה ניטרלית או התאם למין שהתלמיד הזכיר.
+
+תגובה:"""
             ),
 
             "provide_example": PromptTemplate(
                 input_variables=["instruction", "concept"],
-                template="""דוגמה פשוטה ל: {instruction}
-(עברית, דוגמה אחת מהחיים)"""
+                template="""הנה דוגמה פשוטה להבנת ההוראה: {instruction}
+
+תן דוגמה קונקרטית מהחיים שמסבירה את ההוראה.
+השתמש במילים כמו: "לדוגמה", "זה כמו", "תחשוב על זה כך".
+הדוגמה צריכה להיות פשוטה ורלוונטית לתלמיד.
+השתמש בשפה ניטרלית או התאם למין שהתלמיד הזכיר.
+
+תגובה:"""
             ),
 
             "breakdown_steps": PromptTemplate(
                 input_variables=["instruction"],
-                template="""{instruction}
-פרק ל-3 שלבים פשוטים (עברית):
-1.
-2.
-3."""
+                template="""בוא נפרק את ההוראה לשלבים פשוטים: {instruction}
+
+פרק את ההוראה ל-3-4 שלבים פשוטים וברורים.
+כל שלב צריך להיות קצר וקל להבנה.
+השתמש במילים כמו: "שלב ראשון", "אחר כך", "בסוף".
+השתמש בשפה ניטרלית או התאם למין שהתלמיד הזכיר.
+
+תגובה:"""
             ),
 
             "detailed_explanation": PromptTemplate(
                 input_variables=["instruction"],
-                template="""{instruction}
-הסבר במילים פשוטות מה צריך לעשות (עברית, 2-3 משפטים):"""
+                template="""בוא נבין יחד מה ההוראה אומרת: {instruction}
+
+הסבר את ההוראה במילים פשוטות וברורות.
+כלול: מה צריך לעשות, איך לעשות את זה, איך לדעת שסיימת.
+השתמש במילים כמו: "המטרה היא", "איך עושים את זה", "כשתסיים".
+השתמש בשפה ניטרלית או התאם למין שהתלמיד הזכיר.
+
+תגובה:"""
             )
         }
 
@@ -228,7 +272,10 @@ class HebrewMediationChain(Chain):
             failed_strategies = self.memory.get_failed_strategies()
             
             # Handle initial conversation with proper greeting (from Hebrew document)
-            if comprehension == "initial" and not student_response and not assistance_type:
+            # Only show greeting if this is truly the first message (empty or just greeting)
+            if (comprehension == "initial" and 
+                (not student_response or 
+                 student_response.strip() in ["", "היי", "שלום", "הי", "שלום שלום"])):
                 return {
                     "response": "היי, אני לרנובוט, ואני פה כדי לעזור לך להבין את המשימות שלך. מה שלומך? 😊",
                     "strategy_used": "initial_greeting",

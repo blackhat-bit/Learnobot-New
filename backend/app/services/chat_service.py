@@ -132,7 +132,7 @@ async def process_message(
                 db=db,
                 session_id=session_id,
                 instruction=message,
-                student_response="",  # First message in conversation
+                student_response=message,  # Pass the actual student message
                 provider=provider,
                 assistance_type=assistance_type
             )

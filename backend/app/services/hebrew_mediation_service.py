@@ -126,9 +126,9 @@ class HebrewMediationService:
     def should_use_mediation(self, session: ChatSession, assistance_type: str = None) -> bool:
         """Determine if Hebrew mediation should be used"""
 
-        # Always use mediation for Practice mode (both Agent Selection and Student Selection)
+        # Use mediation for Practice mode ONLY when no specific assistance type is requested (Agent Selection mode)
         if session.mode == InteractionMode.PRACTICE:
-            return True
+            return assistance_type is None  # Only use mediation for Agent Selection mode
 
         # Use mediation for Test mode (limited attempts)
         if session.mode == InteractionMode.TEST:
