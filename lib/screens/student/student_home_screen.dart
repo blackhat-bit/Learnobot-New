@@ -177,7 +177,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                               MaterialPageRoute(
                                 builder: (context) => const StudentAccountSettingsScreen(),
                               ),
-                            );
+                            ).then((_) {
+                              // Refresh profile picture when returning from settings
+                              _loadProfilePicture();
+                            });
                           },
                           icon: const Icon(Icons.edit),
                           label: const Text('עדכון פרטים'),
@@ -283,7 +286,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                   MaterialPageRoute(
                     builder: (context) => const StudentAccountSettingsScreen(),
                   ),
-                );
+                ).then((_) {
+                  // Refresh profile picture when returning from settings
+                  _loadProfilePicture();
+                });
               },
             ),
             ListTile(
