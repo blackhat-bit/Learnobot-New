@@ -256,7 +256,7 @@ async def process_message(
                 recent_student_message = check_db.query(ChatMessage).filter(
                     ChatMessage.session_id == session_id,
                     ChatMessage.role == MessageRole.USER,
-                    ChatMessage.created_at > ai_message.created_at
+                    ChatMessage.timestamp > ai_message.timestamp
                 ).first()
                 
                 if not recent_student_message:
