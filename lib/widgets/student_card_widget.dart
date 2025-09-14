@@ -1,9 +1,13 @@
 // lib/widgets/student_card_widget.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../constants/app_colors.dart';
 import '../models/student.dart';
 import '../screens/teacher/student_profile_screen.dart';
 import '../screens/teacher/teacher_chat_screen.dart';
+import '../services/analytics_service.dart';
+import '../services/upload_service.dart';
 
 class StudentCardWidget extends StatelessWidget {
   final Student student;
@@ -731,19 +735,9 @@ class StudentCardWidget extends StatelessWidget {
   }
   
   void _showEditDialog(BuildContext context) {
-    // This would be implemented with a form to edit student details
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('עריכת פרטי תלמיד'),
-        content: const Text('תכונה זו תהיה זמינה בקרוב'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('סגור'),
-          ),
-        ],
-      ),
+      builder: (context) => _EditStudentDialog(student: student),
     );
   }
   
@@ -775,6 +769,465 @@ class StudentCardWidget extends StatelessWidget {
     );
   }
   
+  Color _getDifficultyColor(int level) {
+    switch (level) {
+      case 1:
+        return Colors.green;
+      case 2:
+        return Colors.lightGreen;
+      case 3:
+        return Colors.orange;
+      case 4:
+        return Colors.deepOrange;
+      case 5:
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+}
+
+// Edit Student Dialog Widget
+class _EditStudentDialog extends StatefulWidget {
+  final Student student;
+
+  const _EditStudentDialog({required this.student});
+
+  @override
+  State<_EditStudentDialog> createState() => _EditStudentDialogState();
+}
+
+class _EditStudentDialogState extends State<_EditStudentDialog> {
+  late TextEditingController _nameController;
+  late TextEditingController _gradeController;
+  late TextEditingController _descriptionController;
+  late int _selectedDifficulty;
+  String? _profileImageUrl;
+  bool _isLoading = false;
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.student.name);
+    _gradeController = TextEditingController(text: widget.student.grade);
+    _descriptionController = TextEditingController(text: widget.student.description);
+    _selectedDifficulty = widget.student.difficultyLevel;
+    _profileImageUrl = widget.student.profileImageUrl;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _gradeController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        constraints: const BoxConstraints(maxWidth: 500),
+        padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'עריכת פרטי תלמיד',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Profile Picture Section
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: AppColors.primary,
+                          backgroundImage: _profileImageUrl != null 
+                              ? NetworkImage(_profileImageUrl!)
+                              : null,
+                          child: _profileImageUrl == null
+                              ? const Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: IconButton(
+                              onPressed: _isLoading ? null : _showProfilePictureOptions,
+                              icon: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              constraints: const BoxConstraints(),
+                              padding: const EdgeInsets.all(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton.icon(
+                      onPressed: _isLoading ? null : _showProfilePictureOptions,
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('החלף תמונה'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Form Fields
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'שם התלמיד',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _gradeController,
+                decoration: const InputDecoration(
+                  labelText: 'כיתה',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.school),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _descriptionController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'תיאור',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.description),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Difficulty Level
+              const Text(
+                'רמת קושי בהבנת הוראות:',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(5, (index) {
+                  final level = index + 1;
+                  final isSelected = _selectedDifficulty == level;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedDifficulty = level;
+                      });
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isSelected ? _getDifficultyColor(level) : Colors.grey.shade300,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected ? _getDifficultyColor(level) : Colors.grey.shade400,
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$level',
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.grey.shade600,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 30),
+
+              // Action Buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('ביטול'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _saveChanges,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text('שמור שינויים'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showProfilePictureOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('צלם תמונה'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromCamera();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('בחר מהגלריה'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromGallery();
+              },
+            ),
+            if (_profileImageUrl != null)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('הסר תמונה', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _removeProfilePicture();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.cancel),
+              title: const Text('ביטול'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        await _uploadProfilePicture(File(image.path));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('שגיאה בפתיחת המצלמה'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        await _uploadProfilePicture(File(image.path));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('שגיאה בבחירת תמונה'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _uploadProfilePicture(File imageFile) async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final result = await UploadService.uploadStudentProfilePicture(
+        imageFile: imageFile,
+        studentId: int.parse(widget.student.id),
+      );
+      
+      if (mounted) {
+        setState(() {
+          _profileImageUrl = UploadService.getImageUrl(result['image_url']);
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('תמונת הפרופיל עודכנה בהצלחה'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה בהעלאת תמונת הפרופיל: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _removeProfilePicture() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      await UploadService.deleteStudentProfilePicture(
+        studentId: int.parse(widget.student.id),
+      );
+      
+      if (mounted) {
+        setState(() {
+          _profileImageUrl = null;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('תמונת הפרופיל הוסרה בהצלחה'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה בהסרת תמונת הפרופיל: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _saveChanges() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      // Update student profile using AnalyticsService
+      final updates = {
+        'full_name': _nameController.text,
+        'grade': _gradeController.text,
+        'difficulty_level': _selectedDifficulty,
+        'difficulties_description': _descriptionController.text,
+      };
+      
+      await AnalyticsService.updateStudentProfile(
+        studentId: int.parse(widget.student.id),
+        updates: updates,
+      );
+      
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('פרטי התלמיד עודכנו בהצלחה'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה בעדכון פרטי התלמיד: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Color _getDifficultyColor(int level) {
     switch (level) {
       case 1:
