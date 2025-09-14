@@ -284,6 +284,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                     message: message,
                     showAvatar: index == 0 || 
                       _messages[index - 1].sender != message.sender,
+                    studentProfileImageUrl: widget.student.profileImageUrl,
                   );
                 },
               ),
