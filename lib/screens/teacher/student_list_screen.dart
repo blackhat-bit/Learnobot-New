@@ -200,7 +200,10 @@ class _StudentListScreenState extends State<StudentListScreen> {
             MaterialPageRoute(
               builder: (context) => StudentProfileScreen(student: student),
             ),
-          );
+          ).then((_) {
+            // Refresh student list when returning from profile screen
+            _loadStudents();
+          });
         },
         borderRadius: BorderRadius.circular(15),
         child: Padding(

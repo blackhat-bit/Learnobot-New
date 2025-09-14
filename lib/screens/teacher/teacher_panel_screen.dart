@@ -506,7 +506,10 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
           context,
           '/student_profile',
           arguments: student,
-        );
+        ).then((_) {
+          // Refresh recent students when returning from profile screen
+          _loadData();
+        });
       },
       child: Container(
         width: 90,
