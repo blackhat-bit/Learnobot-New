@@ -1,13 +1,11 @@
 // lib/screens/teacher/student_profile_screen.dart
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/student.dart';
 import '../../models/chat_message.dart';
 import '../../services/analytics_service.dart';
 import '../../services/auth_service_backend.dart';
-import '../../services/upload_service.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   final Student student;
@@ -27,7 +25,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
   Map<String, dynamic>? _studentAnalytics;
   bool _isLoadingAnalytics = true;
   bool _isLoadingHistory = true;
-  final ImagePicker _picker = ImagePicker();
   late Student _currentStudent;
   
   @override
@@ -863,187 +860,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
     });
   }
 
-  void _showProfilePictureOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('צלם תמונה'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImageFromCamera();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('בחר מהגלריה'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImageFromGallery();
-              },
-            ),
-            if (_currentStudent.profileImageUrl.isNotEmpty)
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('הסר תמונה', style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _removeProfilePicture();
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.cancel),
-              title: const Text('ביטול'),
-              onTap: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Future<void> _pickImageFromCamera() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
-      
-      if (image != null) {
-        await _uploadProfilePicture(image);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('שגיאה בפתיחת המצלמה'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _pickImageFromGallery() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
-      
-      if (image != null) {
-        await _uploadProfilePicture(image);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('שגיאה בבחירת תמונה'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _removeProfilePicture() async {
-    try {
-      await UploadService.deleteStudentProfilePicture(
-        studentId: int.parse(widget.student.id),
-      );
-      
-      if (mounted) {
-        setState(() {
-          // Update the student object with empty profile image URL
-          _currentStudent = Student(
-            id: _currentStudent.id,
-            name: _currentStudent.name,
-            grade: _currentStudent.grade,
-            difficultyLevel: _currentStudent.difficultyLevel,
-            description: _currentStudent.description,
-            profileImageUrl: '',
-          );
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('תמונת הפרופיל הוסרה בהצלחה'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('שגיאה בהסרת תמונת הפרופיל: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _uploadProfilePicture(XFile imageFile) async {
-    try {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
-      final result = await UploadService.uploadStudentProfilePicture(
-        imageFile: imageFile,
-        studentId: int.parse(widget.student.id),
-      );
-
-      // Close loading indicator
-      Navigator.pop(context);
-
-      if (mounted && result['image_url'] != null) {
-        setState(() {
-          // Update the student object with new profile image URL
-          _currentStudent = Student(
-            id: _currentStudent.id,
-            name: _currentStudent.name,
-            grade: _currentStudent.grade,
-            difficultyLevel: _currentStudent.difficultyLevel,
-            description: _currentStudent.description,
-            profileImageUrl: UploadService.getImageUrl(result['image_url']),
-          );
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('תמונת הפרופיל עודכנה בהצלחה!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      // Close loading indicator if still open
-      if (mounted) {
-        Navigator.pop(context);
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('שגיאה בעדכון תמונת הפרופיל: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
   
   Color _getDifficultyColor(int level) {
     switch (level) {
