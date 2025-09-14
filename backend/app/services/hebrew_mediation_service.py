@@ -123,8 +123,12 @@ class HebrewMediationService:
                 "failed_strategies": []
             }
     
-    def should_use_mediation(self, session: ChatSession, assistance_type: str = None) -> bool:
+    def should_use_mediation(self, session: ChatSession, assistance_type: str = None, provider: str = None) -> bool:
         """Determine if Hebrew mediation should be used"""
+
+        # Only use mediation for local models (Ollama/Aya) - cloud models are smart enough for direct API calls
+        if provider and not provider.startswith("ollama-"):
+            return False  # Cloud models don't need mediation
 
         # Use mediation for Practice mode ONLY when no specific assistance type is requested (Agent Selection mode)
         if session.mode == InteractionMode.PRACTICE:

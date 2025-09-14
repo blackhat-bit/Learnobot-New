@@ -125,8 +125,8 @@ async def process_message(
         # Track AI generation time separately from educational delay
         ai_generation_start = time.time()
         
-        # Check if Hebrew mediation should be used (both modes now use Hebrew mediation)
-        if hebrew_mediation_service.should_use_mediation(session, assistance_type):
+        # Check if Hebrew mediation should be used (only for local models)
+        if hebrew_mediation_service.should_use_mediation(session, assistance_type, provider):
             # Use sophisticated Hebrew mediation system
             mediation_result = hebrew_mediation_service.process_mediated_response(
                 db=db,

@@ -63,22 +63,50 @@ class InstructionProcessor:
     
     def analyze_instruction(self, instruction: str, student_context: dict, provider: str = None) -> dict:
         """Analyze an instruction to understand what needs to be done"""
-        # Get user language preference from context
-        language_pref = student_context.get("language_preference", "he")
-        prompts = self._get_prompts_for_language(language_pref)
         
-        # Format the prompt with variables
-        if language_pref and language_pref.lower() in ['en', 'english']:
-            prompt_text = prompts['analysis'].format(
-                instruction=instruction,
-                student_context=str(student_context)
-            )
+        # For cloud models, use educational guidance prompts
+        if provider and not provider.startswith("ollama-"):
+            # Educational guidance prompt for cloud models
+            prompt_text = f"""אתה מורה חכם וסבלני שמסייע לתלמידים ללמוד. התלמיד שאל: "{instruction}"
+
+המטרה שלך היא לעזור לתלמיד ללמוד ולהבין, לא לתת תשובות ישירות.
+
+אם התלמיד שואל על משמעות מילה:
+- תן רמז או דוגמה שמסייעת לו להבין
+- שאל שאלות מנחות: "מה אתה חושב שזה אומר?"
+- תן דוגמה מהחיים שיעזור לו להבין
+
+אם התלמיד מבקש עזרה במשימה:
+- אל תיתן את התשובה ישירות
+- שאל שאלות מנחות: "מה אתה כבר יודע על זה?"
+- תן רמזים שיעזרו לו לחשוב
+- עזור לו לפרק את הבעיה לחלקים קטנים
+
+אם התלמיד עצוב או מתוסכל:
+- תן תמיכה רגשית: "אני מבין שזה קשה"
+- עזור לו להבין שזה בסדר להתקשות
+- הצע דרך פשוטה להתחיל
+
+תמיד השתמש בשפה חמה, ניטרלית ומעודדת. תגיב ב-2-3 משפטים.
+
+תגובה:"""
         else:
-            prompt_text = prompts['analysis'].format(
-                instruction=instruction,
-                student_level=student_context.get("difficulty_level", 3),
-                assistance_type="הסבר"
-            )
+            # Use existing complex prompts for local models
+            language_pref = student_context.get("language_preference", "he")
+            prompts = self._get_prompts_for_language(language_pref)
+            
+            # Format the prompt with variables
+            if language_pref and language_pref.lower() in ['en', 'english']:
+                prompt_text = prompts['analysis'].format(
+                    instruction=instruction,
+                    student_context=str(student_context)
+                )
+            else:
+                prompt_text = prompts['analysis'].format(
+                    instruction=instruction,
+                    student_level=student_context.get("difficulty_level", 3),
+                    assistance_type="הסבר"
+                )
         
         # Use multi_llm_manager to generate response
         result = multi_llm_manager.generate(prompt_text, provider=provider)
