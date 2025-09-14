@@ -5,6 +5,7 @@ import '../../constants/app_strings.dart';
 import '../../models/student.dart';
 import '../../services/analytics_service.dart';
 import '../../services/auth_service_backend.dart';
+import '../../services/upload_service.dart';
 import 'student_profile_screen.dart';
 
 class StudentListScreen extends StatefulWidget {
@@ -44,7 +45,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
           grade: studentData['grade'] ?? 'N/A',
           difficultyLevel: studentData['difficulty_level'] ?? 3,
           description: studentData['difficulties_description'] ?? 'No description available',
-          profileImageUrl: studentData['profile_image_url'] ?? '',
+          profileImageUrl: UploadService.getImageUrl(studentData['profile_image_url']),
         );
       }).toList();
       

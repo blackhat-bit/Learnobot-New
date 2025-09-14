@@ -197,46 +197,23 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // Avatar with Profile Picture functionality
-                  GestureDetector(
-                    onTap: () => _showProfilePictureOptions(context),
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: AppColors.primaryLight,
-                          backgroundImage: _currentStudent.profileImageUrl.isNotEmpty
-                              ? NetworkImage(_currentStudent.profileImageUrl)
-                              : null,
-                          child: _currentStudent.profileImageUrl.isEmpty
-                              ? Text(
-                                  _currentStudent.name.substring(0, 1),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 36,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
+                  // Avatar (read-only, no editing)
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: AppColors.primaryLight,
+                    backgroundImage: _currentStudent.profileImageUrl.isNotEmpty
+                        ? NetworkImage(_currentStudent.profileImageUrl)
+                        : null,
+                    child: _currentStudent.profileImageUrl.isEmpty
+                        ? Text(
+                            _currentStudent.name.substring(0, 1),
+                            style: const TextStyle(
                               color: Colors.white,
-                              shape: BoxShape.circle,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 36,
                             ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              size: 20,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                          )
+                        : null,
                   ),
                   const SizedBox(height: 15),
                   

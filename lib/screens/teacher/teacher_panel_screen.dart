@@ -120,7 +120,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
             grade: studentData['grade'] ?? 'N/A',
             difficultyLevel: studentData['difficulty_level'] ?? 3,
             description: studentData['difficulties_description'] ?? 'No description available',
-            profileImageUrl: studentData['profile_image_url'] ?? '',
+            profileImageUrl: UploadService.getImageUrl(studentData['profile_image_url']),
           );
         }).toList();
 
