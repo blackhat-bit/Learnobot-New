@@ -38,12 +38,13 @@ class HebrewMediationService:
         return self.mediation_chains[session_id]
     
     def process_mediated_response(
-        self, 
+        self,
         db: Session,
         session_id: int,
         instruction: str,
         student_response: str = "",
-        provider: str = None
+        provider: str = None,
+        assistance_type: str = None
     ) -> Dict[str, Any]:
         """Process message through Hebrew mediation system"""
         
@@ -79,7 +80,8 @@ class HebrewMediationService:
                 "instruction": instruction,
                 "student_response": student_response,
                 "mode": session.mode.value,
-                "student_context": student_context
+                "student_context": student_context,
+                "assistance_type": assistance_type
             }
             
             # Execute mediation chain
@@ -121,17 +123,19 @@ class HebrewMediationService:
                 "failed_strategies": []
             }
     
-    def should_use_mediation(self, session: ChatSession, assistance_type: str = None) -> bool:
+    def should_use_mediation(self, session: ChatSession, assistance_type: str = None, provider: str = None) -> bool:
         """Determine if Hebrew mediation should be used"""
-        
-        # Always use mediation for Practice mode in Agent Selection
-        if session.mode == InteractionMode.PRACTICE and not assistance_type:
-            return True
-            
-        # Use mediation for Test mode (limited attempts)
-        if session.mode == InteractionMode.TEST:
-            return True
-            
+
+        # Use mediation for local models (Ollama/Aya) in Agent Selection mode
+        if provider and provider.startswith("ollama-"):
+            # Use mediation for Practice mode ONLY when no specific assistance type is requested (Agent Selection mode)
+            if session.mode == InteractionMode.PRACTICE:
+                return assistance_type is None  # Only use mediation for Agent Selection mode
+            # Use mediation for Test mode (limited attempts)
+            if session.mode == InteractionMode.TEST:
+                return True
+
+        # Cloud models don't use the complex mediation system, but still follow mode logic
         return False
     
     def reset_session_chain(self, session_id: int):

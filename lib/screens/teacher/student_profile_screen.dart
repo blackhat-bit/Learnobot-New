@@ -25,11 +25,13 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
   Map<String, dynamic>? _studentAnalytics;
   bool _isLoadingAnalytics = true;
   bool _isLoadingHistory = true;
+  late Student _currentStudent;
   
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _currentStudent = widget.student;
     _loadStudentData();
   }
   
@@ -192,52 +194,29 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // Avatar with Profile Picture functionality
-                  GestureDetector(
-                    onTap: () => _showProfilePictureOptions(context),
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: AppColors.primaryLight,
-                          backgroundImage: widget.student.profileImageUrl.isNotEmpty
-                              ? NetworkImage(widget.student.profileImageUrl)
-                              : null,
-                          child: widget.student.profileImageUrl.isEmpty
-                              ? Text(
-                                  widget.student.name.substring(0, 1),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 36,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
+                  // Avatar (read-only, no editing)
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: AppColors.primaryLight,
+                    backgroundImage: _currentStudent.profileImageUrl.isNotEmpty
+                        ? NetworkImage(_currentStudent.profileImageUrl)
+                        : null,
+                    child: _currentStudent.profileImageUrl.isEmpty
+                        ? Text(
+                            _currentStudent.name.substring(0, 1),
+                            style: const TextStyle(
                               color: Colors.white,
-                              shape: BoxShape.circle,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 36,
                             ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              size: 20,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                          )
+                        : null,
                   ),
                   const SizedBox(height: 15),
                   
                   // Name
                   Text(
-                    widget.student.name,
+                    _currentStudent.name,
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -248,7 +227,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
                   
                   // Grade
                   Text(
-                    'כיתה: ${widget.student.grade}',
+                    'כיתה: ${_currentStudent.grade}',
                     style: const TextStyle(
                       fontSize: 16,
                       color: AppColors.textLight,
@@ -269,7 +248,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
                         ),
                       ),
                       const SizedBox(width: 10),
-                      _buildDifficultyIndicator(widget.student.difficultyLevel),
+                      _buildDifficultyIndicator(_currentStudent.difficultyLevel),
                     ],
                   ),
                 ],
@@ -296,8 +275,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
             child: Padding(
               padding: const EdgeInsets.all(15),
               child: Text(
-                widget.student.description.isNotEmpty
-                    ? widget.student.description
+                _currentStudent.description.isNotEmpty
+                    ? _currentStudent.description
                     : 'אין תיאור קשיים',
                 style: const TextStyle(
                   fontSize: 16,
@@ -598,15 +577,15 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
   
   void _showEditProfileDialog(BuildContext context) {
     final TextEditingController nameController = TextEditingController(
-      text: widget.student.name,
+      text: _currentStudent.name,
     );
     final TextEditingController gradeController = TextEditingController(
-      text: widget.student.grade,
+      text: _currentStudent.grade,
     );
     final TextEditingController descriptionController = TextEditingController(
-      text: widget.student.description,
+      text: _currentStudent.description,
     );
-    int selectedDifficulty = widget.student.difficultyLevel;
+    int selectedDifficulty = _currentStudent.difficultyLevel;
     
     showDialog(
       context: context,
@@ -758,12 +737,12 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
                           };
                           
                           await AnalyticsService.updateStudentProfile(
-                            studentId: int.parse(widget.student.id),
+                            studentId: int.parse(_currentStudent.id),
                             updates: updates,
                           );
                           
                           final updatedStudent = Student(
-                            id: widget.student.id,
+                            id: _currentStudent.id,
                             name: nameController.text,
                             grade: gradeController.text,
                             difficultyLevel: selectedDifficulty,
@@ -821,7 +800,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'השיחה תראה כמו שהתלמיד ${widget.student.name} התחיל אותה.',
+              'השיחה תראה כמו שהתלמיד ${_currentStudent.name} התחיל אותה.',
               style: const TextStyle(fontSize: 16),
               textAlign: TextAlign.center,
             ),
@@ -871,7 +850,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
       context,
       '/student_chat',
       arguments: {
-        'student': widget.student,
+        'student': _currentStudent,
         'mode': mode,
         'isTeacherInitiated': true, // Flag to indicate teacher started this chat
       },
@@ -881,80 +860,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> with Single
     });
   }
 
-  void _showProfilePictureOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('צלם תמונה'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImageFromCamera();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('בחר מהגלריה'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImageFromGallery();
-              },
-            ),
-            if (widget.student.profileImageUrl.isNotEmpty)
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('הסר תמונה', style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _removeProfilePicture();
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.cancel),
-              title: const Text('ביטול'),
-              onTap: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  void _pickImageFromCamera() {
-    // TODO: Implement camera image picking
-    // For now, show placeholder message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('פיצ׳ר צילום תמונה יתווסף בקרוב'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
-
-  void _pickImageFromGallery() {
-    // TODO: Implement gallery image picking
-    // For now, show placeholder message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('פיצ׳ר בחירת תמונה מהגלריה יתווסף בקרוב'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
-
-  void _removeProfilePicture() {
-    // TODO: Implement profile picture removal
-    // For now, show placeholder message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('הסרת תמונת פרופיל תתווסף בקרוב'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
   
   Color _getDifficultyColor(int level) {
     switch (level) {

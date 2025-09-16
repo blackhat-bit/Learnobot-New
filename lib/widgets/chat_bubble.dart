@@ -8,12 +8,14 @@ class ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final bool showAvatar;
   final Function(String)? onSpeakPressed;
+  final String? studentProfileImageUrl;
   
   const ChatBubble({
     Key? key,
     required this.message,
     this.showAvatar = true,
     this.onSpeakPressed,
+    this.studentProfileImageUrl,
   }) : super(key: key);
 
   @override
@@ -117,11 +119,16 @@ class ChatBubble extends StatelessWidget {
             CircleAvatar(
               radius: 16,
               backgroundColor: Colors.blue.shade100,
-              child: const Icon(
-                Icons.person,
-                color: Colors.blueAccent,
-                size: 18,
-              ),
+              backgroundImage: studentProfileImageUrl != null && studentProfileImageUrl!.isNotEmpty
+                  ? NetworkImage(studentProfileImageUrl!)
+                  : null,
+              child: studentProfileImageUrl == null || studentProfileImageUrl!.isEmpty
+                  ? const Icon(
+                      Icons.person,
+                      color: Colors.blueAccent,
+                      size: 18,
+                    )
+                  : null,
             )
           else if (isStudent)
             const SizedBox(width: 32),

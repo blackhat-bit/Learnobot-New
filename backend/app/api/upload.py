@@ -190,3 +190,120 @@ async def get_profile_picture_info(
         "image_url": image_url,
         "has_image": image_url is not None
     }
+
+@router.post("/student-profile-picture/{student_id}")
+async def upload_student_profile_picture(
+    student_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload profile picture for a student (Teacher/Admin only)"""
+    
+    # Check if current user is teacher or admin
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only teachers and admins can upload student profile pictures")
+    
+    # Validate file
+    validate_image_file(file)
+    
+    # Check file size
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 5MB")
+    
+    try:
+        # Find the student
+        student_profile = db.query(StudentProfile).filter(
+            StudentProfile.id == student_id
+        ).first()
+        
+        if not student_profile:
+            raise HTTPException(status_code=404, detail="Student not found")
+        
+        # Check if teacher has access to this student (for teachers, not admins)
+        if current_user.role == UserRole.TEACHER:
+            teacher_profile = db.query(TeacherProfile).filter(
+                TeacherProfile.user_id == current_user.id
+            ).first()
+            if not teacher_profile or student_profile.teacher_id != teacher_profile.id:
+                raise HTTPException(status_code=403, detail="You don't have permission to edit this student")
+        
+        # Generate unique filename
+        file_extension = Path(file.filename or "").suffix.lower()
+        unique_filename = f"student_{student_id}_{uuid.uuid4().hex}{file_extension}"
+        file_path = UPLOAD_DIR / unique_filename
+        
+        # Save file
+        save_upload_file(file, file_path)
+        
+        # Update student profile with image URL
+        image_url = f"/uploads/profile_pictures/{unique_filename}"
+        
+        # Remove old profile picture if exists
+        if student_profile.profile_image_url:
+            old_file = UPLOAD_DIR / Path(student_profile.profile_image_url).name
+            if old_file.exists():
+                old_file.unlink()
+        
+        student_profile.profile_image_url = image_url
+        db.commit()
+        
+        return {
+            "message": "Student profile picture uploaded successfully",
+            "image_url": image_url,
+            "filename": unique_filename
+        }
+        
+    except Exception as e:
+        db.rollback()
+        # Clean up uploaded file if database operation failed
+        if 'file_path' in locals() and file_path.exists():
+            file_path.unlink()
+        raise HTTPException(status_code=500, detail=f"Failed to upload student profile picture: {str(e)}")
+
+@router.delete("/student-profile-picture/{student_id}")
+async def delete_student_profile_picture(
+    student_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete profile picture for a student (Teacher/Admin only)"""
+    
+    # Check if current user is teacher or admin
+    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only teachers and admins can delete student profile pictures")
+    
+    try:
+        # Find the student
+        student_profile = db.query(StudentProfile).filter(
+            StudentProfile.id == student_id
+        ).first()
+        
+        if not student_profile:
+            raise HTTPException(status_code=404, detail="Student not found")
+        
+        # Check if teacher has access to this student (for teachers, not admins)
+        if current_user.role == UserRole.TEACHER:
+            teacher_profile = db.query(TeacherProfile).filter(
+                TeacherProfile.user_id == current_user.id
+            ).first()
+            if not teacher_profile or student_profile.teacher_id != teacher_profile.id:
+                raise HTTPException(status_code=403, detail="You don't have permission to edit this student")
+        
+        if not student_profile.profile_image_url:
+            raise HTTPException(status_code=404, detail="No profile picture found for this student")
+        
+        # Remove file from filesystem
+        file_path = UPLOAD_DIR / Path(student_profile.profile_image_url).name
+        if file_path.exists():
+            file_path.unlink()
+        
+        # Update database
+        student_profile.profile_image_url = None
+        db.commit()
+        
+        return {"message": "Student profile picture deleted successfully"}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete student profile picture: {str(e)}")

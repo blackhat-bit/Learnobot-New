@@ -9,6 +9,14 @@ from datetime import datetime
 # LangChain imports (only for Ollama and legacy support)
 from langchain.llms import Ollama
 from langchain.callbacks.base import BaseCallbackHandler
+from langchain.chat_models import ChatGooglePalm
+from langchain.schema import HumanMessage
+
+# Cloud provider imports
+import anthropic
+import openai
+import cohere
+import google.generativeai as genai
 
 # For API key management
 from app.models.llm_config import LLMProvider, LLMConfig
@@ -149,9 +157,18 @@ class OpenAIProvider(BaseLLMProvider):
         print(f"OpenAI provider initialized with key: {api_key[:15]}...")
         
     def generate(self, prompt: str, **kwargs) -> str:
+        import time
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=self.api_key)
+            client = OpenAI(
+                api_key=self.api_key,
+                timeout=120.0  # 2 minute timeout
+            )
             
             response = client.chat.completions.create(
                 model=self.model,
@@ -160,9 +177,20 @@ class OpenAIProvider(BaseLLMProvider):
                 max_tokens=self.max_tokens
             )
             
+            response_time = time.time() - start_time
+            logger.info(f"OpenAI {self.model} - Response: {response_time:.2f}s")
+            
+            if response_time > 30.0:
+                logger.warning(f"OpenAI {self.model} slow response: {response_time:.2f}s")
+            
             return response.choices[0].message.content
         except Exception as e:
-            if "authentication" in str(e).lower() or "api key" in str(e).lower():
+            response_time = time.time() - start_time
+            logger.error(f"OpenAI {self.model} error after {response_time:.2f}s: {e}")
+            
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                raise ValueError(f"OpenAI API timeout after 2 minutes: {str(e)}")
+            elif "authentication" in str(e).lower() or "api key" in str(e).lower():
                 raise ValueError(f"Invalid OpenAI API key: {str(e)}")
             elif "rate limit" in str(e).lower():
                 raise ValueError(f"OpenAI rate limit exceeded: {str(e)}")
@@ -203,9 +231,19 @@ class AnthropicProvider(BaseLLMProvider):
         print(f"Anthropic provider initialized with key: {api_key[:15]}...")
         
     def generate(self, prompt: str, **kwargs) -> str:
+        import time
+        import logging
+        import httpx
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
         try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=self.api_key)
+            # Create client with timeout configuration
+            client = anthropic.Anthropic(
+                api_key=self.api_key,
+                timeout=httpx.Timeout(120.0, connect=10.0)  # 2 minute timeout, 10 second connect
+            )
             
             response = client.messages.create(
                 model=self.model,
@@ -214,10 +252,21 @@ class AnthropicProvider(BaseLLMProvider):
                 messages=[{"role": "user", "content": prompt}]
             )
             
+            response_time = time.time() - start_time
+            logger.info(f"Anthropic {self.model} - Response: {response_time:.2f}s")
+            
+            if response_time > 30.0:
+                logger.warning(f"Anthropic {self.model} slow response: {response_time:.2f}s")
+            
             return response.content[0].text
         except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Anthropic {self.model} error after {response_time:.2f}s: {e}")
+            
             # Return proper error messages for API issues
-            if "authentication" in str(e).lower() or "api key" in str(e).lower():
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                raise ValueError(f"Anthropic API timeout after 2 minutes: {str(e)}")
+            elif "authentication" in str(e).lower() or "api key" in str(e).lower():
                 raise ValueError(f"Invalid Anthropic API key: {str(e)}")
             elif "rate limit" in str(e).lower():
                 raise ValueError(f"Anthropic rate limit exceeded: {str(e)}")
@@ -238,31 +287,140 @@ class AnthropicProvider(BaseLLMProvider):
         # Simple estimation: ~4 characters per token
         return len(text) // 4
 
+class CohereProvider(BaseLLMProvider):
+    def initialize(self, config: Dict[str, Any]):
+        api_key = config.get("api_key") or os.getenv("COHERE_API_KEY")
+        if not api_key:
+            raise ValueError("Cohere API key is required")
+        
+        self.api_key = api_key
+        self.model = config.get("model", "command")
+        self.temperature = config.get("temperature", 0.7)
+        self.max_tokens = config.get("max_tokens", 2048)
+        
+        # Initialize Cohere client
+        self.client = cohere.Client(api_key)
+        
+        print(f"Cohere provider initialized with model: {self.model}")
+        
+    def generate(self, prompt: str, **kwargs) -> str:
+        import time
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            response = self.client.generate(
+                model=self.model,
+                prompt=prompt,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            response_time = time.time() - start_time
+            logger.info(f"Cohere {self.model} - Response: {response_time:.2f}s")
+            
+            if response_time > 30.0:
+                logger.warning(f"Cohere {self.model} slow response: {response_time:.2f}s")
+            
+            return response.generations[0].text
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Cohere {self.model} error after {response_time:.2f}s: {e}")
+            
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                raise ValueError(f"Cohere API timeout: {str(e)}")
+            elif "authentication" in str(e).lower() or "api key" in str(e).lower():
+                raise ValueError(f"Invalid Cohere API key: {str(e)}")
+            elif "rate limit" in str(e).lower():
+                raise ValueError(f"Cohere rate limit exceeded: {str(e)}")
+            else:
+                raise ValueError(f"Cohere API error: {str(e)}")
+    
+    def get_info(self) -> Dict[str, Any]:
+        return {
+            "provider": "Cohere",
+            "type": "online",
+            "model": self.model,
+            "requires_api_key": True,
+            "status": "configured"
+        }
+    
+    def count_tokens(self, text: str) -> int:
+        """Estimate token count for Cohere models"""
+        # Simple estimation: ~4 characters per token
+        return len(text) // 4
+
 class GoogleProvider(BaseLLMProvider):
     def initialize(self, config: Dict[str, Any]):
         api_key = config.get("api_key") or os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("Google API key is required")
-            
-        self.llm = ChatGooglePalm(
-            model_name=config.get("model", "models/chat-bison-001"),
-            temperature=config.get("temperature", 0.7),
-            max_output_tokens=config.get("max_tokens", 2048),
-            google_api_key=api_key
-        )
+        
+        self.api_key = api_key
+        self.model = config.get("model", "gemini-pro")
+        self.temperature = config.get("temperature", 0.7)
+        self.max_tokens = config.get("max_tokens", 2048)
+        
+        # Configure Google Generative AI
+        genai.configure(api_key=api_key)
+        self.client = genai.GenerativeModel(self.model)
+        
+        print(f"Google Generative AI provider initialized with model: {self.model}")
         
     def generate(self, prompt: str, **kwargs) -> str:
-        messages = [HumanMessage(content=prompt)]
-        response = self.llm(messages)
-        return response.content
+        import time
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            # Configure generation parameters
+            generation_config = genai.types.GenerationConfig(
+                temperature=self.temperature,
+                max_output_tokens=self.max_tokens,
+            )
+            
+            response = self.client.generate_content(
+                prompt,
+                generation_config=generation_config
+            )
+            
+            response_time = time.time() - start_time
+            logger.info(f"Google {self.model} - Response: {response_time:.2f}s")
+            
+            if response_time > 30.0:
+                logger.warning(f"Google {self.model} slow response: {response_time:.2f}s")
+            
+            return response.text
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Google {self.model} error after {response_time:.2f}s: {e}")
+            
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                raise ValueError(f"Google API timeout: {str(e)}")
+            elif "authentication" in str(e).lower() or "api key" in str(e).lower():
+                raise ValueError(f"Invalid Google API key: {str(e)}")
+            elif "rate limit" in str(e).lower():
+                raise ValueError(f"Google rate limit exceeded: {str(e)}")
+            else:
+                raise ValueError(f"Google API error: {str(e)}")
     
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "Google",
             "type": "online",
-            "model": self.llm.model_name,
-            "requires_api_key": True
+            "model": self.model,
+            "requires_api_key": True,
+            "status": "configured"
         }
+    
+    def count_tokens(self, text: str) -> int:
+        """Estimate token count for Google models"""
+        # Simple estimation: ~4 characters per token
+        return len(text) // 4
 
 class MultiProviderLLMManager:
     """Manages multiple LLM providers for testing and comparison"""
@@ -332,6 +490,14 @@ class MultiProviderLLMManager:
                 self.providers["google"] = google_provider
             except Exception as e:
                 print(f"Failed to initialize Google: {e}")
+                
+        if settings.COHERE_API_KEY:
+            try:
+                cohere_provider = CohereProvider()
+                cohere_provider.initialize({"api_key": settings.COHERE_API_KEY})
+                self.providers["cohere"] = cohere_provider
+            except Exception as e:
+                print(f"Failed to initialize Cohere: {e}")
     
     def set_active_provider(self, provider_name: str):
         """Switch to a different provider"""
@@ -504,9 +670,13 @@ class MultiProviderLLMManager:
                 provider_class = GoogleProvider
             elif provider_name == "cohere":
                 settings.COHERE_API_KEY = api_key
-                provider_class = CoherProvider
+                provider_class = CohereProvider
             else:
                 return False
+            
+            # Store in Secret Manager if enabled
+            if settings.USE_SECRET_MANAGER:
+                self._store_secret_in_manager(provider_name, api_key)
             
             # Initialize the provider
             print(f"🔍 Creating provider instance: {provider_class}")
@@ -565,6 +735,26 @@ class MultiProviderLLMManager:
         except Exception as e:
             print(f"Failed to remove {provider_name} provider: {e}")
             return False
+    
+    def _store_secret_in_manager(self, provider_name: str, api_key: str):
+        """Store API key in Google Secret Manager"""
+        try:
+            from app.services.secrets_service import secrets_service
+            
+            secret_name = f"{provider_name}-api-key"
+            success = secrets_service.update_secret(secret_name, api_key)
+            
+            if not success:
+                # Try to create if update failed
+                success = secrets_service.create_secret(secret_name, api_key)
+            
+            if success:
+                print(f"✅ Stored {provider_name} API key in Secret Manager")
+            else:
+                print(f"⚠️ Failed to store {provider_name} API key in Secret Manager")
+                
+        except Exception as e:
+            print(f"⚠️ Error storing secret in Secret Manager: {e}")
     
     def _sync_provider_to_db(self, provider_name: str, provider_instance):
         """Helper to sync individual provider to database"""

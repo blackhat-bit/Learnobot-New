@@ -11,6 +11,7 @@ import '../../widgets/chat_bubble.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/chat_service_backend.dart';
 import '../../services/speech_service.dart';
+import '../../services/upload_service.dart';
 
 class StudentChatScreen extends StatefulWidget {
   final String initialMode;
@@ -54,6 +55,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   // Speech functionality
   bool _isListening = false;
 
+  // Profile picture
+  String? _profileImageUrl;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +67,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       'חושב...',           // Then: Thinking
     ];
     _loadAvailableModels();
+    _loadProfilePicture();
     _createSession();
   }
 
@@ -99,6 +104,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       });
     } catch (e) {
       print('Failed to load available models: $e');
+    }
+  }
+
+  Future<void> _loadProfilePicture() async {
+    try {
+      final profileInfo = await UploadService.getProfilePictureInfo();
+      if (mounted && profileInfo['image_url'] != null) {
+        setState(() {
+          _profileImageUrl = UploadService.getImageUrl(profileInfo['image_url']);
+        });
+      }
+    } catch (e) {
+      print('Error loading profile picture: $e');
     }
   }
   
@@ -738,7 +756,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      onPopInvoked: (didPop) {
+        if (didPop && _currentSessionId != null) {
+          ChatServiceBackend.cancelRequest(_currentSessionId!);
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('שיחה עם לרנובוט'),
         leading: IconButton(
@@ -896,6 +920,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             showAvatar: index == 0 ||
                                 _messages[index - 1].sender != message.sender,
                             onSpeakPressed: _speakText,
+                            studentProfileImageUrl: _profileImageUrl,
                           ),
                           if (_capturedImage != null) ...[
                             const SizedBox(height: 5),
@@ -929,6 +954,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         showAvatar: index == 0 ||
                             _messages[index - 1].sender != message.sender,
                         onSpeakPressed: _speakText,
+                        studentProfileImageUrl: _profileImageUrl,
                       ),
                       if (message.sender == SenderType.bot &&
                           (message.metadata == null ||
@@ -1075,6 +1101,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             ),
         ],
       ),
+      ), // PopScope child
     );
   }
 

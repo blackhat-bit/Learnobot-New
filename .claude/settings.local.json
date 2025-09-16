@@ -14,7 +14,9 @@
       "Bash(git checkout:*)",
       "Bash(flutter analyze:*)",
       "Bash(.venv/Scripts/activate.ps1)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(tasklist)"
     ],
     "deny": [],
     "ask": []

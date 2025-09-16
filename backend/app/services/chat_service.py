@@ -122,18 +122,23 @@ async def process_message(
         # Generate AI response based on mode and assistance type
         language_pref = student.user.language_preference
         
-        # Check if Hebrew mediation should be used (Agent Selection mode or Test mode)
-        if hebrew_mediation_service.should_use_mediation(session, assistance_type):
+        # Track AI generation time separately from educational delay
+        ai_generation_start = time.time()
+        
+        # Check if Hebrew mediation should be used (only for local models)
+        if hebrew_mediation_service.should_use_mediation(session, assistance_type, provider):
             # Use sophisticated Hebrew mediation system
             mediation_result = hebrew_mediation_service.process_mediated_response(
                 db=db,
                 session_id=session_id,
                 instruction=message,
-                student_response="",  # First message in conversation
-                provider=provider
+                student_response=message,  # Pass the actual student message
+                provider=provider,
+                assistance_type=assistance_type
             )
             
             ai_response = mediation_result["response"]
+            ai_generation_time = time.time() - ai_generation_start
             
             # Log mediation strategy used
             AnalyticsService.log_event(
@@ -167,6 +172,8 @@ async def process_message(
                 # Fallback to analysis
                 analysis = instruction_processor.analyze_instruction(message, student_context, provider)
                 ai_response = analysis["analysis"]
+            
+            ai_generation_time = time.time() - ai_generation_start
         else:
             # Test mode fallback (shouldn't reach here if mediation is working)
             previous_attempts = db.query(ChatMessage).filter(
@@ -181,9 +188,15 @@ async def process_message(
                 ai_response = mediation_manager.apply_strategy(
                     strategy, message, instruction_processor
                 )
+            
+            ai_generation_time = time.time() - ai_generation_start
         
-        # Calculate response time
-        response_time_ms = int((time.time() - start_time) * 1000)
+        # Educational response delay removed for better user experience
+        # Models now respond immediately after generation
+        
+        # Calculate total response time (including delay)
+        total_time = time.time() - start_time
+        response_time_ms = int(total_time * 1000)
         
         # Log AI response event
         AnalyticsService.log_event(
@@ -194,7 +207,10 @@ async def process_message(
             event_data={
                 "output_length": len(ai_response),
                 "mode": session.mode.value,
-                "provider": getattr(instruction_processor, 'provider', 'default')
+                "provider": getattr(instruction_processor, 'provider', 'default'),
+                "ai_generation_time_ms": int(ai_generation_time * 1000),
+                "educational_delay_seconds": 0,  # Delay removed for better UX
+                "total_response_time_ms": response_time_ms
             },
             response_time_ms=response_time_ms
         )
@@ -223,6 +239,60 @@ async def process_message(
     db.add(ai_message)
     db.commit()
     db.refresh(ai_message)
+    
+    # Schedule automatic teacher notification check after 5 minutes if no student response
+    import threading
+    from functools import partial
+    
+    def delayed_teacher_notification():
+        """Check if student responded within 5 minutes, if not, notify teacher"""
+        import time
+        time.sleep(300)  # Wait 5 minutes (300 seconds)
+        
+        # Check if student has sent any messages since this AI response
+        try:
+            from app.core.database import SessionLocal
+            with SessionLocal() as check_db:
+                recent_student_message = check_db.query(ChatMessage).filter(
+                    ChatMessage.session_id == session_id,
+                    ChatMessage.role == MessageRole.USER,
+                    ChatMessage.timestamp > ai_message.timestamp
+                ).first()
+                
+                if not recent_student_message:
+                    # No student response in 5 minutes - notify teacher
+                    session = check_db.query(ChatSession).filter(ChatSession.id == session_id).first()
+                    if session and session.student:
+                        student = session.student
+                        from app.models.notification import TeacherNotification, NotificationType, NotificationPriority
+                        
+                        # Create automatic notification
+                        auto_notification = TeacherNotification(
+                            teacher_id=student.teacher_id,
+                            student_id=student.user_id,
+                            session_id=session_id,
+                            type=NotificationType.SYSTEM_ALERT,
+                            priority=NotificationPriority.NORMAL,
+                            title="התלמיד לא הגיב במשך 5 דקות",
+                            message=f"{student.full_name} לא הגיב לבוט במשך יותר מ-5 דקות. ייתכן שהוא צריך עזרה נוספת.",
+                            extra_data=f'{{"auto_generated": true, "last_ai_message_id": {ai_message.id}, "minutes_without_response": 5}}'
+                        )
+                        
+                        check_db.add(auto_notification)
+                        check_db.commit()
+                        logger.info(f"Automatic teacher notification created for inactive student {student.user_id} in session {session_id}")
+        except Exception as e:
+            logger.error(f"Error creating automatic teacher notification: {e}")
+    
+    # Start the background check (only if student has a teacher assigned)
+    try:
+        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if session and session.student and session.student.teacher_id:
+            notification_thread = threading.Thread(target=delayed_teacher_notification)
+            notification_thread.daemon = True  # Thread will die when main program exits
+            notification_thread.start()
+    except Exception as e:
+        logger.warning(f"Could not start automatic notification thread: {e}")
     
     return ai_message
 

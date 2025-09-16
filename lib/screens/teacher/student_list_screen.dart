@@ -5,6 +5,7 @@ import '../../constants/app_strings.dart';
 import '../../models/student.dart';
 import '../../services/analytics_service.dart';
 import '../../services/auth_service_backend.dart';
+import '../../services/upload_service.dart';
 import 'student_profile_screen.dart';
 
 class StudentListScreen extends StatefulWidget {
@@ -44,7 +45,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
           grade: studentData['grade'] ?? 'N/A',
           difficultyLevel: studentData['difficulty_level'] ?? 3,
           description: studentData['difficulties_description'] ?? 'No description available',
-          profileImageUrl: '',
+          profileImageUrl: UploadService.getImageUrl(studentData['profile_image_url']),
         );
       }).toList();
       
@@ -200,7 +201,10 @@ class _StudentListScreenState extends State<StudentListScreen> {
             MaterialPageRoute(
               builder: (context) => StudentProfileScreen(student: student),
             ),
-          );
+          ).then((_) {
+            // Refresh student list when returning from profile screen
+            _loadStudents();
+          });
         },
         borderRadius: BorderRadius.circular(15),
         child: Padding(
@@ -211,14 +215,19 @@ class _StudentListScreenState extends State<StudentListScreen> {
               CircleAvatar(
                 radius: 25,
                 backgroundColor: AppColors.primaryLight,
-                child: Text(
-                  student.name.substring(0, 1),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
+                backgroundImage: student.profileImageUrl.isNotEmpty
+                    ? NetworkImage(student.profileImageUrl)
+                    : null,
+                child: student.profileImageUrl.isEmpty
+                    ? Text(
+                        student.name.substring(0, 1),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 15),
               

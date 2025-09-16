@@ -35,19 +35,49 @@ class SpeechService extends ChangeNotifier {
     try {
       _flutterTts = FlutterTts();
 
-      // Configure TTS for Hebrew
-      await _flutterTts.setLanguage("he-IL");
+      // Get available languages first
+      List<dynamic> languages = await _flutterTts.getLanguages ?? [];
+      print('Available TTS languages: $languages');
+
+      // Try multiple Hebrew language codes
+      List<String> hebrewCodes = ["he-IL", "he", "iw-IL", "iw"];
+      String? workingLanguage;
+      
+      for (String langCode in hebrewCodes) {
+        try {
+          int result = await _flutterTts.setLanguage(langCode);
+          print('Trying language $langCode, result: $result');
+          if (result == 1) {
+            workingLanguage = langCode;
+            break;
+          }
+        } catch (e) {
+          print('Failed to set language $langCode: $e');
+        }
+      }
+
+      if (workingLanguage == null) {
+        print('Hebrew TTS not available, falling back to default language');
+        // Try to set default language
+        await _flutterTts.setLanguage("en-US");
+        workingLanguage = "en-US";
+      }
+
+      print('Using TTS language: $workingLanguage');
+
       await _flutterTts.setSpeechRate(0.5); // Slower for learning disabilities
       await _flutterTts.setVolume(0.8);
       await _flutterTts.setPitch(1.0);
 
       // Set up TTS handlers
       _flutterTts.setStartHandler(() {
+        print('TTS started speaking');
         _isSpeaking = true;
         notifyListeners();
       });
 
       _flutterTts.setCompletionHandler(() {
+        print('TTS completed speaking');
         _isSpeaking = false;
         notifyListeners();
       });
@@ -58,8 +88,12 @@ class SpeechService extends ChangeNotifier {
         notifyListeners();
       });
 
+      // Test TTS with a simple Hebrew phrase
+      print('Testing TTS with Hebrew text...');
+      await _flutterTts.speak("שלום");
+
       _isTtsInitialized = true;
-      print('TTS initialized successfully');
+      print('TTS initialized successfully with language: $workingLanguage');
     } catch (e) {
       print('Failed to initialize TTS: $e');
       _isTtsInitialized = false;
@@ -97,22 +131,35 @@ class SpeechService extends ChangeNotifier {
 
   // Text-to-Speech Functions
   Future<void> speak(String text) async {
+    print('Speak requested for text: "$text"');
+    
     if (!_isTtsInitialized) {
+      print('TTS not initialized, initializing...');
       await _initializeTts();
     }
 
-    if (_isTtsInitialized && text.isNotEmpty) {
-      try {
-        // Stop any current speech
-        await stop();
-        
-        // Start speaking
-        await _flutterTts.speak(text);
-      } catch (e) {
-        print('Error speaking: $e');
-        _isSpeaking = false;
-        notifyListeners();
-      }
+    if (!_isTtsInitialized) {
+      print('TTS initialization failed, cannot speak');
+      return;
+    }
+
+    if (text.isEmpty) {
+      print('Empty text provided, nothing to speak');
+      return;
+    }
+
+    try {
+      // Stop any current speech
+      await stop();
+      
+      print('Starting TTS for: "$text"');
+      // Start speaking
+      int result = await _flutterTts.speak(text);
+      print('TTS speak result: $result');
+    } catch (e) {
+      print('Error speaking: $e');
+      _isSpeaking = false;
+      notifyListeners();
     }
   }
 

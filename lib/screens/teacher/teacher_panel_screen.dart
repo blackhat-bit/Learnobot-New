@@ -120,7 +120,7 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
             grade: studentData['grade'] ?? 'N/A',
             difficultyLevel: studentData['difficulty_level'] ?? 3,
             description: studentData['difficulties_description'] ?? 'No description available',
-            profileImageUrl: '',
+            profileImageUrl: UploadService.getImageUrl(studentData['profile_image_url']),
           );
         }).toList();
 
@@ -506,7 +506,10 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
           context,
           '/student_profile',
           arguments: student,
-        );
+        ).then((_) {
+          // Refresh recent students when returning from profile screen
+          _loadData();
+        });
       },
       child: Container(
         width: 90,
@@ -516,14 +519,19 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
             CircleAvatar(
               radius: 30,
               backgroundColor: AppColors.primaryLight,
-              child: Text(
-                student.name.substring(0, 1),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
+              backgroundImage: student.profileImageUrl.isNotEmpty
+                  ? NetworkImage(student.profileImageUrl)
+                  : null,
+              child: student.profileImageUrl.isEmpty
+                  ? Text(
+                      student.name.substring(0, 1),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(height: 8),
             Text(
