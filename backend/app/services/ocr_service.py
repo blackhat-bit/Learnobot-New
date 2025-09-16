@@ -3,12 +3,58 @@ import pytesseract
 from PIL import Image
 import io
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
+# Configure Tesseract path based on environment
+def configure_tesseract():
+    """Configure Tesseract path for different environments"""
+
+    # Check if running in Docker (Linux environment)
+    if os.path.exists('/usr/bin/tesseract'):
+        pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+        logger.info("Tesseract configured for Docker/Linux environment")
+        return True
+
+    # Windows development environment paths
+    windows_paths = [
+        r"D:\TesseracrOCR\tesseract.exe",  # Your custom path
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ]
+
+    for path in windows_paths:
+        if os.path.exists(path):
+            pytesseract.pytesseract.tesseract_cmd = path
+            logger.info(f"Tesseract configured at: {path}")
+            return True
+
+    # Try system PATH as fallback
+    try:
+        pytesseract.get_tesseract_version()
+        logger.info("Tesseract found in system PATH")
+        return True
+    except pytesseract.TesseractNotFoundError:
+        logger.error("Tesseract not found in any expected location")
+        return False
+
+# Configure Tesseract on module load
+configure_tesseract()
 
 async def extract_text(image_data: bytes) -> str:
     """Extract text from image using OCR with Hebrew optimization"""
     try:
+        # Check if Tesseract is available
+        try:
+            pytesseract.get_tesseract_version()
+        except pytesseract.TesseractNotFoundError:
+            logger.error("Tesseract OCR is not installed or not in PATH")
+            return "שגיאה: מערכת זיהוי הטקסט (OCR) אינה מותקנת. אנא כתב את השאלה ידנית או פנה למנהל המערכת."
+        except Exception as e:
+            logger.error(f"Tesseract availability check failed: {e}")
+            return "שגיאה: בעיה במערכת זיהוי הטקסט. אנא כתב את השאלה ידנית."
+
         # Validate image data
         if not image_data or len(image_data) == 0:
             logger.error("Empty image data provided")

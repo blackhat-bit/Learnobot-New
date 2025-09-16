@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     
     # Google Cloud Settings
     GOOGLE_CLOUD_PROJECT_ID: Optional[str] = None
+    GOOGLE_CLOUD_LOCATION: str = "us-central1"
     USE_SECRET_MANAGER: bool = False  # Set to True in production
     
     # API Keys for various LLM providers (loaded from .env, environment variables, or Secret Manager)

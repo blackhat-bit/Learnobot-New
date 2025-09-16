@@ -359,15 +359,27 @@ class GoogleProvider(BaseLLMProvider):
             raise ValueError("Google API key is required")
         
         self.api_key = api_key
-        self.model = config.get("model", "gemini-pro")
+        self.model = config.get("model", "gemini-1.5-pro")
         self.temperature = config.get("temperature", 0.7)
         self.max_tokens = config.get("max_tokens", 2048)
         
-        # Configure Google Generative AI
-        genai.configure(api_key=api_key)
-        self.client = genai.GenerativeModel(self.model)
-        
-        print(f"Google Generative AI provider initialized with model: {self.model}")
+        # Use the newer Google AI SDK (recommended by Google)
+        try:
+            import google.generativeai as genai
+            
+            # Configure with API key
+            genai.configure(api_key=api_key)
+            
+            # Use the newer model names
+            model_name = "gemini-1.5-flash" if "flash" in self.model else "gemini-1.5-pro"
+            self.client = genai.GenerativeModel(model_name)
+            
+            print(f"Google AI SDK provider initialized with model: {model_name}")
+            
+        except Exception as e:
+            print(f"Google AI SDK initialization failed: {e}")
+            print("This might be due to API restrictions. Please check your Google Cloud Console settings.")
+            raise ValueError(f"Failed to initialize Google provider: {e}")
         
     def generate(self, prompt: str, **kwargs) -> str:
         import time
@@ -377,7 +389,9 @@ class GoogleProvider(BaseLLMProvider):
         start_time = time.time()
         
         try:
-            # Configure generation parameters
+            # Use Google AI SDK
+            import google.generativeai as genai
+            
             generation_config = genai.types.GenerationConfig(
                 temperature=self.temperature,
                 max_output_tokens=self.max_tokens,
@@ -387,6 +401,7 @@ class GoogleProvider(BaseLLMProvider):
                 prompt,
                 generation_config=generation_config
             )
+            response_text = response.text
             
             response_time = time.time() - start_time
             logger.info(f"Google {self.model} - Response: {response_time:.2f}s")
@@ -394,7 +409,8 @@ class GoogleProvider(BaseLLMProvider):
             if response_time > 30.0:
                 logger.warning(f"Google {self.model} slow response: {response_time:.2f}s")
             
-            return response.text
+            return response_text
+            
         except Exception as e:
             response_time = time.time() - start_time
             logger.error(f"Google {self.model} error after {response_time:.2f}s: {e}")

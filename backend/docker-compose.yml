@@ -1,4 +1,4 @@
-#version: '3.8'
+version: '3.8'
 
 services:
   db:
@@ -11,6 +11,8 @@ services:
       - ./data/postgres:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - learnobot-network
 
   ollama:
     image: ollama/ollama
@@ -19,5 +21,29 @@ services:
     ports:
       - "11434:11434"
     command: serve
+    networks:
+      - learnobot-network
+
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://learnobot:StrongPassword123!@db:5432/learnobot_db
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - PYTHONPATH=/app
+    volumes:
+      - ./uploads:/app/uploads
+      - .:/app
+    depends_on:
+      - db
+      - ollama
+    networks:
+      - learnobot-network
+    restart: unless-stopped
+
+networks:
+  learnobot-network:
+    driver: bridge
 
 # Using local directory mounts for better data persistence
