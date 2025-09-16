@@ -1,4 +1,5 @@
 # app/ai/chains/instruction_chain.py
+import logging
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
 from app.ai.llm_manager import llm_manager
@@ -16,7 +17,6 @@ from app.ai.prompts.base_prompts import (
     PRACTICE_EXAMPLE_PROMPT,
     PRACTICE_EXPLAIN_PROMPT
 )
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,15 @@ class InstructionProcessor:
     def _get_llm_for_provider(self, provider: str = None):
         """Get LLM instance for specified provider"""
         if provider and provider in multi_llm_manager.providers:
-            # Use the specific provider from multi_llm_manager
-            return multi_llm_manager.providers[provider].llm if hasattr(multi_llm_manager.providers[provider], 'llm') else None
+            provider_instance = multi_llm_manager.providers[provider]
+            # Handle different provider types
+            if hasattr(provider_instance, 'llm'):
+                return provider_instance.llm
+            elif hasattr(provider_instance, 'client'):
+                # For Google and other providers that use 'client' instead of 'llm'
+                return provider_instance
+            else:
+                return None
         return self.llm  # Fallback to default
     
     def _get_prompts_for_language(self, language_preference: str = 'he'):
