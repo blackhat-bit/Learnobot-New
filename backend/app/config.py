@@ -2,6 +2,7 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import Optional
+import os
 
 class Settings(BaseSettings):
     # App settings
@@ -25,7 +26,11 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.7
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     
-    # API Keys for various LLM providers (loaded from .env or environment variables)
+    # Google Cloud Settings
+    GOOGLE_CLOUD_PROJECT_ID: Optional[str] = None
+    USE_SECRET_MANAGER: bool = False  # Set to True in production
+    
+    # API Keys for various LLM providers (loaded from .env, environment variables, or Secret Manager)
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GOOGLE_API_KEY: Optional[str] = None
@@ -45,5 +50,36 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._load_secrets_from_manager()
+    
+    def _load_secrets_from_manager(self):
+        """Load secrets from Google Secret Manager if enabled"""
+        if self.USE_SECRET_MANAGER:
+            try:
+                from app.services.secrets_service import secrets_service
+                
+                # Load API keys from Secret Manager
+                self.OPENAI_API_KEY = secrets_service.get_secret("openai-api-key") or self.OPENAI_API_KEY
+                self.ANTHROPIC_API_KEY = secrets_service.get_secret("anthropic-api-key") or self.ANTHROPIC_API_KEY
+                self.GOOGLE_API_KEY = secrets_service.get_secret("google-api-key") or self.GOOGLE_API_KEY
+                self.COHERE_API_KEY = secrets_service.get_secret("cohere-api-key") or self.COHERE_API_KEY
+                
+                # Load other sensitive settings
+                secret_key = secrets_service.get_secret("secret-key")
+                if secret_key:
+                    self.SECRET_KEY = secret_key
+                
+                database_url = secrets_service.get_secret("database-url")
+                if database_url:
+                    self.DATABASE_URL = database_url
+                    
+                print("✅ Loaded secrets from Google Secret Manager")
+                
+            except Exception as e:
+                print(f"⚠️ Failed to load secrets from Secret Manager: {e}")
+                print("Falling back to environment variables")
 
 settings = Settings()

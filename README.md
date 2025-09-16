@@ -23,21 +23,24 @@ cd learnobot-backend-Cursor
 flutter pub get
 ```
 
+
+### 3.Create a virtual environment:
 **Python Backend:**
 ```bash
 cd backend
-pip install -r requirements.txt
+python -m venv venv
+venv\Scripts\activate.ps1  # Windows PowerShell
+# or
+source venv/bin/activate   # Linux/Mac
 ```
 
-### 3. Set Up Virtual Environment
+
+### 3. Install dependencies:
 ```bash
-cd backend
-python -m venv .venv
-.venv\scripts\activate.ps1  # Windows PowerShell
-# or
-source .venv/bin/activate   # Linux/Mac
 pip install -r requirements.txt
+(you should create beforehand requirements.txt)
 ```
+
 
 ### 4. Environment Configuration
 Create `backend/.env` file:
@@ -49,7 +52,7 @@ OPENAI_API_KEY=your-openai-key
 
 ### 5. Start Docker Services
 ```bash
-cd backend
+cd backend (if not in backend folder)
 docker-compose up -d
 ```
 
@@ -61,8 +64,8 @@ docker exec backend-ollama-1 ollama pull aya-expanse:8b
 
 ### 7. Start Backend Server
 ```bash
-cd backend
-.venv\scripts\activate.ps1
+cd backend (if not in backend folder)
+venv\Scripts\activate.ps1
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -187,7 +190,7 @@ Once running, visit:
 ### Backend Development
 ```bash
 cd backend
-.venv\scripts\activate.ps1
+venv\Scripts\activate.ps1
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -207,12 +210,12 @@ flutter run
 - **Data Persistence**: Docker volumes ensure data survives container restarts
 - **Model Downloads**: AI models are ~5GB each, download as needed
 - **Environment**: Always activate virtual environment before running backend
-- **Ignored Files**: `.env`, `.venv/`, `backend/data/`, and model files are gitignored (created automatically)
+- **Ignored Files**: `.env`, `venv/`, `backend/data/`, and model files are gitignored (created automatically)
 
 ## 🆘 Troubleshooting
 
 1. **Docker Issues**: Ensure Docker Desktop is running
 2. **Port Conflicts**: Check if ports 8000, 5432, 11434 are available
 3. **Model Downloads**: Models can take 10-15 minutes to download
-4. **Virtual Environment**: Always activate `.venv` before running backend
+4. **Virtual Environment**: Always activate `venv` before running backend
 

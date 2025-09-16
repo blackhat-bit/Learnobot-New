@@ -101,7 +101,7 @@ class MyApp extends StatelessWidget {
         seedColor: AppColors.primary,
         primary: AppColors.primary,
         secondary: AppColors.primaryLight,
-        background: AppColors.background,
+        surface: AppColors.background,
       ),
 
       // Fonts
@@ -218,7 +218,7 @@ class MyApp extends StatelessWidget {
       // Progress indicator theme
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: AppColors.primary,
-        circularTrackColor: AppColors.primaryLight.withOpacity(0.2),
+        circularTrackColor: AppColors.primaryLight.withValues(alpha: 0.2),
       ),
 
       // Chip theme
@@ -291,9 +291,9 @@ class MyApp extends StatelessWidget {
       // Slider theme
       sliderTheme: SliderThemeData(
         activeTrackColor: AppColors.primary,
-        inactiveTrackColor: AppColors.primaryLight.withOpacity(0.2),
+        inactiveTrackColor: AppColors.primaryLight.withValues(alpha: 0.2),
         thumbColor: AppColors.primary,
-        overlayColor: AppColors.primary.withOpacity(0.1),
+        overlayColor: AppColors.primary.withValues(alpha: 0.1),
         valueIndicatorColor: AppColors.primary,
         valueIndicatorTextStyle: const TextStyle(color: Colors.white),
       ),
@@ -308,7 +308,7 @@ class MyApp extends StatelessWidget {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.primary.withOpacity(0.5);
+            return AppColors.primary.withValues(alpha: 0.5);
           }
           return Colors.grey.shade300;
         }),
