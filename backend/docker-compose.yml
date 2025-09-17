@@ -32,6 +32,12 @@ services:
       - DATABASE_URL=postgresql://learnobot:StrongPassword123!@db:5432/learnobot_db
       - OLLAMA_BASE_URL=http://ollama:11434
       - PYTHONPATH=/app
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - COHERE_API_KEY=${COHERE_API_KEY}
+    env_file:
+      - .env
     volumes:
       - ./uploads:/app/uploads
       - .:/app

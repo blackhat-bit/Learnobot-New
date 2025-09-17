@@ -49,8 +49,10 @@ class Settings(BaseSettings):
     ENABLE_OCR: bool = True
     ENABLE_MANAGER_INTERFACE: bool = True
     
-    class Config:
-        env_file = ".env"
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": True
+    }
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

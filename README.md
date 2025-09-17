@@ -64,9 +64,21 @@ docker exec backend-ollama-1 ollama pull aya-expanse:8b
 ```
 
 ### 7. Backend Server
-**Backend is already running at `http://localhost:8000` via Docker** ✅
+**Option A - Docker Backend (Easiest):** Already running at `http://localhost:8000` ✅
+- ✅ OCR image upload works automatically
 
-*(No need to run uvicorn manually - it's handled by the backend container)*
+**Option B - Local Development:**
+```bash
+# Stop Docker backend container
+docker stop backend-backend-1
+
+# Run locally for development
+cd backend
+venv\Scripts\activate.ps1
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+- ⚠️ **OCR image upload won't work** (requires manual Tesseract installation)
+- ✅ All other features work (manual text input, AI chat, etc.)
 
 ### 8. Start Frontend
 ```bash

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'api_config.dart';
 import 'auth_service_backend.dart';
 
@@ -212,6 +213,7 @@ class ChatServiceBackend {
         'file',
         imageBytes,
         filename: fileName,
+        contentType: MediaType('image', fileName.toLowerCase().endsWith('.png') ? 'png' : 'jpeg'),
       ));
 
       final streamedResponse = await client.send(request).timeout(ApiConfig.uploadTimeout);

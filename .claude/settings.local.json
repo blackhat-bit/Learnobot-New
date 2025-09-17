@@ -16,7 +16,8 @@
       "Bash(.venv/Scripts/activate.ps1)",
       "Bash(source:*)",
       "Bash(pip install:*)",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Bash(docker logs:*)"
     ],
     "deny": [],
     "ask": []

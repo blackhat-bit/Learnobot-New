@@ -85,7 +85,14 @@ async def upload_task(
     db: Session = Depends(get_db)
 ):
     """Upload an image of a task for OCR processing"""
-    if not file.content_type.startswith("image/"):
+    # Check content type or file extension
+    is_image = (
+        file.content_type and file.content_type.startswith("image/")
+    ) or (
+        file.filename and file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
+    )
+
+    if not is_image:
         raise HTTPException(status_code=400, detail="File must be an image")
     
     # Read file content

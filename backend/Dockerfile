@@ -4,12 +4,16 @@ FROM python:3.9-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies including Tesseract OCR with Hebrew support
+# Install system dependencies including Tesseract OCR with Hebrew support and build tools
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-heb \
     tesseract-ocr-eng \
     libtesseract-dev \
+    build-essential \
+    cmake \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Verify Tesseract installation and languages
