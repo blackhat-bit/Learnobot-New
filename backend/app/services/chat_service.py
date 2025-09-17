@@ -95,7 +95,7 @@ async def process_message(
             event_data={"assistance_type": assistance_type}
         )
     
-    # Save user message
+    # Save user message and commit immediately
     user_message = ChatMessage(
         session_id=session_id,
         user_id=user_id,
@@ -104,23 +104,23 @@ async def process_message(
     )
     db.add(user_message)
     db.commit()
+    db.refresh(user_message)
+
+    # Get session data and close the database session before AI processing
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    student = session.student
+    student_context = {
+        "name": student.full_name,
+        "grade": student.grade,
+        "difficulty_level": student.difficulty_level,
+        "difficulties": student.difficulties_description,
+        "language_preference": student.user.language_preference
+    }
+    mode = session.mode
+    language_pref = student.user.language_preference
     
     try:
-        # Get session details
-        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-        student = session.student
-        
-        # Prepare student context
-        student_context = {
-            "name": student.full_name,
-            "grade": student.grade,
-            "difficulty_level": student.difficulty_level,
-            "difficulties": student.difficulties_description,
-            "language_preference": student.user.language_preference
-        }
-        
-        # Generate AI response based on mode and assistance type
-        language_pref = student.user.language_preference
+        # AI processing happens here WITHOUT holding database session
         
         # Track AI generation time separately from educational delay
         ai_generation_start = time.time()
@@ -229,16 +229,21 @@ async def process_message(
         
         ai_response = "מצטער, נתקלתי בבעיה. אנא נסה שוב או פנה למורה."
     
-    # Save AI response
-    ai_message = ChatMessage(
-        session_id=session_id,
-        user_id=user_id,
-        role=MessageRole.ASSISTANT,
-        content=ai_response
-    )
-    db.add(ai_message)
-    db.commit()
-    db.refresh(ai_message)
+    # Save AI response using a fresh database session
+    from app.core.database import SessionLocal
+    ai_db = SessionLocal()
+    try:
+        ai_message = ChatMessage(
+            session_id=session_id,
+            user_id=user_id,
+            role=MessageRole.ASSISTANT,
+            content=ai_response
+        )
+        ai_db.add(ai_message)
+        ai_db.commit()
+        ai_db.refresh(ai_message)
+    finally:
+        ai_db.close()
     
     # Schedule automatic teacher notification check after 5 minutes if no student response
     import threading
