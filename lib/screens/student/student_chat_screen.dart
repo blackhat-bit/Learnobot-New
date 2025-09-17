@@ -299,7 +299,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         });
 
         print('Image captured: ${image.path}');
-        print('File exists: ${await _capturedImage!.exists()}');
 
         _addUserMessage(
           'תמונת משימה',
@@ -929,28 +928,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             const SizedBox(height: 5),
                             Container(
                               margin: const EdgeInsets.only(left: 50),
-                              height: 150,
-                              width: 200,
+                              height: 100,
+                              width: 150,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: AppColors.primary),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.file(
-                                  _capturedImage!,
+                                image: DecorationImage(
+                                  image: FileImage(_capturedImage!),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    print('Error loading image: $error');
-                                    return Container(
-                                      color: Colors.grey[300],
-                                      child: const Icon(
-                                        Icons.broken_image,
-                                        color: Colors.grey,
-                                        size: 40,
-                                      ),
-                                    );
-                                  },
                                 ),
                               ),
                             ),
