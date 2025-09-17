@@ -86,6 +86,7 @@ class OllamaProvider(BaseLLMProvider):
         self.model_name = config.get("model", settings.LLM_MODEL_NAME)
         self.llm = Ollama(
             model=self.model_name,
+            base_url=settings.OLLAMA_BASE_URL,
             temperature=config.get("temperature", 0.7),
             top_p=config.get("top_p", 0.9),
         )

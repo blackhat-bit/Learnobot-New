@@ -56,7 +56,29 @@ class Settings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._load_secrets_from_files()
         self._load_secrets_from_manager()
+
+    def _load_secrets_from_files(self):
+        """Load secrets from Docker secrets files if they exist"""
+        secret_mappings = {
+            'OPENAI_API_KEY_FILE': 'OPENAI_API_KEY',
+            'ANTHROPIC_API_KEY_FILE': 'ANTHROPIC_API_KEY',
+            'GOOGLE_API_KEY_FILE': 'GOOGLE_API_KEY',
+            'COHERE_API_KEY_FILE': 'COHERE_API_KEY',
+            'SECRET_KEY_FILE': 'SECRET_KEY',
+        }
+
+        for file_env, key_env in secret_mappings.items():
+            file_path = os.getenv(file_env)
+            if file_path and os.path.exists(file_path):
+                try:
+                    with open(file_path, 'r') as f:
+                        secret_value = f.read().strip()
+                        setattr(self, key_env, secret_value)
+                        print(f"✅ Loaded {key_env} from secrets file")
+                except Exception as e:
+                    print(f"❌ Error reading secret file {file_path}: {e}")
     
     def _load_secrets_from_manager(self):
         """Load secrets from Google Secret Manager if enabled"""

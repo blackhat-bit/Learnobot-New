@@ -1,0 +1,79 @@
+# Production configuration - uses Docker secrets for security
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: learnobot
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: learnobot_db
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - learnobot-network
+    secrets:
+      - db_password
+
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ./data/ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    command: serve
+    networks:
+      - learnobot-network
+
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://learnobot:@db:5432/learnobot_db
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - PYTHONPATH=/app
+      - USE_SECRETS=true
+      # API keys will be loaded from /run/secrets/ files
+      - OPENAI_API_KEY_FILE=/run/secrets/openai_api_key
+      - ANTHROPIC_API_KEY_FILE=/run/secrets/anthropic_api_key
+      - GOOGLE_API_KEY_FILE=/run/secrets/google_api_key
+      - COHERE_API_KEY_FILE=/run/secrets/cohere_api_key
+      - SECRET_KEY_FILE=/run/secrets/app_secret_key
+    volumes:
+      - ./uploads:/app/uploads
+      - .:/app
+    depends_on:
+      - db
+      - ollama
+    networks:
+      - learnobot-network
+    restart: unless-stopped
+    secrets:
+      - openai_api_key
+      - anthropic_api_key
+      - google_api_key
+      - cohere_api_key
+      - app_secret_key
+      - db_password
+
+# Docker secrets configuration
+secrets:
+  openai_api_key:
+    file: ./secrets/openai_api_key.txt
+  anthropic_api_key:
+    file: ./secrets/anthropic_api_key.txt
+  google_api_key:
+    file: ./secrets/google_api_key.txt
+  cohere_api_key:
+    file: ./secrets/cohere_api_key.txt
+  app_secret_key:
+    file: ./secrets/app_secret_key.txt
+  db_password:
+    file: ./secrets/db_password.txt
+
+networks:
+  learnobot-network:
+    driver: bridge

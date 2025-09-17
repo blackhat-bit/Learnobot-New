@@ -17,7 +17,9 @@
       "Bash(source:*)",
       "Bash(pip install:*)",
       "Bash(tasklist)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose restart:*)"
     ],
     "deny": [],
     "ask": []
