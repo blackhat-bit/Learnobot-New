@@ -298,6 +298,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           _capturedImage = File(image.path);
         });
 
+        print('Image captured: ${image.path}');
+        print('File exists: ${await _capturedImage!.exists()}');
+
         _addUserMessage(
           'תמונת משימה',
           type: MessageType.taskCapture,
@@ -931,9 +934,23 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: AppColors.primary),
-                                image: DecorationImage(
-                                  image: FileImage(_capturedImage!),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.file(
+                                  _capturedImage!,
                                   fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    print('Error loading image: $error');
+                                    return Container(
+                                      color: Colors.grey[300],
+                                      child: const Icon(
+                                        Icons.broken_image,
+                                        color: Colors.grey,
+                                        size: 40,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
