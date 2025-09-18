@@ -74,7 +74,9 @@ class InstructionProcessor:
         # For cloud models, use efficient prompt with system guidance
         if provider and not provider.startswith("ollama-"):
             # Short, efficient prompt - guide student to choose assistance type
-            prompt_text = f"""התלמיד שאל: "{instruction}"
+            prompt_text = f"""אתה לרנובוט (LearnoBot), עוזר AI שעוזר לתלמידים עם לקויות למידה. תענה תמיד כלרנובוט ישירות לתלמיד, לא תסביר מה כדאי לעשות.
+
+התלמיד שאל: "{instruction}"
 
 אני יכול לעזור בשלוש דרכים:
 🔍 **הסבר** - הסבר מה זה אומר
