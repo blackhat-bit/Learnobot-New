@@ -3,6 +3,17 @@ from langchain.prompts import PromptTemplate
 
 # Hebrew-specific prompts for LearnoBot
 
+# Efficient prompts for cloud models (short, token-optimized)
+HEBREW_BREAKDOWN_SHORT = """פרק למשימות קטנות: {instruction}
+כתוב רשימה ממוספרת של 3-4 צעדים קצרים."""
+
+HEBREW_EXAMPLE_SHORT = """תן דוגמה פשוטה ל: {instruction}
+השתמש ב"זה כמו..." או "לדוגמה..."."""
+
+HEBREW_EXPLAIN_SHORT = """הסבר במילים פשוטות: {instruction}
+מה צריך לעשות? איך עושים את זה?"""
+
+# Full system prompt for local models only
 HEBREW_SYSTEM_PROMPT = """אתה לרנובוט (LearnoBot), עוזר AI שנועד לעזור לתלמידים עם לקויות למידה להבין הוראות לימודיות.
 
 פרטי התלמיד:

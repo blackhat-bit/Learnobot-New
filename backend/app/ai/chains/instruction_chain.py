@@ -71,39 +71,17 @@ class InstructionProcessor:
     def analyze_instruction(self, instruction: str, student_context: dict, provider: str = None) -> dict:
         """Analyze an instruction to understand what needs to be done"""
         
-        # For cloud models, use educational guidance prompts with structured formats
+        # For cloud models, use efficient prompt with system guidance
         if provider and not provider.startswith("ollama-"):
-            # Educational guidance prompt for cloud models
-            prompt_text = f"""אתה מורה חכם וסבלני שמסייע לתלמידים ללמוד. התלמיד שאל: "{instruction}"
+            # Short, efficient prompt - guide student to choose assistance type
+            prompt_text = f"""התלמיד שאל: "{instruction}"
 
-המטרה שלך היא לעזור לתלמיד ללמוד ולהבין, לא לתת תשובות ישירות.
+אני יכול לעזור בשלוש דרכים:
+🔍 **הסבר** - הסבר מה זה אומר
+📝 **פירוק לשלבים** - לחלק למשימות קטנות
+💡 **דוגמה** - לתת דוגמה מהחיים
 
-השתמש באחת מהפורמטים החינוכיים הבאים:
-
-**פורמט "הסבר"** - אם התלמיד שואל על משמעות או מושג:
-- הסבר במילים פשוטות מה זה אומר
-- תן דוגמה מהחיים
-- שאל שאלה מנחה: "עכשיו אתה מבין? איך זה קשור למה שאתה לומד?"
-
-**פורמט "פירוק לשלבים"** - אם התלמיד מבקש עזרה במשימה:
-- פרק את המשימה ל-3-4 שלבים פשוטים
-- כל שלב צריך להיות קצר וברור
-- השתמש במילים: "שלב ראשון", "אחר כך", "בסוף"
-- שאל: "איזה שלב אתה רוצה להתחיל איתו?"
-
-**פורמט "דוגמה"** - אם התלמיד צריך להבין איך לעשות משהו:
-- תן דוגמה קונקרטית מהחיים
-- השתמש במילים: "לדוגמה", "זה כמו", "תחשוב על זה כך"
-- שאל: "עכשיו אתה יכול לחשוב על דוגמה משלך?"
-
-**פורמט "תמיכה רגשית"** - אם התלמיד עצוב או מתוסכל:
-- תן תמיכה רגשית: "אני מבין שזה קשה"
-- עזור לו להבין שזה בסדר להתקשות
-- הצע דרך פשוטה להתחיל
-
-תמיד השתמש בשפה חמה, ניטרלית ומעודדת. תגיב ב-2-3 משפטים.
-
-תגובה:"""
+איך תרצה שאעזור לך?"""
         else:
             # Use existing complex prompts for local models
             language_pref = student_context.get("language_preference", "he")
@@ -130,19 +108,10 @@ class InstructionProcessor:
     def breakdown_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None) -> str:
         """Break down instruction into simple steps"""
         
-        # For cloud models, use structured breakdown format
+        # For cloud models, use efficient short prompt
         if provider and not provider.startswith("ollama-"):
-            prompt_text = f"""אתה מורה חכם שמסייע לתלמידים ללמוד. התלמיד מבקש עזרה במשימה: "{instruction}"
-
-השתמש בפורמט "פירוק לשלבים":
-- פרק את המשימה ל-3-4 שלבים פשוטים
-- כל שלב צריך להיות קצר וברור
-- השתמש במילים: "שלב ראשון", "אחר כך", "בסוף"
-- שאל: "איזה שלב אתה רוצה להתחיל איתו?"
-
-תמיד השתמש בשפה חמה, ניטרלית ומעודדת. תגיב ב-2-3 משפטים.
-
-תגובה:"""
+            from app.ai.prompts.hebrew_prompts import HEBREW_BREAKDOWN_SHORT
+            prompt_text = HEBREW_BREAKDOWN_SHORT.format(instruction=instruction)
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)
@@ -156,18 +125,10 @@ class InstructionProcessor:
     def provide_example(self, instruction: str, concept: str, language_preference: str = "he", provider: str = None) -> str:
         """Provide a relatable example"""
         
-        # For cloud models, use structured example format
+        # For cloud models, use efficient short prompt
         if provider and not provider.startswith("ollama-"):
-            prompt_text = f"""אתה מורה חכם שמסייע לתלמידים ללמוד. התלמיד מבקש דוגמה: "{instruction}"
-
-השתמש בפורמט "דוגמה":
-- תן דוגמה קונקרטית מהחיים
-- השתמש במילים: "לדוגמה", "זה כמו", "תחשוב על זה כך"
-- שאל: "עכשיו אתה יכול לחשוב על דוגמה משלך?"
-
-תמיד השתמש בשפה חמה, ניטרלית ומעודדת. תגיב ב-2-3 משפטים.
-
-תגובה:"""
+            from app.ai.prompts.hebrew_prompts import HEBREW_EXAMPLE_SHORT
+            prompt_text = HEBREW_EXAMPLE_SHORT.format(instruction=instruction)
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)
@@ -181,18 +142,10 @@ class InstructionProcessor:
     def explain_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None) -> str:
         """Explain instruction in simple terms"""
         
-        # For cloud models, use structured explain format
+        # For cloud models, use efficient short prompt
         if provider and not provider.startswith("ollama-"):
-            prompt_text = f"""אתה מורה חכם שמסייע לתלמידים ללמוד. התלמיד מבקש הסבר: "{instruction}"
-
-השתמש בפורמט "הסבר":
-- הסבר במילים פשוטות מה זה אומר
-- תן דוגמה מהחיים
-- שאל שאלה מנחה: "עכשיו אתה מבין? איך זה קשור למה שאתה לומד?"
-
-תמיד השתמש בשפה חמה, ניטרלית ומעודדת. תגיב ב-2-3 משפטים.
-
-תגובה:"""
+            from app.ai.prompts.hebrew_prompts import HEBREW_EXPLAIN_SHORT
+            prompt_text = HEBREW_EXPLAIN_SHORT.format(instruction=instruction)
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)

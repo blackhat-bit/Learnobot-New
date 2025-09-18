@@ -81,6 +81,7 @@ async def send_message(
 async def upload_task(
     session_id: int,
     file: UploadFile = File(...),
+    provider: str = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -119,7 +120,7 @@ async def upload_task(
             user_id=current_user.id,
             message=f"זהו הטקסט מהתמונה: {extracted_text}",
             assistance_type=None,  # Trigger Hebrew mediation
-            provider=None
+            provider=provider
         )
         
         return {

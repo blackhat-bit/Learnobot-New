@@ -194,6 +194,7 @@ class ChatServiceBackend {
     required int sessionId,
     required List<int> imageBytes,
     required String fileName,
+    String? provider,
   }) async {
     // Create a new HTTP client for this request
     final client = http.Client();
@@ -215,6 +216,11 @@ class ChatServiceBackend {
         filename: fileName,
         contentType: MediaType('image', fileName.toLowerCase().endsWith('.png') ? 'png' : 'jpeg'),
       ));
+
+      // Add provider if specified
+      if (provider != null) {
+        request.fields['provider'] = provider;
+      }
 
       final streamedResponse = await client.send(request).timeout(ApiConfig.uploadTimeout);
       final response = await http.Response.fromStream(streamedResponse);

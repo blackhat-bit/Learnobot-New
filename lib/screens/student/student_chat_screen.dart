@@ -317,6 +317,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             sessionId: _currentSessionId!,
             imageBytes: imageBytes,
             fileName: image.name,
+            provider: _selectedModel,
           );
           
           print('Upload result: $result');
