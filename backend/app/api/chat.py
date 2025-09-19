@@ -8,7 +8,9 @@ from app.schemas import chat as chat_schemas
 from app.services import chat_service, ocr_service
 from app.models.user import User, UserRole
 import base64
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/sessions", response_model=chat_schemas.ChatSession)
@@ -114,14 +116,30 @@ async def upload_task(
         )
         
         # Process extracted text through Hebrew mediation system
-        ai_response = await chat_service.process_message(
-            db=db,
-            session_id=session_id,
-            user_id=current_user.id,
-            message=f"זהו הטקסט מהתמונה: {extracted_text}",
-            assistance_type=None,  # Trigger Hebrew mediation
-            provider=provider
-        )
+        try:
+            logger.info(f"Processing OCR text (length: {len(extracted_text)}): {extracted_text[:100]}...")
+            ai_response = await chat_service.process_message(
+                db=db,
+                session_id=session_id,
+                user_id=current_user.id,
+                message=f"זהו הטקסט מהתמונה: {extracted_text}",
+                assistance_type=None,  # Trigger Hebrew mediation
+                provider=provider
+            )
+            logger.info(f"AI response received: {ai_response.content[:100]}...")
+        except Exception as e:
+            logger.error(f"Error in AI processing for OCR: {str(e)}")
+            # Create a fallback response
+            from app.models.chat import ChatMessage, MessageRole
+            ai_response = ChatMessage(
+                session_id=session_id,
+                user_id=current_user.id,
+                role=MessageRole.ASSISTANT,
+                content=f"קראתי את הטקסט: {extracted_text}\n\nאיך תרצה שאעזור לך עם זה?"
+            )
+            db.add(ai_response)
+            db.commit()
+            db.refresh(ai_response)
         
         return {
             "task_id": task.id,
