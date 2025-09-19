@@ -50,11 +50,12 @@ SECRET_KEY=your-secret-key-here
 OPENAI_API_KEY=your-openai-key
 ```
 
-### 5. Start Docker Services
+### 5. Start Docker Services (Database + Ollama + Backend with OCR)
 ```bash
 cd backend (if not in backend folder)
-docker-compose up -d
+docker-compose up --build
 ```
+**This starts all services including the backend with OCR support built-in. No manual Tesseract installation needed!**
 
 ### 6. Download AI Models
 ```bash
@@ -62,12 +63,22 @@ docker exec backend-ollama-1 ollama pull llama3.1:8b
 docker exec backend-ollama-1 ollama pull aya-expanse:8b
 ```
 
-### 7. Start Backend Server
+### 7. Backend Server
+**Option A - Docker Backend (Easiest):** Already running at `http://localhost:8000` ✅
+- ✅ OCR image upload works automatically
+
+**Option B - Local Development:**
 ```bash
-cd backend (if not in backend folder)
+# Stop Docker backend container
+docker stop backend-backend-1
+
+# Run locally for development
+cd backend
 venv\Scripts\activate.ps1
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+- ⚠️ **OCR image upload won't work** (requires manual Tesseract installation)
+- ✅ All other features work (manual text input, AI chat, etc.)
 
 ### 8. Start Frontend
 ```bash
@@ -176,8 +187,10 @@ The most important feature for managers is the **analytics and CSV export system
 - **Local AI Models**: Ollama integration with Llama3.1/3.2
 - **Multi-User System**: Students, Teachers, Managers
 - **Real-time Chat**: AI-powered tutoring
+- **OCR Text Recognition**: Upload homework images with automatic Hebrew text extraction
 - **Hebrew Support**: Primary language with English fallback
 - **Docker Integration**: Easy deployment and data persistence
+- **Tesseract OCR**: Built-in support for Hebrew and English text recognition
 
 ## 📚 API Documentation
 
@@ -204,6 +217,24 @@ flutter run
 - Data persists in `backend/data/postgres/`
 - Models persist in `backend/data/ollama/`
 
+### Docker Commands
+```bash
+# Start all services (first time or after changes)
+docker-compose up --build
+
+# Start services (subsequent runs)
+docker-compose up -d
+
+# Stop all services
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Rebuild only backend with OCR updates
+docker-compose up --build backend
+```
+
 ## 📝 Notes
 
 - **No Python Scripts**: User creation is done via Swagger UI or app interface
@@ -217,5 +248,8 @@ flutter run
 1. **Docker Issues**: Ensure Docker Desktop is running
 2. **Port Conflicts**: Check if ports 8000, 5432, 11434 are available
 3. **Model Downloads**: Models can take 10-15 minutes to download
-4. **Virtual Environment**: Always activate `venv` before running backend
+4. **OCR Not Working**:
+   - If using Docker: Rebuild backend container with `docker-compose up --build`
+   - If running backend locally (without Docker): Install Tesseract OCR manually
+5. **Virtual Environment**: Always activate `venv` before running backend
 

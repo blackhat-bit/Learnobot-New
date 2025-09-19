@@ -1,9 +1,11 @@
 # app/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 from pathlib import Path
+import asyncio
+import time
 from app.api import auth, chat, teacher, student, upload
 from app.core.database import engine, SessionLocal
 from app.models import user, chat as chat_models, task, llm_config, notification
@@ -53,6 +55,31 @@ app = FastAPI(
     version=settings.VERSION,
     openapi_url=f"{settings.API_PREFIX}/openapi.json"
 )
+
+# Add timeout middleware to prevent stuck requests
+@app.middleware("http")
+async def timeout_middleware(request: Request, call_next):
+    """Add request timeout to prevent backend from getting stuck"""
+
+    # Set timeout based on endpoint
+    if "upload-task" in str(request.url):
+        timeout = 300  # 5 minutes for image processing
+    elif "messages" in str(request.url):
+        timeout = 180  # 3 minutes for AI responses
+    else:
+        timeout = 30   # 30 seconds for other requests
+
+    try:
+        start_time = time.time()
+        response = await asyncio.wait_for(call_next(request), timeout=timeout)
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = str(process_time)
+        return response
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=408,
+            detail=f"Request timeout after {timeout} seconds"
+        )
 
 @app.on_event("startup")
 async def startup_event():

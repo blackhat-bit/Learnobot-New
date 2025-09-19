@@ -33,8 +33,9 @@ pytesseract==0.3.10
 Pillow==10.1.0
 
 # Utilities
-pydantic==2.5.0
+pydantic[email]==2.5.0
 pydantic-settings==2.1.0
+email-validator
 httpx==0.25.2
 aiofiles==23.2.1
 

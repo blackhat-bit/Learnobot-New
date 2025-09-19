@@ -298,6 +298,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           _capturedImage = File(image.path);
         });
 
+        print('Image captured: ${image.path}');
+
         _addUserMessage(
           'תמונת משימה',
           type: MessageType.taskCapture,
@@ -315,6 +317,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             sessionId: _currentSessionId!,
             imageBytes: imageBytes,
             fileName: image.name,
+            provider: _selectedModel,
           );
           
           print('Upload result: $result');
@@ -926,8 +929,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             const SizedBox(height: 5),
                             Container(
                               margin: const EdgeInsets.only(left: 50),
-                              height: 150,
-                              width: 200,
+                              height: 100,
+                              width: 150,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: AppColors.primary),

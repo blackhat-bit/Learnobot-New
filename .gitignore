@@ -75,6 +75,11 @@ backend/data/
 backend/data/**
 backend/uploads/
 
+# Security - Secret files
+backend/secrets/*.txt
+backend/secrets/*.key
+backend/secrets/*.pem
+
 ClaudeResorce/
 
 examplesInteractionsStudentBot.pdf

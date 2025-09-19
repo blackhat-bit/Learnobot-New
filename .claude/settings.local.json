@@ -16,7 +16,12 @@
       "Bash(.venv/Scripts/activate.ps1)",
       "Bash(source:*)",
       "Bash(pip install:*)",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Bash(docker logs:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(docker-compose:*)",
+      "Bash(.venvScriptsactivate.ps1)"
     ],
     "deny": [],
     "ask": []

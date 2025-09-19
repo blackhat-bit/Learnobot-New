@@ -81,11 +81,19 @@ async def send_message(
 async def upload_task(
     session_id: int,
     file: UploadFile = File(...),
+    provider: str = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Upload an image of a task for OCR processing"""
-    if not file.content_type.startswith("image/"):
+    # Check content type or file extension
+    is_image = (
+        file.content_type and file.content_type.startswith("image/")
+    ) or (
+        file.filename and file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
+    )
+
+    if not is_image:
         raise HTTPException(status_code=400, detail="File must be an image")
     
     # Read file content
@@ -112,7 +120,7 @@ async def upload_task(
             user_id=current_user.id,
             message=f"זהו הטקסט מהתמונה: {extracted_text}",
             assistance_type=None,  # Trigger Hebrew mediation
-            provider=None
+            provider=provider
         )
         
         return {
