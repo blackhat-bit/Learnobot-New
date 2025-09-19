@@ -113,7 +113,7 @@ async def process_message(
         # Get recent conversation history (last 10 messages)
         recent_messages = db.query(ChatMessage).filter(
             ChatMessage.session_id == session_id
-        ).order_by(ChatMessage.created_at.desc()).limit(10).all()
+        ).order_by(ChatMessage.timestamp.desc()).limit(10).all()
 
         # Reverse to get chronological order
         recent_messages.reverse()
