@@ -87,31 +87,53 @@ async def extract_text(image_data: bytes) -> str:
         if image.mode != 'L':
             image = image.convert('L')
         
-        # Try multiple OCR configurations for Hebrew text
+        # Use optimized OCR configuration for speed
+        # Start with the most effective configuration for Hebrew educational content
         configs = [
-            '--psm 6 -c tessedit_char_whitelist=אבגדהוזחטיכלמנסעפצקרשת0123456789.,!?:״׳()[]{}+-=*/% abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
-            '--psm 7',  # Single text line
-            '--psm 8',  # Single word
-            '--psm 6'   # Uniform block of text (default)
+            '--psm 6',  # Uniform block of text (best for homework)
+            '--psm 7'   # Single text line (fallback)
         ]
-        
+
         best_text = ""
-        best_confidence = 0
-        
+
         for i, config in enumerate(configs):
             try:
                 logger.info(f"Trying OCR config {i+1}: {config}")
-                text = pytesseract.image_to_string(
-                    image,
-                    lang='heb+eng',
-                    config=config
-                )
-                
+
+                # Add timeout for individual OCR operations (30 seconds max)
+                import signal
+
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("OCR operation timed out")
+
+                # Set timeout only on Unix systems (Docker)
+                if os.name != 'nt':  # Not Windows
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(30)  # 30 second timeout
+
+                try:
+                    text = pytesseract.image_to_string(
+                        image,
+                        lang='heb+eng',
+                        config=config,
+                        timeout=30  # Tesseract timeout
+                    )
+                finally:
+                    if os.name != 'nt':
+                        signal.alarm(0)  # Cancel timeout
+
                 text = text.strip()
                 if len(text) > len(best_text):
                     best_text = text
                     logger.info(f"Config {i+1} produced text: {text[:50]}...")
-                    
+
+                # If we got decent text, don't try more configs
+                if len(best_text) > 10:
+                    break
+
+            except TimeoutError:
+                logger.warning(f"OCR config {i+1} timed out after 30 seconds")
+                continue
             except Exception as e:
                 logger.warning(f"OCR config {i+1} failed: {str(e)}")
                 continue
