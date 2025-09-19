@@ -228,6 +228,9 @@ docker-compose up -d
 # Stop all services
 docker-compose down
 
+#Restart the backend in case of a problomatic request
+ docker restart  backend-1 #(backend container name)
+
 # View logs
 docker-compose logs -f
 
