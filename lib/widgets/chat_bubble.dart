@@ -139,43 +139,57 @@ class ChatBubble extends StatelessWidget {
   
   // Build message text with proper RTL/LTR handling for mixed content
   Widget _buildMessageText(String content, bool isStudent) {
-    // Detect if the message contains mathematical expressions or mixed content
-    final bool hasMathOrNumbers = _containsMathOrNumbers(content);
-    
-    if (hasMathOrNumbers) {
-      // For mixed content, we need special handling
+    // Both student and bot messages are in Hebrew, so use RTL
+    // Only use LTR for specific mathematical expressions, not numbered lists
+    final bool hasComplexMath = _containsComplexMath(content);
+
+    if (hasComplexMath) {
+      // For complex mathematical expressions, use special handling
       return _buildMixedContentText(content, isStudent);
     } else {
-      // Regular text - use appropriate direction
+      // Regular Hebrew text (including numbered lists) - use RTL
       return Directionality(
-        textDirection: isStudent ? TextDirection.rtl : TextDirection.ltr,
+        textDirection: TextDirection.rtl,
         child: Text(
           content,
           style: const TextStyle(
             fontSize: 15,
             height: 1.4,
           ),
-          textAlign: isStudent ? TextAlign.right : TextAlign.left,
+          textAlign: TextAlign.right,
         ),
       );
     }
   }
   
-  // Check if text contains mathematical expressions or numbers
+  // Check if text contains complex mathematical expressions (not simple numbered lists)
+  bool _containsComplexMath(String text) {
+    // Only treat as complex math if it has mathematical operators (not just numbers)
+    // Exclude simple numbered lists like "1. ", "2. ", etc.
+    final complexMathPattern = RegExp(r'[+\-*/=()<>\[\]{}]|\b[a-zA-Z]{3,}\b');
+    final simpleNumberedList = RegExp(r'^\s*\d+\.\s+');
+
+    // If it's just a numbered list, don't treat as complex math
+    if (simpleNumberedList.hasMatch(text)) {
+      return false;
+    }
+
+    return complexMathPattern.hasMatch(text);
+  }
+
+  // Keep the old function for backward compatibility
   bool _containsMathOrNumbers(String text) {
-    // Check for numbers, mathematical symbols, or English mathematical terms
-    final mathPattern = RegExp(r'[\d+\-*/=()<>\[\]{}.,]|[a-zA-Z]{2,}');
-    return mathPattern.hasMatch(text);
+    return _containsComplexMath(text);
   }
   
   // Build text widget for mixed Hebrew-Math content
   Widget _buildMixedContentText(String content, bool isStudent) {
     // Split content into segments and handle each appropriately
     List<InlineSpan> spans = _parseContentToSpans(content);
-    
+
     return RichText(
       textDirection: TextDirection.rtl, // Start with RTL for Hebrew
-      textAlign: isStudent ? TextAlign.right : TextAlign.left,
+      textAlign: TextAlign.right, // Always align right for Hebrew content
       text: TextSpan(
         style: const TextStyle(
           fontSize: 15,
