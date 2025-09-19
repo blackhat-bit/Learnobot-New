@@ -73,19 +73,42 @@ class InstructionProcessor:
         
         # For cloud models, use efficient prompt with system guidance
         if provider and not provider.startswith("ollama-"):
+            # Get conversation history
+            conversation_history = student_context.get("conversation_history", "")
+
+            # Check for typos/gibberish that might mean Hebrew assistance words
+            instruction_clean = instruction.lower()
+            # Common typos for Hebrew assistance words
+            if any(typo in instruction_clean for typo in ['xchr', 'xsbir', 'hsbr', 'explain']):
+                instruction_interpretation = "הסבר"
+            elif any(typo in instruction_clean for typo in ['breakdown', 'steps', 'pirok']):
+                instruction_interpretation = "פירוק לשלבים"
+            elif any(typo in instruction_clean for typo in ['example', 'dugma', 'דוגמא']):
+                instruction_interpretation = "דוגמה"
+            else:
+                instruction_interpretation = instruction
+
             # Short, efficient prompt - guide student to choose assistance type
             prompt_text = f"""אתה לרנובוט (LearnoBot), עוזר AI שעוזר לתלמידים עם לקויות למידה. תענה תמיד כלרנובוט ישירות לתלמיד, לא תסביר מה כדאי לעשות.
 
 חוקים חשובים:
 - אל תיתן תשובות ישירות או פתרונות מוכנים
 - אל תמציא מידע שלא קיים בטקסט שהתלמיד סיפק
-- תמיד בקש לראות את הטקסט/החומר לפני מתן עזרה
 - רק הנח ועזור להבין, לא תפתור במקום התלמיד
+- אל תחזור על טקסט שהתלמיד כבר שלח
 
-התלמיד שאל: "{instruction}"
+היסטוריית השיחה:
+{conversation_history}
 
-אם התלמיד שאל שאלה על טקסט או חומר לימוד:
+התלמיד שאל עכשיו: "{instruction_interpretation}"
+
+אם התלמיד שאל שאלה על טקסט או חומר לימוד וטרם סיפק טקסט:
 תגיד: "אני צריך לראות את הטקסט כדי לעזור לך. אפשר לשלוח תמונה או להקליד את הטקסט?"
+
+אם התלמיד כבר סיפק טקסט בהיסטוריה ומבקש עזרה:
+- אם ביקש "הסבר": הסבר את הטקסט/המושג בפשטות
+- אם ביקש "פירוק לשלבים": פרק את המשימה לצעדים
+- אם ביקש "דוגמה": תן דוגמה רלוונטית
 
 אחרת, אני יכול לעזור בשלוש דרכים:
 🔍 **הסבר** - הסבר מה זה אומר

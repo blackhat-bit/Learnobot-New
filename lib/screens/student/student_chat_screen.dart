@@ -30,7 +30,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   String _currentMode = 'practice';
-  File? _capturedImage;
   bool _showAssistanceOptions = false;
   int? _currentSessionId;
   bool _isBotTyping = false;
@@ -160,7 +159,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _scrollToBottom();
   }
 
-  void _addUserMessage(String content, {MessageType type = MessageType.text}) {
+  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata}) {
     setState(() {
       _messages.add(
         ChatMessage(
@@ -169,6 +168,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           timestamp: DateTime.now(),
           sender: SenderType.student,
           type: type,
+          metadata: metadata,
         ),
       );
     });
@@ -294,15 +294,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       final XFile? image = await picker.pickImage(source: source);
 
       if (image != null) {
-        setState(() {
-          _capturedImage = File(image.path);
-        });
-
         print('Image captured: ${image.path}');
 
         _addUserMessage(
           'תמונת משימה',
           type: MessageType.taskCapture,
+          metadata: {'image_path': image.path},
         );
 
         _addBotMessage('אני מעבד את המשימה שצילמת...');
@@ -925,7 +922,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             onSpeakPressed: _speakText,
                             studentProfileImageUrl: _profileImageUrl,
                           ),
-                          if (_capturedImage != null) ...[
+                          if (message.metadata?['image_path'] != null) ...[
                             const SizedBox(height: 5),
                             Container(
                               margin: const EdgeInsets.only(left: 50),
@@ -935,7 +932,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: AppColors.primary),
                                 image: DecorationImage(
-                                  image: FileImage(_capturedImage!),
+                                  image: FileImage(File(message.metadata!['image_path'])),
                                   fit: BoxFit.cover,
                                 ),
                               ),

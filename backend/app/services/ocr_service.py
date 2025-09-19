@@ -94,10 +94,10 @@ async def extract_text(image_data: bytes) -> str:
             '--psm 8',  # Single word
             '--psm 6'   # Uniform block of text (default)
         ]
-        
+
         best_text = ""
         best_confidence = 0
-        
+
         for i, config in enumerate(configs):
             try:
                 logger.info(f"Trying OCR config {i+1}: {config}")
@@ -106,12 +106,12 @@ async def extract_text(image_data: bytes) -> str:
                     lang='heb+eng',
                     config=config
                 )
-                
+
                 text = text.strip()
                 if len(text) > len(best_text):
                     best_text = text
                     logger.info(f"Config {i+1} produced text: {text[:50]}...")
-                    
+
             except Exception as e:
                 logger.warning(f"OCR config {i+1} failed: {str(e)}")
                 continue

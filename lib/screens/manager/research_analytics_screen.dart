@@ -1,11 +1,16 @@
 // lib/screens/manager/research_analytics_screen.dart
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:io';
 import '../../services/analytics_service.dart';
 import '../../services/auth_service_backend.dart';
+
+// Web-specific imports
+import 'dart:html' as html;
 
 class ResearchAnalyticsScreen extends StatefulWidget {
   const ResearchAnalyticsScreen({super.key});
@@ -106,63 +111,77 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
         return;
       }
 
-      // Select file location for saving
-      String? outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Chat History CSV',
-        fileName: 'learnobot_chat_history_${DateFormat('yyyy_MM_dd').format(DateTime.now())}.csv',
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
+      // Get current date range
+      
+      // Get chat history from backend
+      final conversations = await AnalyticsService.getConversationArchive(
+        studentId: _selectedStudentId != null ? int.parse(_selectedStudentId!) : null,
+        days: _timeRange,
+        token: token,
       );
-
-      if (outputFile != null) {
-        // Get current date range
-        final endDate = DateTime.now();
-        final startDate = endDate.subtract(Duration(days: _timeRange));
+      
+      // Convert to CSV format
+      List<List<String>> csvData = [
+        ['Student ID', 'Student Name', 'Session ID', 'Mode', 'Message Role', 'Message Content', 'Timestamp', 'Satisfaction Rating']
+      ];
+      
+      for (var conversation in conversations) {
+        final studentId = conversation['student_id']?.toString() ?? '';
+        final studentName = conversation['student_name']?.toString() ?? '';
+        final sessionId = conversation['session_id']?.toString() ?? '';
+        final mode = conversation['mode']?.toString() ?? '';
         
-        // Get chat history from backend
-        final conversations = await AnalyticsService.getConversationArchive(
-          studentId: _selectedStudentId != null ? int.parse(_selectedStudentId!) : null,
-          days: _timeRange,
-          token: token,
-        );
-        
-        // Convert to CSV format
-        List<List<String>> csvData = [
-          ['Student ID', 'Student Name', 'Session ID', 'Mode', 'Message Role', 'Message Content', 'Timestamp', 'Satisfaction Rating']
-        ];
-        
-        for (var conversation in conversations) {
-          final studentId = conversation['student_id']?.toString() ?? '';
-          final studentName = conversation['student_name']?.toString() ?? '';
-          final sessionId = conversation['session_id']?.toString() ?? '';
-          final mode = conversation['mode']?.toString() ?? '';
-          
-          final messages = conversation['messages'] as List? ?? [];
-          for (var message in messages) {
-            csvData.add([
-              studentId,
-              studentName,
-              sessionId,
-              mode,
-              message['role']?.toString() ?? '',
-              message['content']?.toString() ?? '',
-              message['timestamp']?.toString() ?? '',
-              message['satisfaction_rating']?.toString() ?? '',
-            ]);
-          }
+        final messages = conversation['messages'] as List? ?? [];
+        for (var message in messages) {
+          csvData.add([
+            studentId,
+            studentName,
+            sessionId,
+            mode,
+            message['role']?.toString() ?? '',
+            message['content']?.toString() ?? '',
+            message['timestamp']?.toString() ?? '',
+            message['satisfaction_rating']?.toString() ?? '',
+          ]);
         }
+      }
+      
+      // Write CSV file
+      final csvString = csvData.map((row) => 
+        row.map((cell) => '"${cell.replaceAll('"', '""')}"').join(',')
+      ).join('\n');
+
+      // Handle file saving for different platforms
+      final fileName = 'learnobot_chat_history_${DateFormat('yyyy_MM_dd').format(DateTime.now())}.csv';
+      
+      // For web platform, use different approach
+      if (kIsWeb) {
+        // Create blob with proper UTF-8 BOM for Hebrew text
+        final bytes = utf8.encode('\uFEFF$csvString'); // Add BOM for proper Hebrew display
+        final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        html.AnchorElement(href: url)
+          ..setAttribute('download', fileName)
+          ..click();
+        html.Url.revokeObjectUrl(url);
         
-        // Write CSV file
-        final csvString = csvData.map((row) => 
-          row.map((cell) => '"${cell.replaceAll('"', '""')}"').join(',')
-        ).join('\n');
-        
-        final file = File(outputFile);
-        await file.writeAsString(csvString);
-        
-        _showSuccess('Chat history exported successfully to:\n$outputFile');
+        _showSuccess('Chat history exported successfully! File downloaded as $fileName');
       } else {
-        _showError('Export cancelled - no file selected');
+        // For mobile/desktop, use file picker
+        String? outputFile = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save Chat History CSV',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['csv'],
+        );
+
+        if (outputFile != null) {
+          final file = File(outputFile);
+          await file.writeAsString(csvString);
+          _showSuccess('Chat history exported successfully to:\n$outputFile');
+        } else {
+          _showError('Export cancelled - no file selected');
+        }
       }
     } catch (e) {
       _showError('Failed to export chat history: $e');
@@ -182,33 +201,48 @@ class _ResearchAnalyticsScreenState extends State<ResearchAnalyticsScreen> {
         return;
       }
 
-      // Let user choose save location
-      final String? outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Analytics Data',
-        fileName: 'learnobot_analytics_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.csv',
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
+      // Get current date range (last 30 days by default)
+      final endDate = DateTime.now();
+      final startDate = endDate.subtract(Duration(days: _timeRange));
+      
+      // Export data from backend
+      final csvData = await AnalyticsService.exportAnalytics(
+        startDate: startDate.toIso8601String(),
+        endDate: endDate.toIso8601String(),
+        token: token,
       );
 
-      if (outputFile != null) {
-        // Get current date range (last 30 days by default)
-        final endDate = DateTime.now();
-        final startDate = endDate.subtract(Duration(days: _timeRange));
+      // Handle file saving for different platforms
+      final fileName = 'learnobot_analytics_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.csv';
+      
+      // For web platform, use different approach
+      if (kIsWeb) {
+        // Create blob with proper UTF-8 BOM for Hebrew text
+        final bytes = utf8.encode('\uFEFF$csvData'); // Add BOM for proper Hebrew display
+        final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        html.AnchorElement(href: url)
+          ..setAttribute('download', fileName)
+          ..click();
+        html.Url.revokeObjectUrl(url);
         
-        // Export data from backend
-        final csvData = await AnalyticsService.exportAnalytics(
-          startDate: DateFormat('yyyy-MM-dd').format(startDate),
-          endDate: DateFormat('yyyy-MM-dd').format(endDate),
-          token: token,
+        _showSuccess('Data exported successfully! File downloaded as $fileName');
+      } else {
+        // For mobile/desktop, use file picker
+        final String? outputFile = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save Analytics Data',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['csv'],
         );
 
-        // Save to selected file
-        final file = File(outputFile);
-        await file.writeAsString(csvData);
-        
-        _showSuccess('Data exported successfully to:\n$outputFile');
-      } else {
-        _showError('Export cancelled - no file selected');
+        if (outputFile != null) {
+          final file = File(outputFile);
+          await file.writeAsString(csvData);
+          _showSuccess('Data exported successfully to:\n$outputFile');
+        } else {
+          _showError('Export cancelled - no file selected');
+        }
       }
     } catch (e) {
       _showError('Failed to export data: $e');

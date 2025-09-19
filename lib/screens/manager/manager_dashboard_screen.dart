@@ -1,5 +1,10 @@
 // lib/screens/manager/manager_dashboard_screen.dart
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import '../../constants/app_colors.dart';
 import '../../services/analytics_service.dart';
 import '../../services/auth_service_backend.dart';
@@ -8,6 +13,9 @@ import 'research_analytics_screen.dart';
 import '../auth/welcome_screen.dart';
 import '../teacher/student_list_screen.dart';
 import '../teacher/account_settings_screen.dart';
+
+// Web-specific imports
+import 'dart:html' as html;
 
 class ManagerDashboardScreen extends StatefulWidget {
   const ManagerDashboardScreen({Key? key}) : super(key: key);
@@ -887,13 +895,63 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                           child: TextButton.icon(
                             onPressed: () async {
                               try {
+                                // Get CSV data from backend
                                 final csvData = await AnalyticsService.exportComprehensiveCSV();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('נתונים מקיפים יוצאו בהצלחה')),
-                                );
+                                
+                                // Handle file saving for different platforms
+                                final fileName = 'learnobot_comprehensive_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.csv';
+                                
+                                // For web platform, use different approach
+                                if (kIsWeb) {
+                                  // Create blob with proper UTF-8 BOM for Hebrew text
+                                  final bytes = utf8.encode('\uFEFF$csvData'); // Add BOM for proper Hebrew display
+                                  final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
+                                  final url = html.Url.createObjectUrlFromBlob(blob);
+                                  html.AnchorElement(href: url)
+                                    ..setAttribute('download', fileName)
+                                    ..click();
+                                  html.Url.revokeObjectUrl(url);
+                                  
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('נתונים מקיפים יוצאו בהצלחה! הקובץ הורד כ-$fileName'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                } else {
+                                  // For mobile/desktop, use file picker
+                                  final String? outputFile = await FilePicker.platform.saveFile(
+                                    dialogTitle: 'Save Comprehensive Analytics Data',
+                                    fileName: fileName,
+                                    type: FileType.custom,
+                                    allowedExtensions: ['csv'],
+                                  );
+
+                                  if (outputFile != null) {
+                                    final file = File(outputFile);
+                                    await file.writeAsString(csvData);
+                                    
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('נתונים מקיפים יוצאו בהצלחה ל:\n$outputFile'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('יצוא בוטל - לא נבחר קובץ'),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    );
+                                  }
+                                }
                               } catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('שגיאה ביצוא הנתונים: $e')),
+                                  SnackBar(
+                                    content: Text('שגיאה ביצוא הנתונים: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
                                 );
                               }
                             },

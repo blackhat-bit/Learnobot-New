@@ -110,13 +110,28 @@ async def process_message(
         session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
         student = session.student
         
+        # Get recent conversation history (last 10 messages)
+        recent_messages = db.query(ChatMessage).filter(
+            ChatMessage.session_id == session_id
+        ).order_by(ChatMessage.timestamp.desc()).limit(10).all()
+
+        # Reverse to get chronological order
+        recent_messages.reverse()
+
+        # Format conversation history
+        conversation_history = []
+        for msg in recent_messages[:-1]:  # Exclude current message
+            role = "תלמיד" if msg.role == MessageRole.USER else "לרנובוט"
+            conversation_history.append(f"{role}: {msg.content}")
+
         # Prepare student context
         student_context = {
             "name": student.full_name,
             "grade": student.grade,
             "difficulty_level": student.difficulty_level,
             "difficulties": student.difficulties_description,
-            "language_preference": student.user.language_preference
+            "language_preference": student.user.language_preference,
+            "conversation_history": "\n".join(conversation_history)
         }
         
         # Generate AI response based on mode and assistance type
