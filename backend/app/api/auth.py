@@ -119,12 +119,53 @@ async def login(
         "token_type": "bearer"
     }
 
-@router.get("/me", response_model=User)
+@router.get("/me")
 async def get_current_user_info(
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    """Get current user information"""
-    return current_user
+    """Get current user information with profile data"""
+    # Convert user to dict
+    user_dict = {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role.value if hasattr(current_user.role, 'value') else current_user.role,
+        "is_active": current_user.is_active,
+        "is_verified": current_user.is_verified,
+        "language_preference": current_user.language_preference,
+        "timezone": current_user.timezone,
+        "last_login": current_user.last_login.isoformat() if current_user.last_login else None,
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+    }
+    
+    # Add teacher_profile if exists
+    if current_user.teacher_profile:
+        user_dict["teacher_profile"] = {
+            "id": current_user.teacher_profile.id,
+            "full_name": current_user.teacher_profile.full_name,
+            "school": current_user.teacher_profile.school,
+            "profile_image_url": current_user.teacher_profile.profile_image_url,
+        }
+    else:
+        user_dict["teacher_profile"] = None
+    
+    # Add student_profile if exists
+    if current_user.student_profile:
+        user_dict["student_profile"] = {
+            "id": current_user.student_profile.id,
+            "teacher_id": current_user.student_profile.teacher_id,
+            "full_name": current_user.student_profile.full_name,
+            "grade": current_user.student_profile.grade,
+            "difficulty_level": current_user.student_profile.difficulty_level,
+            "difficulties_description": current_user.student_profile.difficulties_description,
+            "profile_image_url": current_user.student_profile.profile_image_url,
+        }
+    else:
+        user_dict["student_profile"] = None
+    
+    return user_dict
 
 @router.post("/logout")
 async def logout():
