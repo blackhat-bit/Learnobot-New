@@ -157,39 +157,26 @@ async def upload_task(
     
     # Check if provider supports vision
     is_cloud_model = provider and vision_service.supports_vision(provider)
+    logger.info(f"Provider: {provider}, Supports Vision: {vision_service.supports_vision(provider) if provider else False}, Is Cloud: {is_cloud_model}")
     
     if is_cloud_model:
-        # ===== VISION API PATH (Fast - for cloud models) =====
-        logger.info(f"Using Vision API with provider: {provider}")
+        # ===== VISION API PATH (Fast - for cloud models, NO OCR) =====
+        logger.info(f"Using Vision API with provider: {provider} (OCR disabled)")
         
         # Create Hebrew prompt for vision model
-        vision_prompt = """אתה לרנובוט, עוזר AI לתלמידים עם לקויות למידה.
-        
-קרא את הטקסט בתמונה הזו ועזור לתלמיד להבין את המשימה.
+        vision_prompt = """קרא את הטקסט בתמונה הזו ועזור לתלמיד להבין את המשימה.
+
+**חשוב: כתוב בתשובה שלך את הטקסט המדויק שרשום בתמונה** (בשורות..., כתוב...).
 
 אם יש טקסט בתמונה:
-1. תאר מה רשום בתמונה
+1. תאר מה רשום בתמונה (כלול את הטקסט המדויק)
 2. הסבר במילים פשוטות מה צריך לעשות
 3. שאל את התלמיד איך תרצה שאעזור (הסבר, פירוק לשלבים, או דוגמה)
 
 אם אין טקסט ברור:
 תגיד לתלמיד שלא הצלחת לקרוא את התמונה בבירור ותבקש להעלות תמונה ברורה יותר.
 
-תענה בעברית פשוטה וברורה."""
-        
-        # Start background OCR for analytics (non-blocking)
-        async def background_ocr_extraction():
-            """Extract text in background for research/analytics"""
-            try:
-                extracted = await ocr_service.extract_text(content)
-                logger.info(f"Background OCR completed: {len(extracted)} chars")
-                return extracted
-            except Exception as e:
-                logger.warning(f"Background OCR failed: {e}")
-                return None
-        
-        # Start background OCR task (don't await)
-        ocr_task = asyncio.create_task(background_ocr_extraction())
+תענה בעברית פשוטה וברורה. אל תתחיל בברכה או הצגה - תתחיל ישירות עם התשובה."""
         
         # Process with vision (fast!)
         vision_start = time.time()
@@ -207,18 +194,11 @@ async def upload_task(
             ai_response_text = vision_result["response"]
             logger.info(f"Vision API completed in {vision_time:.2f}s")
             
-            # Don't wait for OCR - get it if ready, otherwise use placeholder
-            # OCR will complete in background for analytics
-            if ocr_task.done():
-                try:
-                    extracted_text = ocr_task.result()
-                except Exception:
-                    extracted_text = "[Vision API - no OCR text]"
-            else:
-                extracted_text = "[Vision API - OCR in progress]"
-                # Let OCR continue in background, don't block the response
+            # For cloud models: Save AI's interpretation as the "extracted text"
+            # The AI describes what's in the image, so we save that instead of OCR
+            extracted_text = ai_response_text
             
-            # Save task (OCR text for analytics only, not shown to user)
+            # Save task with AI's vision response (no OCR needed)
             task = await chat_service.process_task_image(
                 db=db,
                 session_id=session_id,

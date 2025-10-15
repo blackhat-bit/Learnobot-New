@@ -546,7 +546,16 @@ class GoogleProvider(BaseLLMProvider):
                 prompt,
                 generation_config=generation_config
             )
-            response_text = response.text
+            
+            # Handle multi-part responses (structured content)
+            try:
+                response_text = response.text
+            except ValueError:
+                # Response has multiple parts, concatenate them
+                response_text = ""
+                for candidate in response.candidates:
+                    for part in candidate.content.parts:
+                        response_text += part.text
             
             response_time = time.time() - start_time
             actual_model = getattr(self, 'actual_model', self.model)
@@ -600,7 +609,15 @@ class GoogleProvider(BaseLLMProvider):
                 generation_config=generation_config
             )
             
-            response_text = response.text
+            # Handle multi-part responses (structured content)
+            try:
+                response_text = response.text
+            except ValueError:
+                # Response has multiple parts, concatenate them
+                response_text = ""
+                for candidate in response.candidates:
+                    for part in candidate.content.parts:
+                        response_text += part.text
             response_time = time.time() - start_time
             
             actual_model = getattr(self, 'actual_model', self.model)

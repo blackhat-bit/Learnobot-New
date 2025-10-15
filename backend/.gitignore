@@ -15,6 +15,9 @@ htmlcov/
 *.db
 *.log
 
+# Test files
+test_upload.html
+
 # Docker data persistence
 <<<<<<< HEAD
 <<<<<<< HEAD

@@ -692,16 +692,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
     
     // Create the instruction prompt for the AI but don't show it in chat
+    // Use Hebrew prompts and reference the conversation context
     String instructionPrompt;
     switch (type) {
       case 'breakdown':
-        instructionPrompt = 'Break down the following task into step-by-step instructions in simple language: ${_lastTaskText!}';
+        instructionPrompt = 'פרק את המשימה הזו לשלבים פשוטים וברורים';
         break;
       case 'example':
-        instructionPrompt = 'Give a concrete worked example that shows how to solve: ${_lastTaskText!}';
+        instructionPrompt = 'תן דוגמה קונקרטית איך לפתור את המשימה הזו';
         break;
       case 'explain':
-        instructionPrompt = 'Explain the following task in simple words so that a student can understand: ${_lastTaskText!}';
+        instructionPrompt = 'הסבר את המשימה הזו במילים פשוטות';
         break;
       default:
         instructionPrompt = _lastTaskText!;
