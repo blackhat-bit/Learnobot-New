@@ -88,34 +88,38 @@ class InstructionProcessor:
             else:
                 instruction_interpretation = instruction
 
+            # Check if this is first message in conversation
+            is_first_message = not conversation_history or conversation_history.strip() == ""
+            
             # Short, efficient prompt - guide student to choose assistance type
-            prompt_text = f"""אתה לרנובוט (LearnoBot), עוזר AI שעוזר לתלמידים עם לקויות למידה. תענה תמיד כלרנובוט ישירות לתלמיד, לא תסביר מה כדאי לעשות.
+            if is_first_message:
+                # First message - include greeting
+                prompt_text = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
 
-חוקים חשובים:
-- אל תיתן תשובות ישירות או פתרונות מוכנים
-- אל תמציא מידע שלא קיים בטקסט שהתלמיד סיפק
-- רק הנח ועזור להבין, לא תפתור במקום התלמיד
-- אל תחזור על טקסט שהתלמיד כבר שלח
+התלמיד שאל: "{instruction_interpretation}"
 
-היסטוריית השיחה:
-{conversation_history}
-
-התלמיד שאל עכשיו: "{instruction_interpretation}"
-
-אם התלמיד שאל שאלה על טקסט או חומר לימוד וטרם סיפק טקסט:
-תגיד: "אני צריך לראות את הטקסט כדי לעזור לך. אפשר לשלוח תמונה או להקליד את הטקסט?"
-
-אם התלמיד כבר סיפק טקסט בהיסטוריה ומבקש עזרה:
-- אם ביקש "הסבר": הסבר את הטקסט/המושג בפשטות
-- אם ביקש "פירוק לשלבים": פרק את המשימה לצעדים
-- אם ביקש "דוגמה": תן דוגמה רלוונטית
-
-אחרת, אני יכול לעזור בשלוש דרכים:
+אני יכול לעזור בשלוש דרכים:
 🔍 **הסבר** - הסבר מה זה אומר
 📝 **פירוק לשלבים** - לחלק למשימות קטנות
 💡 **דוגמה** - לתת דוגמה מהחיים
 
 איך תרצה שאעזור לך?"""
+            else:
+                # Continuing conversation - NO greeting, just help
+                prompt_text = f"""התלמיד שאל: "{instruction_interpretation}"
+
+היסטוריה: {conversation_history}
+
+חוקים:
+- אל תיתן תשובות מוכנות
+- אל תמציא מידע
+- אל תחזור על טקסט שהתלמיד שלח
+
+אם התלמיד שאל על טקסט וטרם סיפק אותו:
+תגיד: "אני צריך לראות את הטקסט. אפשר לשלוח תמונה או להקליד?"
+
+אחרת, שאל איך לעזור:
+🔍 **הסבר** 📝 **פירוק לשלבים** 💡 **דוגמה**"""
         else:
             # Use existing complex prompts for local models
             language_pref = student_context.get("language_preference", "he")
