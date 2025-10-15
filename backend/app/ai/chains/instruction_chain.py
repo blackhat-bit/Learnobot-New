@@ -143,13 +143,32 @@ class InstructionProcessor:
         
         return {"analysis": result}
     
-    def breakdown_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None) -> str:
+    def breakdown_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
         """Break down instruction into simple steps"""
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # For cloud models, use efficient short prompt
+        # For cloud models, use efficient short prompt WITH conversation history
         if provider and not provider.startswith("ollama-"):
             from app.ai.prompts.hebrew_prompts import HEBREW_BREAKDOWN_SHORT
-            prompt_text = HEBREW_BREAKDOWN_SHORT.format(instruction=instruction)
+            
+            # Get conversation history if available
+            conversation_history = ""
+            if student_context:
+                conversation_history = student_context.get("conversation_history", "")
+            
+            # Include conversation history in prompt for context
+            if conversation_history:
+                prompt_text = f"""היסטוריית שיחה:
+{conversation_history}
+
+{HEBREW_BREAKDOWN_SHORT.format(instruction=instruction)}
+
+התבסס על השיחה האחרונה כדי לתת פירוק רלוונטי."""
+            else:
+                prompt_text = HEBREW_BREAKDOWN_SHORT.format(instruction=instruction)
+            
+            logger.info(f"🔧 BREAKDOWN - Provider: {provider}, Has history: {bool(conversation_history)}")
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)
@@ -157,16 +176,34 @@ class InstructionProcessor:
                 instruction=instruction,
                 student_level=student_level
             )
+            logger.info(f"🔧 BREAKDOWN - Provider: {provider}, Using local prompts")
         
-        return multi_llm_manager.generate(prompt_text, provider=provider)
+        response = multi_llm_manager.generate(prompt_text, provider=provider)
+        logger.info(f"🔧 BREAKDOWN - Response length: {len(response) if response else 0}, Content: {response[:200] if response else 'EMPTY!'}")
+        return response
     
-    def provide_example(self, instruction: str, concept: str, language_preference: str = "he", provider: str = None) -> str:
+    def provide_example(self, instruction: str, concept: str, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
         """Provide a relatable example"""
         
-        # For cloud models, use efficient short prompt
+        # For cloud models, use efficient short prompt WITH conversation history
         if provider and not provider.startswith("ollama-"):
             from app.ai.prompts.hebrew_prompts import HEBREW_EXAMPLE_SHORT
-            prompt_text = HEBREW_EXAMPLE_SHORT.format(instruction=instruction)
+            
+            # Get conversation history if available
+            conversation_history = ""
+            if student_context:
+                conversation_history = student_context.get("conversation_history", "")
+            
+            # Include conversation history in prompt for context
+            if conversation_history:
+                prompt_text = f"""היסטוריית שיחה:
+{conversation_history}
+
+{HEBREW_EXAMPLE_SHORT.format(instruction=instruction)}
+
+התבסס על השיחה האחרונה כדי לתת דוגמה רלוונטית."""
+            else:
+                prompt_text = HEBREW_EXAMPLE_SHORT.format(instruction=instruction)
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)
@@ -177,13 +214,28 @@ class InstructionProcessor:
         
         return multi_llm_manager.generate(prompt_text, provider=provider)
     
-    def explain_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None) -> str:
+    def explain_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
         """Explain instruction in simple terms"""
         
-        # For cloud models, use efficient short prompt
+        # For cloud models, use efficient short prompt WITH conversation history
         if provider and not provider.startswith("ollama-"):
             from app.ai.prompts.hebrew_prompts import HEBREW_EXPLAIN_SHORT
-            prompt_text = HEBREW_EXPLAIN_SHORT.format(instruction=instruction)
+            
+            # Get conversation history if available
+            conversation_history = ""
+            if student_context:
+                conversation_history = student_context.get("conversation_history", "")
+            
+            # Include conversation history in prompt for context
+            if conversation_history:
+                prompt_text = f"""היסטוריית שיחה:
+{conversation_history}
+
+{HEBREW_EXPLAIN_SHORT.format(instruction=instruction)}
+
+התבסס על השיחה האחרונה כדי לתת הסבר רלוונטי."""
+            else:
+                prompt_text = HEBREW_EXPLAIN_SHORT.format(instruction=instruction)
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)

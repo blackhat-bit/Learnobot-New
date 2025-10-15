@@ -173,15 +173,15 @@ async def process_message(
             # Student Selection mode - use existing simple logic
             if assistance_type == "breakdown":
                 ai_response = instruction_processor.breakdown_instruction(
-                    message, student.difficulty_level, language_pref, provider
+                    message, student.difficulty_level, language_pref, provider, student_context
                 )
             elif assistance_type == "example":
                 ai_response = instruction_processor.provide_example(
-                    message, "main concept", language_pref, provider
+                    message, "main concept", language_pref, provider, student_context
                 )
             elif assistance_type == "explain":
                 ai_response = instruction_processor.explain_instruction(
-                    message, student.difficulty_level, language_pref, provider
+                    message, student.difficulty_level, language_pref, provider, student_context
                 )
             else:
                 # Fallback to analysis
