@@ -341,14 +341,9 @@ async def process_task_image(
     db.add(task)
     db.commit()
     db.refresh(task)
-    
-    # Create a message with the extracted text
-    await process_message(
-        db=db,
-        session_id=session_id,
-        user_id=student_id,
-        message=f"אני צריך עזרה עם המשימה הזו: {extracted_text}"
-    )
+    # Do not trigger an additional AI call here.
+    # The upload endpoint already invokes the AI once with the extracted text.
+    # Keeping a single model invocation reduces latency and avoids timeouts.
     
     return task
 
