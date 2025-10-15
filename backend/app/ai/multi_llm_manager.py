@@ -198,13 +198,69 @@ class OpenAIProvider(BaseLLMProvider):
             else:
                 raise ValueError(f"OpenAI API error: {str(e)}")
     
+    def process_image(self, image_data: bytes, prompt: str, **kwargs) -> str:
+        """Process image with vision using GPT-4 Vision"""
+        import time
+        import logging
+        import base64
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            from openai import OpenAI
+            
+            # Convert image to base64
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            
+            client = OpenAI(
+                api_key=self.api_key,
+                timeout=120.0
+            )
+            
+            # Use GPT-4 Vision model
+            vision_model = "gpt-4-vision-preview" if "gpt-4" in self.model else self.model
+            
+            response = client.chat.completions.create(
+                model=vision_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_base64}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            response_text = response.choices[0].message.content
+            response_time = time.time() - start_time
+            
+            logger.info(f"OpenAI {vision_model} Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"OpenAI Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"OpenAI Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "OpenAI",
             "type": "online",
             "model": self.model,
             "requires_api_key": True,
-            "status": "configured"
+            "status": "configured",
+            "supports_vision": True
         }
     
     def count_tokens(self, text: str) -> int:
@@ -274,13 +330,82 @@ class AnthropicProvider(BaseLLMProvider):
             else:
                 raise ValueError(f"Anthropic API error: {str(e)}")
     
+    def process_image(self, image_data: bytes, prompt: str, **kwargs) -> str:
+        """Process image with vision using Claude Vision"""
+        import time
+        import logging
+        import httpx
+        import base64
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            # Convert image to base64
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            
+            # Detect image type
+            if image_data.startswith(b'\xff\xd8\xff'):
+                media_type = "image/jpeg"
+            elif image_data.startswith(b'\x89PNG'):
+                media_type = "image/png"
+            elif image_data.startswith(b'GIF'):
+                media_type = "image/gif"
+            elif image_data.startswith(b'WEBP'):
+                media_type = "image/webp"
+            else:
+                media_type = "image/jpeg"  # Default fallback
+            
+            client = anthropic.Anthropic(
+                api_key=self.api_key,
+                timeout=httpx.Timeout(120.0, connect=10.0)
+            )
+            
+            response = client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": image_base64
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            )
+            
+            response_text = response.content[0].text
+            response_time = time.time() - start_time
+            
+            logger.info(f"Anthropic {self.model} Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Anthropic Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"Anthropic Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "Anthropic",
             "type": "online", 
             "model": self.model,
             "requires_api_key": True,
-            "status": "configured"
+            "status": "configured",
+            "supports_vision": True
         }
     
     def count_tokens(self, text: str) -> int:
@@ -446,13 +571,57 @@ class GoogleProvider(BaseLLMProvider):
             else:
                 raise ValueError(f"Google API error: {str(e)}")
     
+    def process_image(self, image_data: bytes, prompt: str, **kwargs) -> str:
+        """Process image with vision using Google Gemini"""
+        import time
+        import logging
+        import base64
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            import google.generativeai as genai
+            from PIL import Image
+            import io
+            
+            # Convert bytes to PIL Image
+            image = Image.open(io.BytesIO(image_data))
+            
+            # Use vision-capable model configuration
+            generation_config = genai.types.GenerationConfig(
+                temperature=self.temperature,
+                max_output_tokens=self.max_tokens,
+            )
+            
+            # Create vision prompt with image
+            response = self.client.generate_content(
+                [prompt, image],
+                generation_config=generation_config
+            )
+            
+            response_text = response.text
+            response_time = time.time() - start_time
+            
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.info(f"Google {actual_model} Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.error(f"Google {actual_model} Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"Google Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "Google",
             "type": "online",
             "model": self.model,
             "requires_api_key": True,
-            "status": "configured"
+            "status": "configured",
+            "supports_vision": True
         }
     
     def count_tokens(self, text: str) -> int:

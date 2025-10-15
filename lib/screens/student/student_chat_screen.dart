@@ -322,19 +322,30 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           final extractedText = result['extracted_text'] ?? '';
           final response = result['ai_response'] ?? '';
           final message = result['message'] ?? '';
+          final method = result['method'] ?? 'ocr'; // 'vision' or 'ocr'
           
           // Check if OCR was successful
           if (extractedText.isNotEmpty && 
               !extractedText.contains('לא הצלחתי') && 
               !extractedText.contains('שגיאה')) {
             _lastTaskText = extractedText;
-            _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
             
-            // If there's a mediation response, show it too
+            // Only show OCR text if NOT using vision (vision AI already saw the image)
+            if (method != 'vision') {
+              _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
+            }
+            
+            // Show AI response (for both vision and OCR methods)
             if (response.isNotEmpty) {
-              Future.delayed(const Duration(seconds: 1), () {
+              if (method == 'vision') {
+                // For vision, show immediately (no delay)
                 _addBotMessage(response);
-              });
+              } else {
+                // For OCR, show after delay (after OCR text message)
+                Future.delayed(const Duration(seconds: 1), () {
+                  _addBotMessage(response);
+                });
+              }
             }
             
             Future.delayed(const Duration(seconds: 1), () {

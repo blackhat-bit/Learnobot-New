@@ -1,5 +1,5 @@
 # app/api/chat.py
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
@@ -79,16 +79,66 @@ async def send_message(
         provider=message.provider
     )
 
+@router.post("/test-ocr")
+async def test_ocr(file: UploadFile = File(...)):
+    """Test OCR alone without any AI processing"""
+    import time
+    start = time.time()
+    content = await file.read()
+    extracted = await ocr_service.extract_text(content)
+    ocr_time = time.time() - start
+    logger.info(f"OCR test completed in {ocr_time:.2f}s, extracted {len(extracted)} chars")
+    return {
+        "ocr_time_seconds": round(ocr_time, 2),
+        "extracted_text": extracted,
+        "text_length": len(extracted)
+    }
+
+@router.post("/test-vision")
+async def test_vision(
+    file: UploadFile = File(...),
+    provider: str = "google-gemini_2_5_pro"
+):
+    """Test Vision API alone"""
+    import time
+    from app.services.vision_service import vision_service
+    
+    start = time.time()
+    content = await file.read()
+    
+    logger.info(f"Testing vision with provider: {provider}, image size: {len(content)} bytes")
+    
+    result = await vision_service.process_image_with_vision(
+        image_data=content,
+        prompt="מה כתוב בתמונה הזו? תאר בעברית.",
+        provider=provider
+    )
+    
+    vision_time = time.time() - start
+    logger.info(f"Vision test completed in {vision_time:.2f}s")
+    
+    return {
+        "vision_time_seconds": round(vision_time, 2),
+        "success": result.get("success"),
+        "response": result.get("response"),
+        "error": result.get("error")
+    }
+
 @router.post("/sessions/{session_id}/upload-task")
 async def upload_task(
     session_id: int,
     file: UploadFile = File(...),
-    provider: str = None,
+    provider: str = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload an image of a task for OCR processing"""
+    """Upload an image of a task - uses Vision API for cloud models, OCR for local models"""
     import time
+    import asyncio
+    from app.services.vision_service import vision_service
+    
+    logger.info(f"=== UPLOAD REQUEST RECEIVED === Session: {session_id}, Provider: {provider}, File: {file.filename}")
+    
     start_time = time.time()
     
     # Check content type or file extension
@@ -105,70 +155,175 @@ async def upload_task(
     content = await file.read()
     logger.info(f"Image received: {len(content)} bytes, {file.filename}")
     
-    # Process with OCR
-    ocr_start = time.time()
-    extracted_text = await ocr_service.extract_text(content)
-    ocr_time = time.time() - ocr_start
-    logger.info(f"OCR completed in {ocr_time:.2f}s")
+    # Check if provider supports vision
+    is_cloud_model = provider and vision_service.supports_vision(provider)
     
-    # Process with Hebrew mediation if text was extracted successfully
-    if extracted_text and not extracted_text.startswith("לא הצלחתי") and not extracted_text.startswith("שגיאה"):
-        # Save task
-        task = await chat_service.process_task_image(
-            db=db,
-            session_id=session_id,
-            student_id=current_user.student_profile.id,
-            image_data=content,
-            extracted_text=extracted_text
-        )
+    if is_cloud_model:
+        # ===== VISION API PATH (Fast - for cloud models) =====
+        logger.info(f"Using Vision API with provider: {provider}")
         
-        # Process extracted text through AI system
+        # Create Hebrew prompt for vision model
+        vision_prompt = """אתה לרנובוט, עוזר AI לתלמידים עם לקויות למידה.
+        
+קרא את הטקסט בתמונה הזו ועזור לתלמיד להבין את המשימה.
+
+אם יש טקסט בתמונה:
+1. תאר מה רשום בתמונה
+2. הסבר במילים פשוטות מה צריך לעשות
+3. שאל את התלמיד איך תרצה שאעזור (הסבר, פירוק לשלבים, או דוגמה)
+
+אם אין טקסט ברור:
+תגיד לתלמיד שלא הצלחת לקרוא את התמונה בבירור ותבקש להעלות תמונה ברורה יותר.
+
+תענה בעברית פשוטה וברורה."""
+        
+        # Start background OCR for analytics (non-blocking)
+        async def background_ocr_extraction():
+            """Extract text in background for research/analytics"""
+            try:
+                extracted = await ocr_service.extract_text(content)
+                logger.info(f"Background OCR completed: {len(extracted)} chars")
+                return extracted
+            except Exception as e:
+                logger.warning(f"Background OCR failed: {e}")
+                return None
+        
+        # Start background OCR task (don't await)
+        ocr_task = asyncio.create_task(background_ocr_extraction())
+        
+        # Process with vision (fast!)
+        vision_start = time.time()
         try:
-            logger.info(f"Processing OCR text (length: {len(extracted_text)}): {extracted_text[:100]}...")
-            
-            # Send extracted text directly without prefix for better AI understanding
-            ai_start = time.time()
-            ai_response = await chat_service.process_message(
-                db=db,
-                session_id=session_id,
-                user_id=current_user.id,
-                message=extracted_text,  # Send clean text without "זהו הטקסט מהתמונה" prefix
-                assistance_type=None,  # Let AI determine best help type
+            vision_result = await vision_service.process_image_with_vision(
+                image_data=content,
+                prompt=vision_prompt,
                 provider=provider
             )
-            ai_time = time.time() - ai_start
-            total_time = time.time() - start_time
-            logger.info(f"AI processing: {ai_time:.2f}s | Total time: {total_time:.2f}s")
-        except Exception as e:
-            logger.error(f"Error in AI processing for OCR: {str(e)}")
-            # Create a fallback response
+            vision_time = time.time() - vision_start
+            
+            if not vision_result.get("success"):
+                raise ValueError(vision_result.get("error", "Vision processing failed"))
+            
+            ai_response_text = vision_result["response"]
+            logger.info(f"Vision API completed in {vision_time:.2f}s")
+            
+            # Don't wait for OCR - get it if ready, otherwise use placeholder
+            # OCR will complete in background for analytics
+            if ocr_task.done():
+                try:
+                    extracted_text = ocr_task.result()
+                except Exception:
+                    extracted_text = "[Vision API - no OCR text]"
+            else:
+                extracted_text = "[Vision API - OCR in progress]"
+                # Let OCR continue in background, don't block the response
+            
+            # Save task (OCR text for analytics only, not shown to user)
+            task = await chat_service.process_task_image(
+                db=db,
+                session_id=session_id,
+                student_id=current_user.student_profile.id,
+                image_data=content,
+                extracted_text=extracted_text
+            )
+            
+            # Save AI response to chat
             from app.models.chat import ChatMessage, MessageRole
             ai_response = ChatMessage(
                 session_id=session_id,
                 user_id=current_user.id,
                 role=MessageRole.ASSISTANT,
-                content=f"קראתי את הטקסט: {extracted_text}\n\nאיך תרצה שאעזור לך עם זה?"
+                content=ai_response_text
             )
             db.add(ai_response)
             db.commit()
             db.refresh(ai_response)
+            
             total_time = time.time() - start_time
+            logger.info(f"✅ Vision path: {vision_time:.2f}s vision | {total_time:.2f}s total")
+            
+            return {
+                "task_id": task.id,
+                "extracted_text": extracted_text,
+                "ai_response": ai_response.content,
+                "message": "קראתי את התמונה בהצלחה!",
+                "processing_time_seconds": round(total_time, 2),
+                "method": "vision"
+            }
+            
+        except Exception as e:
+            logger.error(f"Vision API failed: {str(e)}, falling back to OCR")
+            # Fall through to OCR path
+            is_cloud_model = False
+    
+    if not is_cloud_model:
+        # ===== OCR PATH (for local models or vision fallback) =====
+        logger.info(f"Using OCR path for provider: {provider or 'default'}")
         
-        return {
-            "task_id": task.id,
-            "extracted_text": extracted_text,
-            "ai_response": ai_response.content,
-            "message": "קראתי את התמונה בהצלחה!",
-            "processing_time_seconds": round(total_time, 2)  # For debugging
-        }
-    else:
-        # OCR failed, return error message  
-        return {
-            "task_id": None,
-            "extracted_text": extracted_text,
-            "ai_response": None,
-            "message": extracted_text
-        }
+        ocr_start = time.time()
+        extracted_text = await ocr_service.extract_text(content)
+        ocr_time = time.time() - ocr_start
+        logger.info(f"OCR completed in {ocr_time:.2f}s")
+        
+        # Process with Hebrew mediation if text was extracted successfully
+        if extracted_text and not extracted_text.startswith("לא הצלחתי") and not extracted_text.startswith("שגיאה"):
+            # Save task
+            task = await chat_service.process_task_image(
+                db=db,
+                session_id=session_id,
+                student_id=current_user.student_profile.id,
+                image_data=content,
+                extracted_text=extracted_text
+            )
+            
+            # Process extracted text through AI system
+            try:
+                logger.info(f"Processing OCR text (length: {len(extracted_text)}): {extracted_text[:100]}...")
+                
+                ai_start = time.time()
+                ai_response = await chat_service.process_message(
+                    db=db,
+                    session_id=session_id,
+                    user_id=current_user.id,
+                    message=extracted_text,
+                    assistance_type=None,
+                    provider=provider
+                )
+                ai_time = time.time() - ai_start
+                total_time = time.time() - start_time
+                logger.info(f"OCR path: {ocr_time:.2f}s OCR + {ai_time:.2f}s AI = {total_time:.2f}s total")
+            except Exception as e:
+                logger.error(f"Error in AI processing for OCR: {str(e)}")
+                # Create a fallback response
+                from app.models.chat import ChatMessage, MessageRole
+                ai_response = ChatMessage(
+                    session_id=session_id,
+                    user_id=current_user.id,
+                    role=MessageRole.ASSISTANT,
+                    content=f"קראתי את הטקסט: {extracted_text}\n\nאיך תרצה שאעזור לך עם זה?"
+                )
+                db.add(ai_response)
+                db.commit()
+                db.refresh(ai_response)
+                total_time = time.time() - start_time
+            
+            return {
+                "task_id": task.id,
+                "extracted_text": extracted_text,
+                "ai_response": ai_response.content,
+                "message": "קראתי את התמונה בהצלחה!",
+                "processing_time_seconds": round(total_time, 2),
+                "method": "ocr"
+            }
+        else:
+            # OCR failed, return error message  
+            return {
+                "task_id": None,
+                "extracted_text": extracted_text,
+                "ai_response": None,
+                "message": extracted_text,
+                "method": "ocr"
+            }
 
 @router.put("/messages/{message_id}/rate")
 async def rate_message(
