@@ -88,6 +88,9 @@ async def upload_task(
     db: Session = Depends(get_db)
 ):
     """Upload an image of a task for OCR processing"""
+    import time
+    start_time = time.time()
+    
     # Check content type or file extension
     is_image = (
         file.content_type and file.content_type.startswith("image/")
@@ -100,9 +103,13 @@ async def upload_task(
     
     # Read file content
     content = await file.read()
+    logger.info(f"Image received: {len(content)} bytes, {file.filename}")
     
     # Process with OCR
+    ocr_start = time.time()
     extracted_text = await ocr_service.extract_text(content)
+    ocr_time = time.time() - ocr_start
+    logger.info(f"OCR completed in {ocr_time:.2f}s")
     
     # Process with Hebrew mediation if text was extracted successfully
     if extracted_text and not extracted_text.startswith("לא הצלחתי") and not extracted_text.startswith("שגיאה"):
@@ -115,18 +122,23 @@ async def upload_task(
             extracted_text=extracted_text
         )
         
-        # Process extracted text through Hebrew mediation system
+        # Process extracted text through AI system
         try:
             logger.info(f"Processing OCR text (length: {len(extracted_text)}): {extracted_text[:100]}...")
+            
+            # Send extracted text directly without prefix for better AI understanding
+            ai_start = time.time()
             ai_response = await chat_service.process_message(
                 db=db,
                 session_id=session_id,
                 user_id=current_user.id,
-                message=f"זהו הטקסט מהתמונה: {extracted_text}",
-                assistance_type=None,  # Trigger Hebrew mediation
+                message=extracted_text,  # Send clean text without "זהו הטקסט מהתמונה" prefix
+                assistance_type=None,  # Let AI determine best help type
                 provider=provider
             )
-            logger.info(f"AI response received: {ai_response.content[:100]}...")
+            ai_time = time.time() - ai_start
+            total_time = time.time() - start_time
+            logger.info(f"AI processing: {ai_time:.2f}s | Total time: {total_time:.2f}s")
         except Exception as e:
             logger.error(f"Error in AI processing for OCR: {str(e)}")
             # Create a fallback response
@@ -140,12 +152,14 @@ async def upload_task(
             db.add(ai_response)
             db.commit()
             db.refresh(ai_response)
+            total_time = time.time() - start_time
         
         return {
             "task_id": task.id,
             "extracted_text": extracted_text,
             "ai_response": ai_response.content,
-            "message": "קראתי את התמונה בהצלחה!"
+            "message": "קראתי את התמונה בהצלחה!",
+            "processing_time_seconds": round(total_time, 2)  # For debugging
         }
     else:
         # OCR failed, return error message  
