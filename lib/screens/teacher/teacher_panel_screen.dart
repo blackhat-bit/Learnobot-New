@@ -86,13 +86,16 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
   Future<void> _loadDashboardStats() async {
     try {
       final token = await AuthServiceBackend.getStoredToken();
+      print('🔍 Loading dashboard stats...');
       final stats = await AnalyticsService.getDashboardSummary(token: token);
+      print('✅ Dashboard stats loaded: $stats');
       
       setState(() {
         _dashboardStats = stats;
       });
-    } catch (e) {
-      print('Error loading dashboard stats: $e');
+    } catch (e, stackTrace) {
+      print('❌ Error loading dashboard stats: $e');
+      print('Stack trace: $stackTrace');
       // Use fallback values
       setState(() {
         _dashboardStats = {
@@ -269,9 +272,9 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildSummaryItem('תלמידים', '${_dashboardStats?['total_students'] ?? _recentStudents.length}'),
-                        _buildSummaryItem('שיחות היום', '${_dashboardStats?['total_sessions'] ?? 0}'),
-                        _buildSummaryItem('קריאות לעזרה', '${_dashboardStats?['total_interactions'] ?? 0}'),
+                        _buildSummaryItem('תלמידים', '${_dashboardStats?['total_students'] ?? 0}'),
+                        _buildSummaryItem('שיחות היום', '${_dashboardStats?['today_sessions'] ?? 0}'),
+                        _buildSummaryItem('קריאות לעזרה', '${_dashboardStats?['help_requests'] ?? 0}'),
                       ],
                     ),
                   ),

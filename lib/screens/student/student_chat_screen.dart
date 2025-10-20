@@ -322,19 +322,30 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           final extractedText = result['extracted_text'] ?? '';
           final response = result['ai_response'] ?? '';
           final message = result['message'] ?? '';
+          final method = result['method'] ?? 'ocr'; // 'vision' or 'ocr'
           
           // Check if OCR was successful
           if (extractedText.isNotEmpty && 
               !extractedText.contains('לא הצלחתי') && 
               !extractedText.contains('שגיאה')) {
             _lastTaskText = extractedText;
-            _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
             
-            // If there's a mediation response, show it too
+            // Only show OCR text if NOT using vision (vision AI already saw the image)
+            if (method != 'vision') {
+              _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
+            }
+            
+            // Show AI response (for both vision and OCR methods)
             if (response.isNotEmpty) {
-              Future.delayed(const Duration(seconds: 1), () {
+              if (method == 'vision') {
+                // For vision, show immediately (no delay)
                 _addBotMessage(response);
-              });
+              } else {
+                // For OCR, show after delay (after OCR text message)
+                Future.delayed(const Duration(seconds: 1), () {
+                  _addBotMessage(response);
+                });
+              }
             }
             
             Future.delayed(const Duration(seconds: 1), () {
@@ -681,16 +692,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
     
     // Create the instruction prompt for the AI but don't show it in chat
+    // Use Hebrew prompts and reference the conversation context
     String instructionPrompt;
     switch (type) {
       case 'breakdown':
-        instructionPrompt = 'Break down the following task into step-by-step instructions in simple language: ${_lastTaskText!}';
+        instructionPrompt = 'פרק את המשימה הזו לשלבים פשוטים וברורים';
         break;
       case 'example':
-        instructionPrompt = 'Give a concrete worked example that shows how to solve: ${_lastTaskText!}';
+        instructionPrompt = 'תן דוגמה קונקרטית איך לפתור את המשימה הזו';
         break;
       case 'explain':
-        instructionPrompt = 'Explain the following task in simple words so that a student can understand: ${_lastTaskText!}';
+        instructionPrompt = 'הסבר את המשימה הזו במילים פשוטות';
         break;
       default:
         instructionPrompt = _lastTaskText!;

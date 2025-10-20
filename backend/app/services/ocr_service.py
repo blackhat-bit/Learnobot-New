@@ -87,34 +87,31 @@ async def extract_text(image_data: bytes) -> str:
         if image.mode != 'L':
             image = image.convert('L')
         
-        # Try multiple OCR configurations for Hebrew text
-        configs = [
-            '--psm 6 -c tessedit_char_whitelist=אבגדהוזחטיכלמנסעפצקרשת0123456789.,!?:״׳()[]{}+-=*/% abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
-            '--psm 7',  # Single text line
-            '--psm 8',  # Single word
-            '--psm 6'   # Uniform block of text (default)
-        ]
-
-        best_text = ""
-        best_confidence = 0
-
-        for i, config in enumerate(configs):
-            try:
-                logger.info(f"Trying OCR config {i+1}: {config}")
-                text = pytesseract.image_to_string(
+        # Use optimized single-pass OCR for speed
+        # PSM 6 (uniform text block) works best for homework/exam text
+        try:
+            logger.info("Running optimized OCR for Hebrew text")
+            best_text = pytesseract.image_to_string(
+                image,
+                lang='heb+eng',
+                config='--psm 6'  # Single optimal config for speed
+            ).strip()
+            
+            logger.info(f"OCR extracted text: {best_text[:100]}..." if len(best_text) > 100 else f"OCR extracted text: {best_text}")
+            
+            # If primary config fails or produces very short text, try fallback
+            if not best_text or len(best_text) < 3:
+                logger.info("Primary OCR produced minimal text, trying fallback config")
+                best_text = pytesseract.image_to_string(
                     image,
                     lang='heb+eng',
-                    config=config
-                )
-
-                text = text.strip()
-                if len(text) > len(best_text):
-                    best_text = text
-                    logger.info(f"Config {i+1} produced text: {text[:50]}...")
-
-            except Exception as e:
-                logger.warning(f"OCR config {i+1} failed: {str(e)}")
-                continue
+                    config='--psm 3'  # Automatic page segmentation
+                ).strip()
+                logger.info(f"Fallback OCR result: {best_text[:50]}..." if best_text else "No text found")
+                
+        except Exception as e:
+            logger.error(f"OCR processing failed: {str(e)}")
+            best_text = ""
         
         # Clean up the text
         if best_text and len(best_text.strip()) > 2:

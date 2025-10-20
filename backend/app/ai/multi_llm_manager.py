@@ -198,13 +198,69 @@ class OpenAIProvider(BaseLLMProvider):
             else:
                 raise ValueError(f"OpenAI API error: {str(e)}")
     
+    def process_image(self, image_data: bytes, prompt: str, **kwargs) -> str:
+        """Process image with vision using GPT-4 Vision"""
+        import time
+        import logging
+        import base64
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            from openai import OpenAI
+            
+            # Convert image to base64
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            
+            client = OpenAI(
+                api_key=self.api_key,
+                timeout=120.0
+            )
+            
+            # Use GPT-4 Vision model
+            vision_model = "gpt-4-vision-preview" if "gpt-4" in self.model else self.model
+            
+            response = client.chat.completions.create(
+                model=vision_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_base64}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            response_text = response.choices[0].message.content
+            response_time = time.time() - start_time
+            
+            logger.info(f"OpenAI {vision_model} Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"OpenAI Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"OpenAI Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "OpenAI",
             "type": "online",
             "model": self.model,
             "requires_api_key": True,
-            "status": "configured"
+            "status": "configured",
+            "supports_vision": True
         }
     
     def count_tokens(self, text: str) -> int:
@@ -274,13 +330,82 @@ class AnthropicProvider(BaseLLMProvider):
             else:
                 raise ValueError(f"Anthropic API error: {str(e)}")
     
+    def process_image(self, image_data: bytes, prompt: str, **kwargs) -> str:
+        """Process image with vision using Claude Vision"""
+        import time
+        import logging
+        import httpx
+        import base64
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            # Convert image to base64
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            
+            # Detect image type
+            if image_data.startswith(b'\xff\xd8\xff'):
+                media_type = "image/jpeg"
+            elif image_data.startswith(b'\x89PNG'):
+                media_type = "image/png"
+            elif image_data.startswith(b'GIF'):
+                media_type = "image/gif"
+            elif image_data.startswith(b'WEBP'):
+                media_type = "image/webp"
+            else:
+                media_type = "image/jpeg"  # Default fallback
+            
+            client = anthropic.Anthropic(
+                api_key=self.api_key,
+                timeout=httpx.Timeout(120.0, connect=10.0)
+            )
+            
+            response = client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": image_base64
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            )
+            
+            response_text = response.content[0].text
+            response_time = time.time() - start_time
+            
+            logger.info(f"Anthropic {self.model} Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Anthropic Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"Anthropic Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "Anthropic",
             "type": "online", 
             "model": self.model,
             "requires_api_key": True,
-            "status": "configured"
+            "status": "configured",
+            "supports_vision": True
         }
     
     def count_tokens(self, text: str) -> int:
@@ -360,7 +485,8 @@ class GoogleProvider(BaseLLMProvider):
             raise ValueError("Google API key is required")
         
         self.api_key = api_key
-        self.model = config.get("model", "gemini-1.5-pro")
+        # Default to gemini-2.5-flash (latest stable fast model)
+        self.model = config.get("model", "gemini-2.5-flash")
         self.temperature = config.get("temperature", 0.7)
         self.max_tokens = config.get("max_tokens", 2048)
         
@@ -371,11 +497,29 @@ class GoogleProvider(BaseLLMProvider):
             # Configure with API key
             genai.configure(api_key=api_key)
             
-            # Use the newer model names
-            model_name = "gemini-1.5-flash" if "flash" in self.model else "gemini-1.5-pro"
-            self.client = genai.GenerativeModel(model_name)
+            # Map old model names to new Gemini 2.x models (as of 2025)
+            # Google completely deprecated 1.5 models - now using 2.x series
+            model_mapping = {
+                "gemini-1.5-pro": "models/gemini-2.5-pro",
+                "gemini-1.5-flash": "models/gemini-2.5-flash",
+                "gemini-pro": "models/gemini-2.5-pro",
+                "gemini-flash": "models/gemini-2.5-flash",
+                "gemini-2.5-pro": "models/gemini-2.5-pro",
+                "gemini-2.5-flash": "models/gemini-2.5-flash",
+                "gemini-2.0-flash": "models/gemini-2.0-flash",
+            }
             
-            print(f"Google AI SDK provider initialized with model: {model_name}")
+            # Get model name with 'models/' prefix (required by new API)
+            model_name = model_mapping.get(self.model, "models/gemini-2.5-flash")
+            
+            # Ensure models/ prefix
+            if not model_name.startswith("models/"):
+                model_name = f"models/{model_name}"
+                
+            self.client = genai.GenerativeModel(model_name)
+            self.actual_model = model_name  # Store actual model name
+            
+            print(f"✅ Google AI SDK initialized with model: {model_name}")
             
         except Exception as e:
             print(f"Google AI SDK initialization failed: {e}")
@@ -402,19 +546,30 @@ class GoogleProvider(BaseLLMProvider):
                 prompt,
                 generation_config=generation_config
             )
-            response_text = response.text
+            
+            # Handle multi-part responses (structured content)
+            try:
+                response_text = response.text
+            except ValueError:
+                # Response has multiple parts, concatenate them
+                response_text = ""
+                for candidate in response.candidates:
+                    for part in candidate.content.parts:
+                        response_text += part.text
             
             response_time = time.time() - start_time
-            logger.info(f"Google {self.model} - Response: {response_time:.2f}s")
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.info(f"Google {actual_model} - Response: {response_time:.2f}s")
             
             if response_time > 30.0:
-                logger.warning(f"Google {self.model} slow response: {response_time:.2f}s")
+                logger.warning(f"Google {actual_model} slow response: {response_time:.2f}s")
             
             return response_text
             
         except Exception as e:
             response_time = time.time() - start_time
-            logger.error(f"Google {self.model} error after {response_time:.2f}s: {e}")
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.error(f"Google {actual_model} error after {response_time:.2f}s: {e}")
             
             if "timeout" in str(e).lower() or "timed out" in str(e).lower():
                 raise ValueError(f"Google API timeout: {str(e)}")
@@ -425,13 +580,65 @@ class GoogleProvider(BaseLLMProvider):
             else:
                 raise ValueError(f"Google API error: {str(e)}")
     
+    def process_image(self, image_data: bytes, prompt: str, **kwargs) -> str:
+        """Process image with vision using Google Gemini"""
+        import time
+        import logging
+        import base64
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            import google.generativeai as genai
+            from PIL import Image
+            import io
+            
+            # Convert bytes to PIL Image
+            image = Image.open(io.BytesIO(image_data))
+            
+            # Use vision-capable model configuration
+            generation_config = genai.types.GenerationConfig(
+                temperature=self.temperature,
+                max_output_tokens=self.max_tokens,
+            )
+            
+            # Create vision prompt with image
+            response = self.client.generate_content(
+                [prompt, image],
+                generation_config=generation_config
+            )
+            
+            # Handle multi-part responses (structured content)
+            try:
+                response_text = response.text
+            except ValueError:
+                # Response has multiple parts, concatenate them
+                response_text = ""
+                for candidate in response.candidates:
+                    for part in candidate.content.parts:
+                        response_text += part.text
+            response_time = time.time() - start_time
+            
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.info(f"Google {actual_model} Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.error(f"Google {actual_model} Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"Google Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "Google",
             "type": "online",
             "model": self.model,
             "requires_api_key": True,
-            "status": "configured"
+            "status": "configured",
+            "supports_vision": True
         }
     
     def count_tokens(self, text: str) -> int:
@@ -501,12 +708,33 @@ class MultiProviderLLMManager:
                 print(f"Failed to initialize Anthropic: {e}")
                 
         if settings.GOOGLE_API_KEY:
+            # Initialize multiple Google models (like Ollama does)
+            google_models = [
+                ("gemini-2.5-flash", "Google Gemini 2.5 Flash"),
+                ("gemini-2.5-pro", "Google Gemini 2.5 Pro"),
+                ("gemini-2.0-flash", "Google Gemini 2.0 Flash"),
+            ]
+            
+            for model_key, display_name in google_models:
+                try:
+                    google_provider = GoogleProvider()
+                    google_provider.initialize({
+                        "api_key": settings.GOOGLE_API_KEY,
+                        "model": model_key
+                    })
+                    provider_key = f"google-{model_key.replace('.', '_').replace('-', '_')}"
+                    self.providers[provider_key] = google_provider
+                    print(f"✅ Initialized {display_name}")
+                except Exception as e:
+                    print(f"Failed to initialize {display_name}: {e}")
+            
+            # Also keep "google" key for backward compatibility (points to flash)
             try:
-                google_provider = GoogleProvider()
-                google_provider.initialize({"api_key": settings.GOOGLE_API_KEY})
-                self.providers["google"] = google_provider
+                google_default = GoogleProvider()
+                google_default.initialize({"api_key": settings.GOOGLE_API_KEY, "model": "gemini-2.5-flash"})
+                self.providers["google"] = google_default
             except Exception as e:
-                print(f"Failed to initialize Google: {e}")
+                print(f"Failed to initialize Google default: {e}")
                 
         if settings.COHERE_API_KEY:
             try:
@@ -558,10 +786,40 @@ class MultiProviderLLMManager:
                 "models": ollama_models
             })
         
-        # Online models
+        # Google models (separate group like Ollama)
+        google_models = []
+        for name, provider in self.providers.items():
+            if name.startswith("google-") or name == "google":
+                info = provider.get_info()
+                is_deactivated = self.deactivated_models.get(name, False)
+                model_name = info.get("model", "unknown")
+                
+                # Skip the backward compatibility "google" key in the list
+                if name == "google":
+                    continue
+                    
+                # Create clean display names
+                display_name = model_name.replace("models/", "").replace("gemini-", "Gemini ")
+                
+                google_models.append({
+                    "provider_key": name,
+                    "model_name": model_name,
+                    "display_name": display_name,
+                    "active": name == self.active_provider,
+                    "is_deactivated": is_deactivated
+                })
+        
+        if google_models:
+            models.append({
+                "provider_type": "google",
+                "provider_name": "Google Gemini",
+                "models": google_models
+            })
+        
+        # Other online models (OpenAI, Anthropic, Cohere)
         online_models = []
         for name, provider in self.providers.items():
-            if not name.startswith("ollama-"):
+            if not name.startswith("ollama-") and not name.startswith("google-") and name != "google":
                 info = provider.get_info()
                 is_deactivated = self.deactivated_models.get(name, False)
                 online_models.append({
@@ -575,7 +833,7 @@ class MultiProviderLLMManager:
         if online_models:
             models.append({
                 "provider_type": "online",
-                "provider_name": "Cloud Models",
+                "provider_name": "Other Cloud Models",
                 "models": online_models
             })
             

@@ -173,15 +173,15 @@ async def process_message(
             # Student Selection mode - use existing simple logic
             if assistance_type == "breakdown":
                 ai_response = instruction_processor.breakdown_instruction(
-                    message, student.difficulty_level, language_pref, provider
+                    message, student.difficulty_level, language_pref, provider, student_context
                 )
             elif assistance_type == "example":
                 ai_response = instruction_processor.provide_example(
-                    message, "main concept", language_pref, provider
+                    message, "main concept", language_pref, provider, student_context
                 )
             elif assistance_type == "explain":
                 ai_response = instruction_processor.explain_instruction(
-                    message, student.difficulty_level, language_pref, provider
+                    message, student.difficulty_level, language_pref, provider, student_context
                 )
             else:
                 # Fallback to analysis
@@ -341,14 +341,9 @@ async def process_task_image(
     db.add(task)
     db.commit()
     db.refresh(task)
-    
-    # Create a message with the extracted text
-    await process_message(
-        db=db,
-        session_id=session_id,
-        user_id=student_id,
-        message=f"אני צריך עזרה עם המשימה הזו: {extracted_text}"
-    )
+    # Do not trigger an additional AI call here.
+    # The upload endpoint already invokes the AI once with the extracted text.
+    # Keeping a single model invocation reduces latency and avoids timeouts.
     
     return task
 

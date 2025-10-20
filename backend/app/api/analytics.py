@@ -160,26 +160,79 @@ async def get_teacher_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get summary analytics for all students under a teacher"""
-    if current_user.role not in [UserRole.TEACHER, UserRole.ADMIN]:
+    """Get dashboard summary for teacher/manager"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"=== DASHBOARD SUMMARY === Teacher ID: {teacher_id}, User: {current_user.username}, Role: {current_user.role}")
+    
+    from app.models.user import StudentProfile, TeacherProfile
+    from app.models.analytics import SessionAnalytics
+    
+    # Admin/Manager can see all data, Teachers only their students
+    if current_user.role == UserRole.ADMIN:
+        # Get all students for admin
+        total_students = db.query(StudentProfile).count()
+        students_query = db.query(StudentProfile)
+        logger.info(f"ADMIN - Total students: {total_students}")
+    elif current_user.role == UserRole.TEACHER:
+        # Verify teacher_id matches current user or allow viewing own data
+        if current_user.teacher_profile and current_user.teacher_profile.id != teacher_id:
+            # Teacher trying to access another teacher's data
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        total_students = db.query(StudentProfile).filter(
+            StudentProfile.teacher_id == teacher_id
+        ).count()
+        students_query = db.query(StudentProfile).filter(
+            StudentProfile.teacher_id == teacher_id
+        )
+        logger.info(f"TEACHER - Total students for teacher_id {teacher_id}: {total_students}")
+    else:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Get all students for this teacher
-    from app.models.user import StudentProfile
-    students = db.query(StudentProfile).filter(
-        StudentProfile.teacher_id == teacher_id
-    ).all()
+    # Get student IDs for filtering sessions
+    student_ids = [s.id for s in students_query.all()]
+    logger.info(f"Student IDs: {student_ids}")
     
-    summary = []
-    for student in students:
-        analytics = AnalyticsService.get_student_analytics(db, student.id, 30)
-        summary.append({
-            "student_id": student.id,
-            "student_name": student.full_name,
-            "analytics": analytics
-        })
+    # Get today's date range
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    logger.info(f"Date range: {today_start} to {today_end}")
     
-    return summary
+    # Count today's sessions
+    today_sessions = db.query(ChatSession).filter(
+        ChatSession.student_id.in_(student_ids),
+        ChatSession.started_at >= today_start,
+        ChatSession.started_at < today_end
+    ).count() if student_ids else 0
+    logger.info(f"Today's sessions: {today_sessions}")
+    
+    # Count help requests (teacher calls) from today's sessions
+    if student_ids:
+        session_ids = [s.id for s in db.query(ChatSession).filter(
+            ChatSession.student_id.in_(student_ids),
+            ChatSession.started_at >= today_start,
+            ChatSession.started_at < today_end
+        ).all()]
+        logger.info(f"Session IDs for today: {session_ids}")
+        
+        help_requests = db.query(func.sum(SessionAnalytics.teacher_calls)).filter(
+            SessionAnalytics.session_id.in_(session_ids)
+        ).scalar() or 0
+        logger.info(f"Help requests: {help_requests}")
+    else:
+        help_requests = 0
+        logger.info("No students, help_requests = 0")
+    
+    result = {
+        "total_students": total_students,
+        "today_sessions": today_sessions,
+        "help_requests": int(help_requests)
+    }
+    logger.info(f"=== RETURNING === {result}")
+    
+    return result
 
 @router.get("/research/patterns")
 async def get_research_patterns(

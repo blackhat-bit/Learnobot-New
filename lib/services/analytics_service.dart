@@ -171,26 +171,55 @@ class AnalyticsService {
     }
   }
 
-  // Get dashboard summary for admin
+  // Get dashboard summary for teacher/manager
   static Future<Map<String, dynamic>> getDashboardSummary({
     String? token,
   }) async {
     try {
-      // This endpoint doesn't exist yet, but we can create it
-      // For now, we'll aggregate from existing endpoints
+      String? authToken = token ?? await AuthServiceBackend.getStoredToken();
       
-      // Get research patterns as a proxy for dashboard data
-      final patterns = await getResearchPatterns(token: token);
+      if (authToken == null) {
+        throw Exception('No authentication token found');
+      }
+
+      // Get current user info to get teacher_id
+      final userInfo = await AuthServiceBackend.getCurrentUser(token: authToken);
+      print('📊 User info for dashboard: ${userInfo['role']}, teacher_profile: ${userInfo['teacher_profile']}');
       
-      // Return a dashboard-friendly format
-      return {
-        'total_sessions': 0, // Will be populated from patterns
-        'total_students': 0,
-        'total_interactions': 0,
-        'recent_activities': [],
-        'patterns': patterns,
-      };
+      // For admin/manager, use teacher_id = 0 or 1 (backend will handle showing all students)
+      // For teachers, get their actual teacher_profile id
+      int teacherId = 0;
+      
+      if (userInfo['role'] == 'teacher' || userInfo['role'] == 'TEACHER') {
+        teacherId = userInfo['teacher_profile']?['id'] ?? 0;
+        if (teacherId == 0) {
+          throw Exception('No teacher profile found for teacher user');
+        }
+      } else if (userInfo['role'] == 'admin' || userInfo['role'] == 'ADMIN') {
+        // For admin, we need to pass ANY teacher_id (backend checks role and ignores it for admins)
+        // Use 1 as a dummy value since backend will show all students for admin
+        teacherId = 1;
+      }
+      
+      print('📊 Requesting dashboard for teacher_id: $teacherId');
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.analyticsEndpoint}/summary/teacher/$teacherId'),
+        headers: ApiConfig.getHeaders(token: authToken),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      print('📊 Dashboard response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('📊 Dashboard data: $data');
+        return data;
+      } else {
+        print('📊 Dashboard error response: ${response.body}');
+        throw Exception('Failed to get dashboard summary: ${response.statusCode}');
+      }
     } catch (e) {
+      print('❌ Error in getDashboardSummary: $e');
       throw Exception('Failed to get dashboard summary: $e');
     }
   }
