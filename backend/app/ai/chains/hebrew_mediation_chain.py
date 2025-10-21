@@ -238,9 +238,14 @@ class HebrewMediationChain(Chain):
     provider: Optional[str] = None
     router: HebrewMediationRouter = None
     memory: ConversationStateMemory = None
+    custom_system_prompt: Optional[str] = None
+    temperature: float = 0.7
+    max_tokens: int = 2048
     
-    def __init__(self, provider: str = None):
-        super().__init__(provider=provider)
+    def __init__(self, provider: str = None, custom_system_prompt: str = None,
+                 temperature: float = 0.7, max_tokens: int = 2048):
+        super().__init__(provider=provider, custom_system_prompt=custom_system_prompt,
+                        temperature=temperature, max_tokens=max_tokens)
         self.router = HebrewMediationRouter()
         self.memory = ConversationStateMemory()
     
@@ -384,14 +389,20 @@ class HebrewMediationChain(Chain):
         # Generate response using multi_llm_manager
         try:
             formatted_prompt = template.format(**template_vars)
+            
+            # Prepend custom system prompt if manager configured one
+            if self.custom_system_prompt:
+                formatted_prompt = f"{self.custom_system_prompt}\n\n{formatted_prompt}"
+                logger.info(f"Using custom system prompt for strategy: {strategy}")
 
             logger.info(f"Generating response for strategy: {strategy}")
 
+            # Use custom temperature and max_tokens if set by manager
             response = multi_llm_manager.generate(
                 prompt=formatted_prompt,
                 provider=self.provider,
-                temperature=0.2,  # Even lower temperature for faster, focused responses
-                max_tokens=100    # Shorter responses for speed
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
             )
             
             logger.info(f"Successfully generated response for strategy: {strategy}")
@@ -442,6 +453,8 @@ class HebrewMediationChain(Chain):
         self.memory = ConversationStateMemory()
 
 # Factory function for easy integration
-def create_hebrew_mediation_chain(provider: str = None) -> HebrewMediationChain:
-    """Create configured Hebrew mediation chain"""
-    return HebrewMediationChain(provider=provider)
+def create_hebrew_mediation_chain(provider: str = None, custom_system_prompt: str = None,
+                                 temperature: float = 0.7, max_tokens: int = 2048) -> HebrewMediationChain:
+    """Create configured Hebrew mediation chain with optional custom config"""
+    return HebrewMediationChain(provider=provider, custom_system_prompt=custom_system_prompt,
+                               temperature=temperature, max_tokens=max_tokens)

@@ -86,16 +86,12 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> {
   Future<void> _loadDashboardStats() async {
     try {
       final token = await AuthServiceBackend.getStoredToken();
-      print('🔍 Loading dashboard stats...');
       final stats = await AnalyticsService.getDashboardSummary(token: token);
-      print('✅ Dashboard stats loaded: $stats');
       
       setState(() {
         _dashboardStats = stats;
       });
-    } catch (e, stackTrace) {
-      print('❌ Error loading dashboard stats: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       // Use fallback values
       setState(() {
         _dashboardStats = {
