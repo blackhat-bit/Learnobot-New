@@ -1063,8 +1063,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               ),
                               child: Container(
                                 margin: const EdgeInsets.only(left: 50),
-                                height: 200,
-                                width: 200,
+                                constraints: const BoxConstraints(
+                                  minWidth: 150,
+                                  maxWidth: 250,
+                                  minHeight: 150,
+                                  maxHeight: 350,
+                                ),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: AppColors.primary, width: 2),
