@@ -156,11 +156,11 @@ async def get_prompt_config(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get prompt configuration for a specific mode"""
+    """Get prompt configuration for a specific mode (most recent manager config)"""
+    # Get the most recent config for this mode (manager-created only)
     config = db.query(LLMConfig).filter(
-        LLMConfig.name == f"{mode}_mode",
-        LLMConfig.created_by == current_user.id
-    ).first()
+        LLMConfig.name == f"{mode}_mode"
+    ).order_by(LLMConfig.updated_at.desc()).first()
     
     if not config:
         # Return default
@@ -175,6 +175,28 @@ async def get_prompt_config(
         "temperature": config.temperature,
         "maxTokens": config.max_tokens
     }
+
+@router.delete("/prompts/{mode}")
+async def delete_prompt_config(
+    mode: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete saved prompt config and revert to defaults"""
+    if current_user.role not in [UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only admins can delete configs")
+    
+    # Get the most recent config for this mode
+    config = db.query(LLMConfig).filter(
+        LLMConfig.name == f"{mode}_mode"
+    ).order_by(LLMConfig.updated_at.desc()).first()
+    
+    if config:
+        db.delete(config)
+        db.commit()
+        return {"message": f"{mode} configuration reset to default"}
+    
+    return {"message": "No custom configuration found"}
 
 # Admin API Key Management - User-Friendly for Non-Technical Manager
 

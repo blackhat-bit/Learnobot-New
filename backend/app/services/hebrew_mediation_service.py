@@ -34,13 +34,14 @@ class HebrewMediationService:
                            max_tokens: int = 2048):
         """Get or create mediation chain for session with custom config"""
         
-        if session_id not in self.mediation_chains:
-            self.mediation_chains[session_id] = create_hebrew_mediation_chain(
-                provider=provider,
-                custom_system_prompt=custom_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
+        # Always recreate chain to use latest config (important for config updates)
+        # This ensures config changes take effect immediately in existing sessions
+        self.mediation_chains[session_id] = create_hebrew_mediation_chain(
+            provider=provider,
+            custom_system_prompt=custom_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
             
         return self.mediation_chains[session_id]
     

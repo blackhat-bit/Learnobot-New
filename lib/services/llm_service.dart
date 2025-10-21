@@ -192,6 +192,25 @@ class LLMService {
     }
   }
 
+  // Delete saved prompt configuration (reset to default)
+  static Future<void> deletePromptConfig({
+    required String mode,
+    String? token,
+  }) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.llmEndpoint}/prompts/$mode'),
+        headers: ApiConfig.getHeaders(token: token),
+      ).timeout(ApiConfig.defaultTimeout);
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to delete prompt config');
+      }
+    } catch (e) {
+      throw Exception('Failed to delete prompt config: $e');
+    }
+  }
+
   // Compare providers with a test prompt
   static Future<Map<String, dynamic>> compareProviders({
     required String testPrompt,
