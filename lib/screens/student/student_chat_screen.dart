@@ -94,19 +94,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         for (final providerGroup in models) {
           final modelsList = providerGroup['models'] as List<dynamic>? ?? [];
           for (final model in modelsList) {
-            if (model['active'] == true) {
+            if (model['is_deactivated'] != true) { // Check not deactivated instead of active
               final providerKey = model['provider_key'] as String?;
-              // Prefer Gemini 2.5 Flash as default
-              if (providerKey != null && providerKey.contains('gemini_2_5_flash')) {
+              // Prefer Gemini 2.5 Flash as default (provider key format: google-gemini_2_5_flash)
+              if (providerKey == 'google-gemini_2_5_flash') {
                 _selectedModel = providerKey;
                 return; // Found preferred model, exit early
               }
-              // Store first active model as fallback
+              // Store first non-deactivated model as fallback
               fallbackModel ??= providerKey;
             }
           }
         }
-        // If Gemini 2.5 Flash not found, use first active model
+        // If Gemini 2.5 Flash not found, use first available model
         _selectedModel = fallbackModel;
       });
     } catch (e) {
