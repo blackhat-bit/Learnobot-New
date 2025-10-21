@@ -316,7 +316,8 @@ async def process_task_image(
     session_id: int,
     student_id: int,
     image_data: bytes,
-    extracted_text: str
+    extracted_text: str,
+    image_url: str = None
 ) -> Task:
     """Process an uploaded task image"""
     
@@ -335,6 +336,7 @@ async def process_task_image(
     # Save task
     task = Task(
         student_id=student_id,
+        original_image_url=image_url,
         extracted_text=extracted_text,
         processed_text=extracted_text  # Could add translation here if needed
     )

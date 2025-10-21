@@ -86,6 +86,12 @@ async def startup_event():
     """Initialize providers on application startup"""
     print(" Starting LearnoBot API...")
     sync_providers_to_database()
+    
+    # Create task images directory
+    task_images_dir = Path("uploads/task_images")
+    task_images_dir.mkdir(parents=True, exist_ok=True)
+    print(f" Created task images directory: {task_images_dir}")
+    
     print(" Startup complete!")
 
 # CORS middleware

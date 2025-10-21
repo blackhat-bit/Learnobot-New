@@ -1,8 +1,8 @@
 // lib/screens/student/student_chat_screen.dart
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/chat_service_backend.dart';
 import '../../services/speech_service.dart';
 import '../../services/upload_service.dart';
+import '../../services/api_config.dart';
 
 class StudentChatScreen extends StatefulWidget {
   final String initialMode;
@@ -167,7 +168,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _scrollToBottom();
   }
 
-  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata}) {
+  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata, Uint8List? imageBytes}) {
     setState(() {
       _messages.add(
         ChatMessage(
@@ -177,6 +178,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           sender: SenderType.student,
           type: type,
           metadata: metadata,
+          imageBytes: imageBytes,
         ),
       );
     });
@@ -304,17 +306,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (image != null) {
         print('Image captured: ${image.path}');
 
+        // Read image bytes for immediate display
+        final imageBytes = await image.readAsBytes();
+
         _addUserMessage(
           'תמונת משימה',
           type: MessageType.taskCapture,
+          imageBytes: imageBytes,
           metadata: {'image_path': image.path},
         );
 
         _addBotMessage('אני מעבד את המשימה שצילמת...');
 
         try {
-          // Read image bytes
-          final imageBytes = await image.readAsBytes();
+          // Use already read image bytes
           print('Image size: ${imageBytes.length} bytes, filename: ${image.name}');
           
           // Upload and process with OCR
@@ -331,6 +336,32 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           final response = result['ai_response'] ?? '';
           final message = result['message'] ?? '';
           final method = result['method'] ?? 'ocr'; // 'vision' or 'ocr'
+          final imageUrl = result['image_url']; // Get server URL
+          
+          // Update the message with server image URL
+          if (imageUrl != null) {
+            setState(() {
+              // Find the task capture message and update it with server URL
+              for (int i = _messages.length - 1; i >= 0; i--) {
+                if (_messages[i].type == MessageType.taskCapture && 
+                    _messages[i].metadata?['image_path'] == image.path) {
+                  final msg = _messages[i];
+                  final newMetadata = Map<String, dynamic>.from(msg.metadata ?? {});
+                  newMetadata['image_url'] = imageUrl;
+                  _messages[i] = ChatMessage(
+                    id: msg.id,
+                    content: msg.content,
+                    timestamp: msg.timestamp,
+                    sender: msg.sender,
+                    type: msg.type,
+                    metadata: newMetadata,
+                    imageBytes: null, // Clear bytes, use URL now
+                  );
+                  break;
+                }
+              }
+            });
+          }
           
           // Check if OCR was successful
           if (extractedText.isNotEmpty && 
@@ -951,10 +982,31 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: AppColors.primary),
-                                image: DecorationImage(
-                                  image: FileImage(File(message.metadata!['image_path'])),
-                                  fit: BoxFit.cover,
-                                ),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: message.imageBytes != null
+                                    ? Image.memory(
+                                        message.imageBytes!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : message.metadata?['image_url'] != null
+                                        ? Image.network(
+                                            '${ApiConfig.baseUrl}${message.metadata!['image_url']}',
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return const Center(
+                                                child: CircularProgressIndicator(),
+                                              );
+                                            },
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return const Center(
+                                                child: Icon(Icons.error, color: Colors.red),
+                                              );
+                                            },
+                                          )
+                                        : const Center(child: CircularProgressIndicator()),
                               ),
                             ),
                           ],

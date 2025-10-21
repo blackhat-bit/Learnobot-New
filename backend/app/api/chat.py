@@ -136,6 +136,8 @@ async def upload_task(
     import time
     import asyncio
     from app.services.vision_service import vision_service
+    from pathlib import Path
+    import uuid
     
     logger.info(f"=== UPLOAD REQUEST RECEIVED === Session: {session_id}, Provider: {provider}, File: {file.filename}")
     
@@ -154,6 +156,23 @@ async def upload_task(
     # Read file content
     content = await file.read()
     logger.info(f"Image received: {len(content)} bytes, {file.filename}")
+    
+    # Save image to disk
+    upload_dir = Path("uploads/task_images")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique filename
+    file_ext = Path(file.filename).suffix if file.filename else '.jpg'
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = upload_dir / unique_filename
+    
+    # Write image to disk
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    # Generate URL path
+    image_url = f"/uploads/task_images/{unique_filename}"
+    logger.info(f"Image saved to: {file_path}, URL: {image_url}")
     
     # Check if provider supports vision
     is_cloud_model = provider and vision_service.supports_vision(provider)
@@ -204,7 +223,8 @@ async def upload_task(
                 session_id=session_id,
                 student_id=current_user.student_profile.id,
                 image_data=content,
-                extracted_text=extracted_text
+                extracted_text=extracted_text,
+                image_url=image_url
             )
             
             # Save AI response to chat
@@ -228,7 +248,8 @@ async def upload_task(
                 "ai_response": ai_response.content,
                 "message": "קראתי את התמונה בהצלחה!",
                 "processing_time_seconds": round(total_time, 2),
-                "method": "vision"
+                "method": "vision",
+                "image_url": image_url
             }
             
         except Exception as e:
@@ -253,7 +274,8 @@ async def upload_task(
                 session_id=session_id,
                 student_id=current_user.student_profile.id,
                 image_data=content,
-                extracted_text=extracted_text
+                extracted_text=extracted_text,
+                image_url=image_url
             )
             
             # Process extracted text through AI system
@@ -293,7 +315,8 @@ async def upload_task(
                 "ai_response": ai_response.content,
                 "message": "קראתי את התמונה בהצלחה!",
                 "processing_time_seconds": round(total_time, 2),
-                "method": "ocr"
+                "method": "ocr",
+                "image_url": image_url
             }
         else:
             # OCR failed, return error message  

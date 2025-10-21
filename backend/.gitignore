@@ -19,16 +19,8 @@ htmlcov/
 test_upload.html
 
 # Docker data persistence
-<<<<<<< HEAD
-<<<<<<< HEAD
 data/**
 !data/.keep
-=======
-data/
-data/postgres/
-data/ollama/
->>>>>>> 6acb89f (add postgress and ollama model in the gitignore file)
-=======
-data/**
-!data/.keep
->>>>>>> 74db41c (Update .gitignore to exclude all data files while preserving .keep file)
+
+# Uploaded files
+uploads/task_images/
