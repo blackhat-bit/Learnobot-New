@@ -89,17 +89,25 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       final models = await ChatServiceBackend.getAvailableModels();
       setState(() {
         _availableModels = models;
-        // Set default selected model to the first active one
+        // Set default selected model to Gemini 2.5 Flash
+        String? fallbackModel;
         for (final providerGroup in models) {
           final modelsList = providerGroup['models'] as List<dynamic>? ?? [];
           for (final model in modelsList) {
-            if (model['active'] == true) {
-              _selectedModel = model['provider_key'];
-              break;
+            if (model['is_deactivated'] != true) { // Check not deactivated instead of active
+              final providerKey = model['provider_key'] as String?;
+              // Prefer Gemini 2.5 Flash as default (provider key format: google-gemini_2_5_flash)
+              if (providerKey == 'google-gemini_2_5_flash') {
+                _selectedModel = providerKey;
+                return; // Found preferred model, exit early
+              }
+              // Store first non-deactivated model as fallback
+              fallbackModel ??= providerKey;
             }
           }
-          if (_selectedModel != null) break;
         }
+        // If Gemini 2.5 Flash not found, use first available model
+        _selectedModel = fallbackModel;
       });
     } catch (e) {
       print('Failed to load available models: $e');

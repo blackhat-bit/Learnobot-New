@@ -29,11 +29,19 @@ class HebrewMediationService:
             
         return state
     
-    def get_mediation_chain(self, session_id: int, provider: str = None):
-        """Get or create mediation chain for session"""
+    def get_mediation_chain(self, session_id: int, provider: str = None, 
+                           custom_prompt: str = None, temperature: float = 0.7,
+                           max_tokens: int = 2048):
+        """Get or create mediation chain for session with custom config"""
         
-        if session_id not in self.mediation_chains:
-            self.mediation_chains[session_id] = create_hebrew_mediation_chain(provider)
+        # Always recreate chain to use latest config (important for config updates)
+        # This ensures config changes take effect immediately in existing sessions
+        self.mediation_chains[session_id] = create_hebrew_mediation_chain(
+            provider=provider,
+            custom_system_prompt=custom_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
             
         return self.mediation_chains[session_id]
     
@@ -46,7 +54,7 @@ class HebrewMediationService:
         provider: str = None,
         assistance_type: str = None
     ) -> Dict[str, Any]:
-        """Process message through Hebrew mediation system"""
+        """Process message through Hebrew mediation system - NOW USING SAVED CONFIGS"""
         
         try:
             # Get session and student context
@@ -72,8 +80,29 @@ class HebrewMediationService:
                 "language_preference": student.user.language_preference
             }
             
-            # Get mediation chain
-            chain = self.get_mediation_chain(session_id, provider)
+            # Load saved configuration for this mode (manager-created only)
+            from app.models.llm_config import LLMConfig
+            mode_name = f"{session.mode.value}_mode"  # "practice_mode" or "test_mode"
+            
+            # Get the most recent config for this mode (only managers can create them)
+            saved_config = db.query(LLMConfig).filter(
+                LLMConfig.name == mode_name
+            ).order_by(LLMConfig.updated_at.desc()).first()
+            
+            if saved_config:
+                logger.info(f"Using manager config for mode '{mode_name}' (updated: {saved_config.updated_at})")
+            
+            # Extract config values or use defaults
+            custom_prompt = saved_config.system_prompt if saved_config else None
+            temperature = saved_config.temperature if saved_config else 0.7
+            max_tokens = saved_config.max_tokens if saved_config else 2048
+            
+            logger.info(f"Config for mode '{mode_name}': "
+                       f"custom_prompt={'YES' if custom_prompt else 'NO (default)'}, "
+                       f"temp={temperature}, max_tokens={max_tokens}")
+            
+            # Get mediation chain with custom configuration
+            chain = self.get_mediation_chain(session_id, provider, custom_prompt, temperature, max_tokens)
             
             # Prepare chain inputs
             chain_inputs = {

@@ -27,6 +27,29 @@ class InstructionProcessor:
             memory_key="chat_history",
             return_messages=True
         )
+    
+    def _get_custom_system_prompt(self, mode: str = "practice"):
+        """Load saved custom system prompt from manager configuration"""
+        try:
+            from app.core.database import SessionLocal
+            from app.models.llm_config import LLMConfig
+            
+            db = SessionLocal()
+            try:
+                mode_name = f"{mode}_mode"
+                saved_config = db.query(LLMConfig).filter(
+                    LLMConfig.name == mode_name
+                ).order_by(LLMConfig.updated_at.desc()).first()
+                
+                if saved_config and saved_config.system_prompt:
+                    logger.info(f"✅ Using manager custom prompt for {mode_name}")
+                    return saved_config.system_prompt
+                return None
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error loading custom prompt: {e}")
+            return None
         
     def _get_llm_for_provider(self, provider: str = None):
         """Get LLM instance for specified provider"""
@@ -73,6 +96,9 @@ class InstructionProcessor:
         
         # For cloud models, use efficient prompt with system guidance
         if provider and not provider.startswith("ollama-"):
+            # Load saved custom prompt from manager if available
+            custom_system_prompt = self._get_custom_system_prompt("practice")
+            
             # Get conversation history
             conversation_history = student_context.get("conversation_history", "")
 
@@ -94,7 +120,7 @@ class InstructionProcessor:
             # Short, efficient prompt - guide student to choose assistance type
             if is_first_message:
                 # First message - include greeting
-                prompt_text = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
+                default_prompt = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
 
 התלמיד שאל: "{instruction_interpretation}"
 
@@ -106,7 +132,7 @@ class InstructionProcessor:
 איך תרצה שאעזור לך?"""
             else:
                 # Continuing conversation - NO greeting, just help
-                prompt_text = f"""התלמיד שאל: "{instruction_interpretation}"
+                default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
 
 היסטוריה: {conversation_history}
 
@@ -120,6 +146,14 @@ class InstructionProcessor:
 
 אחרת, שאל איך לעזור:
 🔍 **הסבר** 📝 **פירוק לשלבים** 💡 **דוגמה**"""
+            
+            # If custom prompt exists, prepend it to the default prompt
+            if custom_system_prompt:
+                prompt_text = f"""{custom_system_prompt}
+
+{default_prompt}"""
+            else:
+                prompt_text = default_prompt
         else:
             # Use existing complex prompts for local models
             language_pref = student_context.get("language_preference", "he")
@@ -152,6 +186,9 @@ class InstructionProcessor:
         if provider and not provider.startswith("ollama-"):
             from app.ai.prompts.hebrew_prompts import HEBREW_BREAKDOWN_SHORT
             
+            # Load custom system prompt from manager
+            custom_system_prompt = self._get_custom_system_prompt("practice")
+            
             # Get conversation history if available
             conversation_history = ""
             if student_context:
@@ -159,16 +196,24 @@ class InstructionProcessor:
             
             # Include conversation history in prompt for context
             if conversation_history:
-                prompt_text = f"""היסטוריית שיחה:
+                default_prompt = f"""היסטוריית שיחה:
 {conversation_history}
 
 {HEBREW_BREAKDOWN_SHORT.format(instruction=instruction)}
 
 התבסס על השיחה האחרונה כדי לתת פירוק רלוונטי."""
             else:
-                prompt_text = HEBREW_BREAKDOWN_SHORT.format(instruction=instruction)
+                default_prompt = HEBREW_BREAKDOWN_SHORT.format(instruction=instruction)
             
-            logger.info(f"🔧 BREAKDOWN - Provider: {provider}, Has history: {bool(conversation_history)}")
+            # Prepend custom prompt if exists
+            if custom_system_prompt:
+                prompt_text = f"""{custom_system_prompt}
+
+{default_prompt}"""
+            else:
+                prompt_text = default_prompt
+            
+            logger.info(f"🔧 BREAKDOWN - Provider: {provider}, Has history: {bool(conversation_history)}, Custom prompt: {bool(custom_system_prompt)}")
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)
@@ -189,6 +234,9 @@ class InstructionProcessor:
         if provider and not provider.startswith("ollama-"):
             from app.ai.prompts.hebrew_prompts import HEBREW_EXAMPLE_SHORT
             
+            # Load custom system prompt from manager
+            custom_system_prompt = self._get_custom_system_prompt("practice")
+            
             # Get conversation history if available
             conversation_history = ""
             if student_context:
@@ -196,14 +244,22 @@ class InstructionProcessor:
             
             # Include conversation history in prompt for context
             if conversation_history:
-                prompt_text = f"""היסטוריית שיחה:
+                default_prompt = f"""היסטוריית שיחה:
 {conversation_history}
 
 {HEBREW_EXAMPLE_SHORT.format(instruction=instruction)}
 
 התבסס על השיחה האחרונה כדי לתת דוגמה רלוונטית."""
             else:
-                prompt_text = HEBREW_EXAMPLE_SHORT.format(instruction=instruction)
+                default_prompt = HEBREW_EXAMPLE_SHORT.format(instruction=instruction)
+            
+            # Prepend custom prompt if exists
+            if custom_system_prompt:
+                prompt_text = f"""{custom_system_prompt}
+
+{default_prompt}"""
+            else:
+                prompt_text = default_prompt
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)
@@ -221,6 +277,9 @@ class InstructionProcessor:
         if provider and not provider.startswith("ollama-"):
             from app.ai.prompts.hebrew_prompts import HEBREW_EXPLAIN_SHORT
             
+            # Load custom system prompt from manager
+            custom_system_prompt = self._get_custom_system_prompt("practice")
+            
             # Get conversation history if available
             conversation_history = ""
             if student_context:
@@ -228,14 +287,22 @@ class InstructionProcessor:
             
             # Include conversation history in prompt for context
             if conversation_history:
-                prompt_text = f"""היסטוריית שיחה:
+                default_prompt = f"""היסטוריית שיחה:
 {conversation_history}
 
 {HEBREW_EXPLAIN_SHORT.format(instruction=instruction)}
 
 התבסס על השיחה האחרונה כדי לתת הסבר רלוונטי."""
             else:
-                prompt_text = HEBREW_EXPLAIN_SHORT.format(instruction=instruction)
+                default_prompt = HEBREW_EXPLAIN_SHORT.format(instruction=instruction)
+            
+            # Prepend custom prompt if exists
+            if custom_system_prompt:
+                prompt_text = f"""{custom_system_prompt}
+
+{default_prompt}"""
+            else:
+                prompt_text = default_prompt
         else:
             # Use existing prompts for local models
             prompts = self._get_prompts_for_language(language_preference)

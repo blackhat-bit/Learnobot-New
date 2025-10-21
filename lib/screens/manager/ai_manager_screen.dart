@@ -52,7 +52,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     super.initState();
     _loadProviders();
     _loadAvailableModels();
-    _systemPromptController.text = _prompts['practice']['system'];
+    _loadSavedPrompts(); // Load saved configs from backend
   }
 
   @override
@@ -89,6 +89,35 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
     }
   }
 
+  Future<void> _loadSavedPrompts() async {
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      final practiceConfig = await LLMService.getPromptConfig(
+        mode: 'practice',
+        token: token,
+      );
+      final testConfig = await LLMService.getPromptConfig(
+        mode: 'test',
+        token: token,
+      );
+      
+      setState(() {
+        _prompts['practice']['system'] = practiceConfig['system'];
+        _prompts['practice']['temperature'] = practiceConfig['temperature'];
+        _prompts['practice']['maxTokens'] = practiceConfig['maxTokens'];
+        
+        _prompts['test']['system'] = testConfig['system'];
+        _prompts['test']['temperature'] = testConfig['temperature'];
+        _prompts['test']['maxTokens'] = testConfig['maxTokens'];
+        
+        _systemPromptController.text = _prompts[_selectedMode]['system'];
+      });
+    } catch (e) {
+      print('Error loading saved prompts: $e');
+      // Keep using hardcoded defaults on error
+      _systemPromptController.text = _prompts[_selectedMode]['system'];
+    }
+  }
 
   Future<void> _savePrompt() async {
     setState(() => _isLoading = true);
@@ -106,6 +135,43 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
       _showSuccess('Prompt saved successfully');
     } catch (e) {
       _showError('Failed to save prompt: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _resetPromptToDefault() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final token = await AuthServiceBackend.getStoredToken();
+      await LLMService.deletePromptConfig(
+        mode: _selectedMode,
+        token: token,
+      );
+      
+      // Reset to hardcoded defaults
+      if (_selectedMode == 'practice') {
+        _prompts['practice']['system'] = '''אתה LearnoBot, עוזר AI שנועד לעזור לתלמידים עם לקויות למידה להבין הוראות לימודיות.
+
+התפקיד שלך:
+1. לפרק הוראות מורכבות לצעדים פשוטים
+2. לספק הסברים ברורים
+3. לתת דוגמאות רלוונטיות
+4. להיות סבלני ומעודד''';
+        _prompts['practice']['temperature'] = 0.7;
+        _prompts['practice']['maxTokens'] = 2048;
+      } else {
+        _prompts['test']['system'] = '''אתה במצב מבחן. ספק עזרה מינימלית בלבד.
+מקסימום 3 ניסיונות עזרה.''';
+        _prompts['test']['temperature'] = 0.5;
+        _prompts['test']['maxTokens'] = 1024;
+      }
+      
+      _systemPromptController.text = _prompts[_selectedMode]['system'];
+      _showSuccess('Configuration reset to default');
+    } catch (e) {
+      _showError('Failed to reset: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -528,6 +594,22 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
               Icon(Icons.save),
               SizedBox(width: 8),
               Text('Save Configuration'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: _resetPromptToDefault,
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            side: const BorderSide(color: Colors.red),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.restore, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Reset to Default', style: TextStyle(color: Colors.red)),
             ],
           ),
         ),

@@ -184,7 +184,6 @@ class AnalyticsService {
 
       // Get current user info to get teacher_id
       final userInfo = await AuthServiceBackend.getCurrentUser(token: authToken);
-      print('📊 User info for dashboard: ${userInfo['role']}, teacher_profile: ${userInfo['teacher_profile']}');
       
       // For admin/manager, use teacher_id = 0 or 1 (backend will handle showing all students)
       // For teachers, get their actual teacher_profile id
@@ -200,26 +199,19 @@ class AnalyticsService {
         // Use 1 as a dummy value since backend will show all students for admin
         teacherId = 1;
       }
-      
-      print('📊 Requesting dashboard for teacher_id: $teacherId');
 
       final response = await http.get(
         Uri.parse('${ApiConfig.analyticsEndpoint}/summary/teacher/$teacherId'),
         headers: ApiConfig.getHeaders(token: authToken),
       ).timeout(ApiConfig.defaultTimeout);
-
-      print('📊 Dashboard response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('📊 Dashboard data: $data');
         return data;
       } else {
-        print('📊 Dashboard error response: ${response.body}');
         throw Exception('Failed to get dashboard summary: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error in getDashboardSummary: $e');
       throw Exception('Failed to get dashboard summary: $e');
     }
   }
