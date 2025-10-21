@@ -530,6 +530,87 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
   // === END SATISFACTION BAR LOGIC ===
 
+  // === FULL-SCREEN IMAGE VIEWER ===
+  void _showFullScreenImage({
+    Uint8List? imageBytes,
+    String? imageUrl,
+  }) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              // Full screen image
+              Center(
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: imageBytes != null
+                      ? Image.memory(
+                          imageBytes,
+                          fit: BoxFit.contain,
+                        )
+                      : imageUrl != null
+                          ? Image.network(
+                              '${ApiConfig.baseUrl}$imageUrl',
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.error, color: Colors.red, size: 48),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'שגיאה בטעינת התמונה',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            )
+                          : const Center(
+                              child: Text(
+                                'אין תמונה זמינה',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                ),
+              ),
+              // Close button
+              Positioned(
+                top: 40,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  // === END FULL-SCREEN IMAGE VIEWER ===
+
   // === MODEL SELECTOR ===
   Widget _buildModelSelector() {
     if (_availableModels.isEmpty) return const SizedBox.shrink();
@@ -975,38 +1056,65 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           ),
                           if (message.metadata?['image_path'] != null) ...[
                             const SizedBox(height: 5),
-                            Container(
-                              margin: const EdgeInsets.only(left: 50),
-                              height: 100,
-                              width: 150,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.primary),
+                            GestureDetector(
+                              onTap: () => _showFullScreenImage(
+                                imageBytes: message.imageBytes,
+                                imageUrl: message.metadata?['image_url'],
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: message.imageBytes != null
-                                    ? Image.memory(
-                                        message.imageBytes!,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : message.metadata?['image_url'] != null
-                                        ? Image.network(
-                                            '${ApiConfig.baseUrl}${message.metadata!['image_url']}',
-                                            fit: BoxFit.cover,
-                                            loadingBuilder: (context, child, loadingProgress) {
-                                              if (loadingProgress == null) return child;
-                                              return const Center(
-                                                child: CircularProgressIndicator(),
-                                              );
-                                            },
-                                            errorBuilder: (context, error, stackTrace) {
-                                              return const Center(
-                                                child: Icon(Icons.error, color: Colors.red),
-                                              );
-                                            },
-                                          )
-                                        : const Center(child: CircularProgressIndicator()),
+                              child: Container(
+                                margin: const EdgeInsets.only(left: 50),
+                                height: 200,
+                                width: 200,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.primary, width: 2),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: message.imageBytes != null
+                                          ? Image.memory(
+                                              message.imageBytes!,
+                                              fit: BoxFit.contain,
+                                            )
+                                          : message.metadata?['image_url'] != null
+                                              ? Image.network(
+                                                  '${ApiConfig.baseUrl}${message.metadata!['image_url']}',
+                                                  fit: BoxFit.contain,
+                                                  loadingBuilder: (context, child, loadingProgress) {
+                                                    if (loadingProgress == null) return child;
+                                                    return const Center(
+                                                      child: CircularProgressIndicator(),
+                                                    );
+                                                  },
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return const Center(
+                                                      child: Icon(Icons.error, color: Colors.red),
+                                                    );
+                                                  },
+                                                )
+                                              : const Center(child: CircularProgressIndicator()),
+                                    ),
+                                    // Tap hint icon
+                                    Positioned(
+                                      bottom: 4,
+                                      right: 4,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.5),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Icon(
+                                          Icons.zoom_in,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
