@@ -38,6 +38,7 @@ pydantic-settings==2.1.0
 email-validator
 httpx==0.25.2
 aiofiles==23.2.1
+cryptography>=41.0.0  # For API key encryption
 
 # Google Cloud
 google-cloud-secret-manager==2.16.4

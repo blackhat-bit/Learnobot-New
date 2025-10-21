@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: Optional[str] = None
     COHERE_API_KEY: Optional[str] = None
     
+    # Encryption for API keys stored in database (Fernet key, base64-encoded)
+    # Generate with: python backend/scripts/generate_encryption_key.py
+    ENCRYPTION_KEY: Optional[str] = None
+    
     # OCR Settings
     OCR_LANGUAGE: str = "heb+eng"
     
