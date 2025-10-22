@@ -4,9 +4,13 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 
+// Import web speech service for web platform
+import 'web_speech_service.dart' if (dart.library.io) 'web_speech_service_stub.dart';
+
 class SpeechService extends ChangeNotifier {
   late FlutterTts _flutterTts;
   late SpeechToText _speechToText;
+  WebSpeechService? _webSpeechService;
   
   bool _isTtsInitialized = false;
   bool _isSttInitialized = false;
@@ -14,10 +18,13 @@ class SpeechService extends ChangeNotifier {
   bool _isListening = false;
   String _lastWords = '';
   double _confidence = 0.0;
+  String _lastError = '';
 
   // TTS State
-  bool get isSpeaking => _isSpeaking;
-  bool get isTtsInitialized => _isTtsInitialized;
+  bool get isSpeaking => kIsWeb ? (_webSpeechService?.isSpeaking ?? false) : _isSpeaking;
+  bool get isTtsInitialized => kIsWeb ? (_webSpeechService?.isInitialized ?? false) : _isTtsInitialized;
+  String get lastError => kIsWeb ? (_webSpeechService?.lastError ?? '') : _lastError;
+  bool get hasHebrewVoice => kIsWeb ? (_webSpeechService?.hasHebrewVoice ?? false) : true; // Assume mobile has Hebrew
 
   // STT State
   bool get isListening => _isListening;
@@ -26,12 +33,26 @@ class SpeechService extends ChangeNotifier {
   double get confidence => _confidence;
 
   SpeechService() {
+    if (kIsWeb) {
+      // Initialize web-specific TTS service
+      _webSpeechService = WebSpeechService();
+      _webSpeechService!.addListener(() {
+        notifyListeners(); // Forward notifications from web service
+      });
+    }
     _initializeTts();
     _initializeStt();
   }
 
   // Initialize Text-to-Speech
   Future<void> _initializeTts() async {
+    // Skip flutter_tts initialization on web - use WebSpeechService instead
+    if (kIsWeb) {
+      _isTtsInitialized = true;
+      notifyListeners();
+      return;
+    }
+    
     try {
       _flutterTts = FlutterTts();
 
@@ -133,13 +154,15 @@ class SpeechService extends ChangeNotifier {
   Future<void> speak(String text) async {
     print('Speak requested for text: "$text"');
     
-    if (!_isTtsInitialized) {
+    if (!isTtsInitialized) {
       print('TTS not initialized, initializing...');
       await _initializeTts();
     }
 
-    if (!_isTtsInitialized) {
+    if (!isTtsInitialized) {
       print('TTS initialization failed, cannot speak');
+      _lastError = 'TTS initialization failed';
+      notifyListeners();
       return;
     }
 
@@ -153,30 +176,43 @@ class SpeechService extends ChangeNotifier {
       await stop();
       
       print('Starting TTS for: "$text"');
-      // Start speaking
-      int result = await _flutterTts.speak(text);
-      print('TTS speak result: $result');
+      
+      if (kIsWeb) {
+        // Use Web Speech API for better Hebrew support on browsers
+        await _webSpeechService!.speak(text);
+      } else {
+        // Use flutter_tts on mobile platforms
+        int result = await _flutterTts.speak(text);
+        print('TTS speak result: $result');
+      }
     } catch (e) {
       print('Error speaking: $e');
-      _isSpeaking = false;
+      _lastError = 'Error speaking: $e';
+      if (!kIsWeb) {
+        _isSpeaking = false;
+      }
       notifyListeners();
     }
   }
 
   Future<void> stop() async {
-    if (_isTtsInitialized) {
+    if (kIsWeb) {
+      await _webSpeechService?.stop();
+    } else if (_isTtsInitialized) {
       await _flutterTts.stop();
       _isSpeaking = false;
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   Future<void> pause() async {
-    if (_isTtsInitialized) {
+    if (kIsWeb) {
+      await _webSpeechService?.pause();
+    } else if (_isTtsInitialized) {
       await _flutterTts.pause();
       _isSpeaking = false;
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   // Speech-to-Text Functions
@@ -277,7 +313,11 @@ class SpeechService extends ChangeNotifier {
 
   @override
   void dispose() {
-    _flutterTts.stop();
+    if (kIsWeb) {
+      _webSpeechService?.dispose();
+    } else {
+      _flutterTts.stop();
+    }
     _speechToText.stop();
     super.dispose();
   }

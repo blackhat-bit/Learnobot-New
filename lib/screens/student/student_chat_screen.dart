@@ -54,6 +54,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   // Speech functionality
   bool _isListening = false;
+  late SpeechService _speechService;
 
   // Profile picture
   String? _profileImageUrl;
@@ -62,6 +63,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   void initState() {
     super.initState();
     _currentMode = widget.initialMode;
+    _speechService = SpeechService();
+    
+    // Listen to speech service changes to update UI
+    _speechService.addListener(() {
+      if (mounted) {
+        setState(() {}); // Rebuild to update TTS button states
+      }
+    });
     _typingMessages = [
       'מעבד את השאלה...',  // First: Processing the question
       'חושב...',           // Then: Thinking
@@ -150,6 +159,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _typingMessageTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
+    _speechService.dispose();
     super.dispose();
   }
 
@@ -479,16 +489,45 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
 
   Future<void> _speakText(String text) async {
-    final speechService = Provider.of<SpeechService>(context, listen: false);
-    
-    if (!speechService.isTtsInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('מערכת הקריאה אינה זמינה על המכשיר שלך')),
-      );
-      return;
-    }
+    try {
+      if (!_speechService.isTtsInitialized) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_speechService.lastError.isNotEmpty 
+                ? 'שגיאה בהקראה: ${_speechService.lastError}'
+                : 'מערכת הקריאה אינה זמינה על המכשיר שלך'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
 
-    await speechService.speak(text);
+      // If already speaking, stop current speech
+      if (_speechService.isSpeaking) {
+        await _speechService.stop();
+        return;
+      }
+
+      await _speechService.speak(text);
+      
+      // Show success feedback for Hebrew TTS on web
+      if (!_speechService.hasHebrewVoice) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('הקראה באנגלית - קול עברי לא זמין בדפדפן זה'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('שגיאה בהקראה: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // === SATISFACTION BAR LOGIC ===
@@ -1053,6 +1092,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                 _messages[index - 1].sender != message.sender,
                             onSpeakPressed: _speakText,
                             studentProfileImageUrl: _profileImageUrl,
+                            isTtsSpeaking: _speechService.isSpeaking,
+                            isTtsAvailable: _speechService.isTtsInitialized,
+                            ttsError: _speechService.lastError.isNotEmpty ? _speechService.lastError : null,
                           ),
                           if (message.metadata?['image_path'] != null) ...[
                             const SizedBox(height: 5),
@@ -1139,6 +1181,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             _messages[index - 1].sender != message.sender,
                         onSpeakPressed: _speakText,
                         studentProfileImageUrl: _profileImageUrl,
+                        isTtsSpeaking: _speechService.isSpeaking,
+                        isTtsAvailable: _speechService.isTtsInitialized,
+                        ttsError: _speechService.lastError.isNotEmpty ? _speechService.lastError : null,
                       ),
                       if (message.sender == SenderType.bot &&
                           (message.metadata == null ||
