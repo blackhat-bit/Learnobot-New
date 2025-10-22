@@ -1,7 +1,6 @@
 // lib/screens/teacher/account_settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../services/auth_service_backend.dart';
@@ -532,7 +531,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       );
       
       if (image != null) {
-        await _uploadProfilePicture(File(image.path));
+        await _uploadProfilePicture(image);
       }
     } catch (e) {
       print('Error picking image from camera: $e');
@@ -557,7 +556,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       );
       
       if (image != null) {
-        await _uploadProfilePicture(File(image.path));
+        await _uploadProfilePicture(image);
       }
     } catch (e) {
       print('Error picking image from gallery: $e');
@@ -572,7 +571,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     }
   }
 
-  Future<void> _uploadProfilePicture(File imageFile) async {
+  Future<void> _uploadProfilePicture(XFile imageFile) async {
     setState(() => _isLoading = true);
     
     try {

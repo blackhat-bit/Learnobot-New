@@ -1,5 +1,4 @@
 // lib/widgets/student_card_widget.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../constants/app_colors.dart';
@@ -1075,7 +1074,7 @@ class _EditStudentDialogState extends State<_EditStudentDialog> {
       );
       
       if (image != null) {
-        await _uploadProfilePicture(File(image.path));
+        await _uploadProfilePicture(image);
       }
     } catch (e) {
       if (mounted) {
@@ -1099,7 +1098,7 @@ class _EditStudentDialogState extends State<_EditStudentDialog> {
       );
       
       if (image != null) {
-        await _uploadProfilePicture(File(image.path));
+        await _uploadProfilePicture(image);
       }
     } catch (e) {
       if (mounted) {
@@ -1113,7 +1112,7 @@ class _EditStudentDialogState extends State<_EditStudentDialog> {
     }
   }
 
-  Future<void> _uploadProfilePicture(File imageFile) async {
+  Future<void> _uploadProfilePicture(XFile imageFile) async {
     setState(() => _isLoading = true);
     
     try {
