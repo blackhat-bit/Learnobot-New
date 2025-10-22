@@ -4,6 +4,7 @@
 Script to create an admin user for LearnoBot
 Place this file in: learnobot-backend/scripts/create_admin.py
 """
+"""
 import sys
 import os
 
@@ -16,7 +17,8 @@ from app.core.security import get_password_hash
 import getpass
 
 def create_admin():
-    """Create an admin user interactively"""
+
+Create an admin user interactively
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
     
@@ -100,7 +102,7 @@ def create_admin():
         db.close()
 
 def list_users():
-    """List all users in the system"""
+    List all users in the system
     db = SessionLocal()
     
     try:
@@ -128,3 +130,4 @@ if __name__ == "__main__":
         list_users()
     else:
         create_admin()
+        """
