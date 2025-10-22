@@ -80,6 +80,10 @@ backend/secrets/*.txt
 backend/secrets/*.key
 backend/secrets/*.pem
 
+suggested solution.txt
+
 ClaudeResorce/
 
 examplesInteractionsStudentBot.pdf
+
+.cursor/plans

@@ -84,9 +84,85 @@ async def timeout_middleware(request: Request, call_next):
 @app.on_event("startup")
 async def startup_event():
     """Initialize providers on application startup"""
-    print(" Starting LearnoBot API...")
+    print("🚀 Starting LearnoBot API...")
+    
+    # Initialize encryption service
+    from app.core.encryption import init_encryption_service
+    init_encryption_service(settings.ENCRYPTION_KEY)
+    if settings.ENCRYPTION_KEY:
+        print("✅ Encryption service initialized with key")
+    else:
+        print("⚠️  No ENCRYPTION_KEY - API keys will be stored in plain text (dev mode)")
+    
+    # Sync local providers to database
     sync_providers_to_database()
-    print(" Startup complete!")
+    
+    # Load encrypted API keys from database and initialize providers
+    from app.core.encryption import get_encryption_service
+    from app.ai.multi_llm_manager import OpenAIProvider, AnthropicProvider, GoogleProvider, CohereProvider
+    
+    encryption_service = get_encryption_service()
+    
+    db = SessionLocal()
+    try:
+        providers_with_keys = db.query(LLMProvider).filter(
+            LLMProvider.api_key.isnot(None),
+            LLMProvider.type == "cloud"  # Only cloud providers need API keys
+        ).all()
+        
+        for provider_db in providers_with_keys:
+            # Decrypt the stored API key
+            decrypted_key = encryption_service.decrypt(provider_db.api_key)
+            
+            if decrypted_key and len(decrypted_key) > 0:
+                try:
+                    # Initialize provider directly without re-storing (avoid double encryption)
+                    provider_name = provider_db.name.lower()
+                    
+                    # Update in-memory settings
+                    if provider_name == "openai":
+                        settings.OPENAI_API_KEY = decrypted_key
+                        provider_class = OpenAIProvider
+                    elif provider_name == "anthropic":
+                        settings.ANTHROPIC_API_KEY = decrypted_key
+                        provider_class = AnthropicProvider
+                    elif provider_name == "google":
+                        settings.GOOGLE_API_KEY = decrypted_key
+                        provider_class = GoogleProvider
+                    elif provider_name == "cohere":
+                        settings.COHERE_API_KEY = decrypted_key
+                        provider_class = CohereProvider
+                    else:
+                        print(f"⚠️  Unknown provider: {provider_name}")
+                        continue
+                    
+                    # Initialize provider instance
+                    provider_instance = provider_class()
+                    provider_instance.initialize({"api_key": decrypted_key})
+                    
+                    # Add to active providers (in-memory only, no DB write)
+                    multi_llm_manager.providers[provider_name] = provider_instance
+                    
+                    print(f"✅ Loaded and initialized {provider_name} from database")
+                    
+                except Exception as e:
+                    print(f"⚠️  Failed to initialize {provider_db.name}: {e}")
+            else:
+                print(f"⚠️  Could not decrypt API key for {provider_db.name}")
+                
+    except Exception as e:
+        print(f"⚠️  Error loading API keys from database: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        db.close()
+    
+    # Create task images directory
+    task_images_dir = Path("uploads/task_images")
+    task_images_dir.mkdir(parents=True, exist_ok=True)
+    print(f"📁 Created task images directory: {task_images_dir}")
+    
+    print("✅ Startup complete!")
 
 # CORS middleware
 app.add_middleware(

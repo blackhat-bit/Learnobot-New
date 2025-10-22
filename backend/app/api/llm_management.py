@@ -123,18 +123,20 @@ async def update_prompt_config(
     if mode not in ["practice", "test"]:
         raise HTTPException(status_code=400, detail="Invalid mode")
     
-    # Save to database
+    # Save to database - ONE global config per mode (not per manager)
     config_entry = db.query(LLMConfig).filter(
-        LLMConfig.name == f"{mode}_mode",
-        LLMConfig.created_by == current_user.id
+        LLMConfig.name == f"{mode}_mode"
     ).first()
     
     if config_entry:
+        # Update existing global config
         config_entry.system_prompt = config.system
         config_entry.temperature = config.temperature
         config_entry.max_tokens = config.maxTokens
         config_entry.updated_at = datetime.utcnow()
+        config_entry.created_by = current_user.id  # Track who last updated
     else:
+        # Create new global config
         config_entry = LLMConfig(
             provider_id=1,  # Default provider
             name=f"{mode}_mode",
@@ -142,7 +144,7 @@ async def update_prompt_config(
             temperature=config.temperature,
             max_tokens=config.maxTokens,
             system_prompt=config.system,
-            created_by=current_user.id
+            created_by=current_user.id  # Track who created
         )
         db.add(config_entry)
     

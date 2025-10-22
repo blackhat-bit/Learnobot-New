@@ -9,6 +9,9 @@ class ChatBubble extends StatelessWidget {
   final bool showAvatar;
   final Function(String)? onSpeakPressed;
   final String? studentProfileImageUrl;
+  final bool isTtsSpeaking;
+  final bool isTtsAvailable;
+  final String? ttsError;
   
   const ChatBubble({
     Key? key,
@@ -16,6 +19,9 @@ class ChatBubble extends StatelessWidget {
     this.showAvatar = true,
     this.onSpeakPressed,
     this.studentProfileImageUrl,
+    this.isTtsSpeaking = false,
+    this.isTtsAvailable = true,
+    this.ttsError,
   }) : super(key: key);
 
   @override
@@ -91,20 +97,7 @@ class ChatBubble extends StatelessWidget {
                       
                       // Speaker button for bot messages only
                       if (!isStudent && onSpeakPressed != null)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.volume_up,
-                            size: 16,
-                            color: AppColors.primary,
-                          ),
-                          onPressed: () => onSpeakPressed!(message.content),
-                          tooltip: 'הקרא בקול',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 24,
-                            minHeight: 24,
-                          ),
-                        ),
+                        _buildSpeakButton(),
                     ],
                   ),
                 ],
@@ -133,6 +126,61 @@ class ChatBubble extends StatelessWidget {
           else if (isStudent)
             const SizedBox(width: 32),
         ],
+      ),
+    );
+  }
+
+  // Build enhanced speak button with status indicators and error handling
+  Widget _buildSpeakButton() {
+    // Determine button state and appearance
+    IconData iconData;
+    Color iconColor;
+    String tooltipText;
+    VoidCallback? onPressed;
+
+    if (!isTtsAvailable) {
+      // TTS not available
+      iconData = Icons.volume_off;
+      iconColor = Colors.grey;
+      tooltipText = ttsError ?? 'הקראה בקול לא זמינה';
+      onPressed = null; // Disabled
+    } else if (isTtsSpeaking) {
+      // Currently speaking
+      iconData = Icons.volume_up;
+      iconColor = Colors.green;
+      tooltipText = 'מדבר כעת...';
+      onPressed = () => onSpeakPressed!(message.content); // Allow stopping
+    } else {
+      // Ready to speak
+      iconData = Icons.volume_up;
+      iconColor = AppColors.primary;
+      tooltipText = 'הקרא בקול';
+      onPressed = () => onSpeakPressed!(message.content);
+    }
+
+    return Tooltip(
+      message: tooltipText,
+      child: IconButton(
+        icon: isTtsSpeaking
+            ? SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+                ),
+              )
+            : Icon(
+                iconData,
+                size: 16,
+                color: iconColor,
+              ),
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(
+          minWidth: 24,
+          minHeight: 24,
+        ),
       ),
     );
   }

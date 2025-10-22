@@ -724,6 +724,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
       controller.clear();
       _showSuccess('API key added for $providerName');
       await _loadProviders(); // Refresh provider status
+      await _loadAvailableModels(); // Refresh Providers tab
     } catch (e) {
       _showError('Failed to add API key: $e');
     } finally {
@@ -743,6 +744,7 @@ class _AIManagerScreenState extends State<AIManagerScreen> {
       
       _showSuccess('API key removed for $providerName');
       await _loadProviders(); // Refresh provider status
+      await _loadAvailableModels(); // Refresh Providers tab
     } catch (e) {
       _showError('Failed to remove API key: $e');
     } finally {

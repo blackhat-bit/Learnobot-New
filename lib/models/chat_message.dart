@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 enum MessageType {
   text,
   image,
@@ -18,6 +20,7 @@ class ChatMessage {
   final SenderType sender;
   final MessageType type;
   final Map<String, dynamic>? metadata; // For additional data like feedback rating
+  final Uint8List? imageBytes; // Store image in memory for immediate display
   
   ChatMessage({
     required this.id,
@@ -26,6 +29,7 @@ class ChatMessage {
     required this.sender,
     this.type = MessageType.text,
     this.metadata,
+    this.imageBytes,
   });
   
   Map<String, dynamic> toMap() {

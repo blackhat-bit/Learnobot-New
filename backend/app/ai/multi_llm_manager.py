@@ -949,11 +949,50 @@ class MultiProviderLLMManager:
             else:
                 return False
             
+            # Encrypt API key before storing in database
+            from app.core.encryption import get_encryption_service
+            try:
+                encryption_service = get_encryption_service()
+                encrypted_key = encryption_service.encrypt(api_key)
+            except RuntimeError:
+                # Encryption service not initialized - store plain text (dev mode)
+                print("⚠️  Encryption service not available - storing API key in plain text")
+                encrypted_key = api_key
+            
+            # Store encrypted API key in database
+            from app.core.database import SessionLocal
+            from app.models.llm_config import LLMProvider
+            
+            db = SessionLocal()
+            try:
+                provider_db = db.query(LLMProvider).filter(
+                    LLMProvider.name == provider_name
+                ).first()
+                
+                if provider_db:
+                    # Update existing provider
+                    provider_db.api_key = encrypted_key
+                    provider_db.is_active = True
+                else:
+                    # Create new provider entry
+                    provider_db = LLMProvider(
+                        name=provider_name,
+                        type="cloud",
+                        is_active=True,
+                        api_key=encrypted_key
+                    )
+                    db.add(provider_db)
+                
+                db.commit()
+                print(f"✅ Stored encrypted API key for {provider_name} in database")
+            finally:
+                db.close()
+            
             # Store in Secret Manager if enabled
             if settings.USE_SECRET_MANAGER:
                 self._store_secret_in_manager(provider_name, api_key)
             
-            # Initialize the provider
+            # Initialize the provider with plain API key (in-memory only)
             print(f"🔍 Creating provider instance: {provider_class}")
             provider_instance = provider_class()
             print(f"🔍 Provider instance created: {type(provider_instance)}")
@@ -968,14 +1007,13 @@ class MultiProviderLLMManager:
             # Add to active providers
             self.providers[provider_name] = provider_instance
             
-            # Sync to database
-            # self._sync_provider_to_db(provider_name, provider_instance)  # Temporarily disabled for debugging
-            
-            print(f"Added {provider_name} provider with API key")
+            print(f"✅ Added {provider_name} provider with API key")
             return True
             
         except Exception as e:
-            print(f"Failed to add {provider_name} provider: {e}")
+            print(f"❌ Failed to add {provider_name} provider: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def remove_api_key(self, provider_name: str) -> bool:
@@ -996,6 +1034,24 @@ class MultiProviderLLMManager:
             else:
                 return False
             
+            # Remove API key from database
+            from app.core.database import SessionLocal
+            from app.models.llm_config import LLMProvider
+            
+            db = SessionLocal()
+            try:
+                provider_db = db.query(LLMProvider).filter(
+                    LLMProvider.name == provider_name
+                ).first()
+                
+                if provider_db:
+                    provider_db.api_key = None
+                    provider_db.is_active = False
+                    db.commit()
+                    print(f"✅ Removed API key for {provider_name} from database")
+            finally:
+                db.close()
+            
             # Remove from active providers
             if provider_name in self.providers:
                 del self.providers[provider_name]
@@ -1004,11 +1060,11 @@ class MultiProviderLLMManager:
             if self.active_provider == provider_name:
                 self.active_provider = "ollama"
             
-            print(f"Removed {provider_name} provider")
+            print(f"✅ Removed {provider_name} provider")
             return True
             
         except Exception as e:
-            print(f"Failed to remove {provider_name} provider: {e}")
+            print(f"❌ Failed to remove {provider_name} provider: {e}")
             return False
     
     def _store_secret_in_manager(self, provider_name: str, api_key: str):

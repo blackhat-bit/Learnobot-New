@@ -21,11 +21,10 @@ class ConfigurableInstructionProcessor:
         )
     
     def get_config_for_mode(self, mode: str) -> Optional[LLMConfig]:
-        """Get saved configuration for a specific mode"""
+        """Get saved configuration for a specific mode (global config)"""
         return self.db.query(LLMConfig).filter(
-            LLMConfig.name == f"{mode}_mode",
-            LLMConfig.created_by == self.user_id
-        ).first()
+            LLMConfig.name == f"{mode}_mode"
+        ).order_by(LLMConfig.updated_at.desc()).first()
     
     def process_with_mode(self, instruction: str, mode: str = "practice", provider: str = None) -> str:
         """Process instruction using mode-specific configuration"""

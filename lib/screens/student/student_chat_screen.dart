@@ -1,8 +1,8 @@
 // lib/screens/student/student_chat_screen.dart
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/chat_service_backend.dart';
 import '../../services/speech_service.dart';
 import '../../services/upload_service.dart';
+import '../../services/api_config.dart';
 
 class StudentChatScreen extends StatefulWidget {
   final String initialMode;
@@ -53,6 +54,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   // Speech functionality
   bool _isListening = false;
+  late SpeechService _speechService;
 
   // Profile picture
   String? _profileImageUrl;
@@ -61,6 +63,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   void initState() {
     super.initState();
     _currentMode = widget.initialMode;
+    _speechService = SpeechService();
+    
+    // Listen to speech service changes to update UI
+    _speechService.addListener(() {
+      if (mounted) {
+        setState(() {}); // Rebuild to update TTS button states
+      }
+    });
     _typingMessages = [
       'מעבד את השאלה...',  // First: Processing the question
       'חושב...',           // Then: Thinking
@@ -149,6 +159,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _typingMessageTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
+    _speechService.dispose();
     super.dispose();
   }
 
@@ -167,7 +178,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _scrollToBottom();
   }
 
-  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata}) {
+  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata, Uint8List? imageBytes}) {
     setState(() {
       _messages.add(
         ChatMessage(
@@ -177,6 +188,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           sender: SenderType.student,
           type: type,
           metadata: metadata,
+          imageBytes: imageBytes,
         ),
       );
     });
@@ -304,17 +316,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (image != null) {
         print('Image captured: ${image.path}');
 
+        // Read image bytes for immediate display
+        final imageBytes = await image.readAsBytes();
+
         _addUserMessage(
           'תמונת משימה',
           type: MessageType.taskCapture,
+          imageBytes: imageBytes,
           metadata: {'image_path': image.path},
         );
 
         _addBotMessage('אני מעבד את המשימה שצילמת...');
 
         try {
-          // Read image bytes
-          final imageBytes = await image.readAsBytes();
+          // Use already read image bytes
           print('Image size: ${imageBytes.length} bytes, filename: ${image.name}');
           
           // Upload and process with OCR
@@ -331,6 +346,32 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           final response = result['ai_response'] ?? '';
           final message = result['message'] ?? '';
           final method = result['method'] ?? 'ocr'; // 'vision' or 'ocr'
+          final imageUrl = result['image_url']; // Get server URL
+          
+          // Update the message with server image URL
+          if (imageUrl != null) {
+            setState(() {
+              // Find the task capture message and update it with server URL
+              for (int i = _messages.length - 1; i >= 0; i--) {
+                if (_messages[i].type == MessageType.taskCapture && 
+                    _messages[i].metadata?['image_path'] == image.path) {
+                  final msg = _messages[i];
+                  final newMetadata = Map<String, dynamic>.from(msg.metadata ?? {});
+                  newMetadata['image_url'] = imageUrl;
+                  _messages[i] = ChatMessage(
+                    id: msg.id,
+                    content: msg.content,
+                    timestamp: msg.timestamp,
+                    sender: msg.sender,
+                    type: msg.type,
+                    metadata: newMetadata,
+                    imageBytes: null, // Clear bytes, use URL now
+                  );
+                  break;
+                }
+              }
+            });
+          }
           
           // Check if OCR was successful
           if (extractedText.isNotEmpty && 
@@ -448,16 +489,45 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
 
   Future<void> _speakText(String text) async {
-    final speechService = Provider.of<SpeechService>(context, listen: false);
-    
-    if (!speechService.isTtsInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('מערכת הקריאה אינה זמינה על המכשיר שלך')),
-      );
-      return;
-    }
+    try {
+      if (!_speechService.isTtsInitialized) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_speechService.lastError.isNotEmpty 
+                ? 'שגיאה בהקראה: ${_speechService.lastError}'
+                : 'מערכת הקריאה אינה זמינה על המכשיר שלך'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
 
-    await speechService.speak(text);
+      // If already speaking, stop current speech
+      if (_speechService.isSpeaking) {
+        await _speechService.stop();
+        return;
+      }
+
+      await _speechService.speak(text);
+      
+      // Show success feedback for Hebrew TTS on web
+      if (!_speechService.hasHebrewVoice) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('הקראה באנגלית - קול עברי לא זמין בדפדפן זה'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('שגיאה בהקראה: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // === SATISFACTION BAR LOGIC ===
@@ -498,6 +568,87 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
   }
   // === END SATISFACTION BAR LOGIC ===
+
+  // === FULL-SCREEN IMAGE VIEWER ===
+  void _showFullScreenImage({
+    Uint8List? imageBytes,
+    String? imageUrl,
+  }) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              // Full screen image
+              Center(
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: imageBytes != null
+                      ? Image.memory(
+                          imageBytes,
+                          fit: BoxFit.contain,
+                        )
+                      : imageUrl != null
+                          ? Image.network(
+                              '${ApiConfig.baseUrl}$imageUrl',
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.error, color: Colors.red, size: 48),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'שגיאה בטעינת התמונה',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            )
+                          : const Center(
+                              child: Text(
+                                'אין תמונה זמינה',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                ),
+              ),
+              // Close button
+              Positioned(
+                top: 40,
+                right: 20,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  // === END FULL-SCREEN IMAGE VIEWER ===
 
   // === MODEL SELECTOR ===
   Widget _buildModelSelector() {
@@ -941,19 +1092,74 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                 _messages[index - 1].sender != message.sender,
                             onSpeakPressed: _speakText,
                             studentProfileImageUrl: _profileImageUrl,
+                            isTtsSpeaking: _speechService.isSpeaking,
+                            isTtsAvailable: _speechService.isTtsInitialized,
+                            ttsError: _speechService.lastError.isNotEmpty ? _speechService.lastError : null,
                           ),
                           if (message.metadata?['image_path'] != null) ...[
                             const SizedBox(height: 5),
-                            Container(
-                              margin: const EdgeInsets.only(left: 50),
-                              height: 100,
-                              width: 150,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.primary),
-                                image: DecorationImage(
-                                  image: FileImage(File(message.metadata!['image_path'])),
-                                  fit: BoxFit.cover,
+                            GestureDetector(
+                              onTap: () => _showFullScreenImage(
+                                imageBytes: message.imageBytes,
+                                imageUrl: message.metadata?['image_url'],
+                              ),
+                              child: Container(
+                                margin: const EdgeInsets.only(left: 50),
+                                constraints: const BoxConstraints(
+                                  minWidth: 150,
+                                  maxWidth: 250,
+                                  minHeight: 150,
+                                  maxHeight: 350,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.primary, width: 2),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: message.imageBytes != null
+                                          ? Image.memory(
+                                              message.imageBytes!,
+                                              fit: BoxFit.contain,
+                                            )
+                                          : message.metadata?['image_url'] != null
+                                              ? Image.network(
+                                                  '${ApiConfig.baseUrl}${message.metadata!['image_url']}',
+                                                  fit: BoxFit.contain,
+                                                  loadingBuilder: (context, child, loadingProgress) {
+                                                    if (loadingProgress == null) return child;
+                                                    return const Center(
+                                                      child: CircularProgressIndicator(),
+                                                    );
+                                                  },
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return const Center(
+                                                      child: Icon(Icons.error, color: Colors.red),
+                                                    );
+                                                  },
+                                                )
+                                              : const Center(child: CircularProgressIndicator()),
+                                    ),
+                                    // Tap hint icon
+                                    Positioned(
+                                      bottom: 4,
+                                      right: 4,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.5),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Icon(
+                                          Icons.zoom_in,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -975,6 +1181,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             _messages[index - 1].sender != message.sender,
                         onSpeakPressed: _speakText,
                         studentProfileImageUrl: _profileImageUrl,
+                        isTtsSpeaking: _speechService.isSpeaking,
+                        isTtsAvailable: _speechService.isTtsInitialized,
+                        ttsError: _speechService.lastError.isNotEmpty ? _speechService.lastError : null,
                       ),
                       if (message.sender == SenderType.bot &&
                           (message.metadata == null ||
