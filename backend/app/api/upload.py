@@ -76,28 +76,50 @@ async def upload_profile_picture(
             teacher_profile = db.query(TeacherProfile).filter(
                 TeacherProfile.user_id == current_user.id
             ).first()
-            if teacher_profile:
-                # Remove old profile picture if exists
-                if teacher_profile.profile_image_url:
-                    old_file = UPLOAD_DIR / Path(teacher_profile.profile_image_url).name
-                    if old_file.exists():
-                        old_file.unlink()
-                
-                teacher_profile.profile_image_url = image_url
+            
+            if not teacher_profile:
+                # Create teacher profile if it doesn't exist
+                teacher_profile = TeacherProfile(
+                    user_id=current_user.id,
+                    full_name=current_user.full_name or f"Teacher {current_user.username}",
+                    school="Unknown School"
+                )
+                db.add(teacher_profile)
+                db.commit()
+                db.refresh(teacher_profile)
+            
+            # Remove old profile picture if exists
+            if teacher_profile.profile_image_url:
+                old_file = UPLOAD_DIR / Path(teacher_profile.profile_image_url).name
+                if old_file.exists():
+                    old_file.unlink()
+            
+            teacher_profile.profile_image_url = image_url
         
         elif current_user.role == UserRole.ADMIN:
             # Admins use teacher profile for management interface
             teacher_profile = db.query(TeacherProfile).filter(
                 TeacherProfile.user_id == current_user.id
             ).first()
-            if teacher_profile:
-                # Remove old profile picture if exists
-                if teacher_profile.profile_image_url:
-                    old_file = UPLOAD_DIR / Path(teacher_profile.profile_image_url).name
-                    if old_file.exists():
-                        old_file.unlink()
-                
-                teacher_profile.profile_image_url = image_url
+            
+            if not teacher_profile:
+                # Create teacher profile for admin if it doesn't exist
+                teacher_profile = TeacherProfile(
+                    user_id=current_user.id,
+                    full_name=current_user.full_name or f"Admin {current_user.username}",
+                    school="Admin Panel"
+                )
+                db.add(teacher_profile)
+                db.commit()
+                db.refresh(teacher_profile)
+            
+            # Remove old profile picture if exists
+            if teacher_profile.profile_image_url:
+                old_file = UPLOAD_DIR / Path(teacher_profile.profile_image_url).name
+                if old_file.exists():
+                    old_file.unlink()
+            
+            teacher_profile.profile_image_url = image_url
         
         elif current_user.role == UserRole.STUDENT:
             student_profile = db.query(StudentProfile).filter(
@@ -146,7 +168,19 @@ async def delete_profile_picture(
             teacher_profile = db.query(TeacherProfile).filter(
                 TeacherProfile.user_id == current_user.id
             ).first()
-            if teacher_profile and teacher_profile.profile_image_url:
+            
+            if not teacher_profile:
+                # Create teacher profile if it doesn't exist
+                teacher_profile = TeacherProfile(
+                    user_id=current_user.id,
+                    full_name=current_user.full_name or f"Teacher {current_user.username}",
+                    school="Unknown School"
+                )
+                db.add(teacher_profile)
+                db.commit()
+                db.refresh(teacher_profile)
+            
+            if teacher_profile.profile_image_url:
                 image_url = teacher_profile.profile_image_url
                 teacher_profile.profile_image_url = None
         
@@ -155,7 +189,19 @@ async def delete_profile_picture(
             teacher_profile = db.query(TeacherProfile).filter(
                 TeacherProfile.user_id == current_user.id
             ).first()
-            if teacher_profile and teacher_profile.profile_image_url:
+            
+            if not teacher_profile:
+                # Create teacher profile for admin if it doesn't exist
+                teacher_profile = TeacherProfile(
+                    user_id=current_user.id,
+                    full_name=current_user.full_name or f"Admin {current_user.username}",
+                    school="Admin Panel"
+                )
+                db.add(teacher_profile)
+                db.commit()
+                db.refresh(teacher_profile)
+            
+            if teacher_profile.profile_image_url:
                 image_url = teacher_profile.profile_image_url
                 teacher_profile.profile_image_url = None
         
@@ -199,16 +245,38 @@ async def get_profile_picture_info(
         teacher_profile = db.query(TeacherProfile).filter(
             TeacherProfile.user_id == current_user.id
         ).first()
-        if teacher_profile:
-            image_url = teacher_profile.profile_image_url
+        
+        if not teacher_profile:
+            # Create teacher profile if it doesn't exist
+            teacher_profile = TeacherProfile(
+                user_id=current_user.id,
+                full_name=current_user.full_name or f"Teacher {current_user.username}",
+                school="Unknown School"
+            )
+            db.add(teacher_profile)
+            db.commit()
+            db.refresh(teacher_profile)
+        
+        image_url = teacher_profile.profile_image_url
     
     elif current_user.role == UserRole.ADMIN:
         # Admins use teacher profile for management interface
         teacher_profile = db.query(TeacherProfile).filter(
             TeacherProfile.user_id == current_user.id
         ).first()
-        if teacher_profile:
-            image_url = teacher_profile.profile_image_url
+        
+        if not teacher_profile:
+            # Create teacher profile for admin if it doesn't exist
+            teacher_profile = TeacherProfile(
+                user_id=current_user.id,
+                full_name=current_user.full_name or f"Admin {current_user.username}",
+                school="Admin Panel"
+            )
+            db.add(teacher_profile)
+            db.commit()
+            db.refresh(teacher_profile)
+        
+        image_url = teacher_profile.profile_image_url
     
     elif current_user.role == UserRole.STUDENT:
         student_profile = db.query(StudentProfile).filter(
