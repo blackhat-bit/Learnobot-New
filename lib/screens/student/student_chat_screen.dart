@@ -379,7 +379,28 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         },
       );
 
-      _addBotMessage('אני מעבד את התמונות שצילמת...');
+      // Use animated typing indicator instead of plain text
+      setState(() {
+        _isBotTyping = true;
+        _messages.add(
+          ChatMessage(
+            id: 'typing',
+            content: 'מעבד תמונות...',
+            timestamp: DateTime.now(),
+            sender: SenderType.bot,
+          ),
+        );
+      });
+
+      // Start cycling through typing messages
+      _currentTypingMessageIndex = 0;
+      _typingMessageTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+        if (mounted && _isBotTyping) {
+          setState(() {
+            _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
+          });
+        }
+      });
 
       // Process all images
       try {
@@ -422,6 +443,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 final msg = _messages[i];
                 final newMetadata = Map<String, dynamic>.from(msg.metadata ?? {});
                 newMetadata['image_url'] = imageUrl;
+                if (imageUrl != null) {
+                  newMetadata['image_path'] = imageUrl; // Add for backward compatibility
+                }
                 if (imageUrls != null) {
                   newMetadata['image_urls'] = imageUrls.map((url) => url.toString()).toList();
                 }
@@ -437,6 +461,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 break;
               }
             }
+          });
+        }
+        
+        // Remove typing indicator
+        if (mounted) {
+          _typingMessageTimer?.cancel();
+          setState(() {
+            _messages.removeWhere((m) => m.id == 'typing');
+            _isBotTyping = false;
           });
         }
         
@@ -469,10 +502,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           String errorMessage = message.isNotEmpty ? message : extractedText;
           if (errorMessage.isEmpty) {
             errorMessage = 'מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.';
-          }
-          _addBotMessage(errorMessage);
         }
-      } catch (e) {
+        
+        // Remove typing indicator on error
+        if (mounted) {
+          _typingMessageTimer?.cancel();
+          setState(() {
+            _messages.removeWhere((m) => m.id == 'typing');
+            _isBotTyping = false;
+          });
+        }
+        
+        _addBotMessage(errorMessage);
+      }
+    } catch (e) {
         print('Upload task error: $e');
         String errorMessage = 'מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.';
         
@@ -489,6 +532,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         _addBotMessage(errorMessage);
       }
     } catch (e) {
+      // Remove typing indicator on outer error
+      if (mounted) {
+        _typingMessageTimer?.cancel();
+        setState(() {
+          _messages.removeWhere((m) => m.id == 'typing');
+          _isBotTyping = false;
+        });
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('שגיאה בעיבוד תמונות: $e')),
       );
@@ -1229,7 +1281,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             isTtsAvailable: _speechService.isTtsInitialized,
                             ttsError: _speechService.lastError.isNotEmpty ? _speechService.lastError : null,
                           ),
-                          if (message.metadata?['image_path'] != null) ...[
+                          if (message.imageBytesList != null && message.imageBytesList!.isNotEmpty ||
+                              message.metadata?['image_urls'] != null ||
+                              message.metadata?['image_url'] != null) ...[
                             const SizedBox(height: 5),
                             GestureDetector(
                               onTap: () => _showFullScreenImage(

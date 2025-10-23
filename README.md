@@ -5,92 +5,168 @@ An AI-powered educational platform with Flutter frontend and FastAPI backend, fe
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Flutter SDK
-- Python 3.8+
-- Docker & Docker Compose
-- Git
+- **Flutter SDK** - [Installation Guide](https://flutter.dev/docs/get-started/install)
+- **Python 3.8+** - [Download](https://www.python.org/downloads/)
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop)
+- **Git** - [Download](https://git-scm.com/downloads)
 
-### 1. Clone the Repository
+### Step 1: Clone the Repository
 ```bash
 git clone <your-repo-url>
 cd learnobot-backend-Cursor
 ```
 
-### 2. Install Dependencies
-
-**Flutter Frontend:**
+### Step 2: Install Flutter Dependencies
 ```bash
 flutter pub get
 ```
 
+### Step 3: Setup Python Backend
 
-### 3.Create a virtual environment:
-**Python Backend:**
+Create and activate a virtual environment:
+
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate.ps1  # Windows PowerShell
-# or
-source venv/bin/activate   # Linux/Mac
+
+# Windows PowerShell:
+venv\Scripts\activate.ps1
+
+# Mac/Linux:
+source venv/bin/activate
 ```
 
+**Verify activation:** Your terminal should show `(venv)` at the beginning of the line.
 
-### 3. Install dependencies:
+Install Python dependencies:
 ```bash
 pip install -r requirements.txt
-(you should create beforehand requirements.txt)
 ```
 
+### Step 4: Generate Encryption Key
 
-### 4. Environment Configuration
-Create `backend/.env` file:
-```env
-DATABASE_URL=postgresql://learnobot:SomePassword@localhost:5432/learnobot_db
-SECRET_KEY=your-secret-key-here
-OPENAI_API_KEY=your-openai-key
-```
+The system requires an encryption key to securely store API keys in the database.
 
-### 5. Start Docker Services (Database + Ollama + Backend with OCR)
 ```bash
-cd backend (if not in backend folder)
+python scripts/generate_encryption_key.py
+```
+
+**Important:** Copy the generated key - you'll need it in the next step!
+
+### Step 5: Environment Configuration
+
+Create a file named `.env` in the `backend` folder with the following content:
+
+```env
+# Required - Database connection
+DATABASE_URL=postgresql://learnobot:StrongPassword123!@localhost:5432/learnobot_db
+
+# Required - Security keys
+SECRET_KEY=a1ef3997f59da47f4e2bd3feba6bb6a412213d77e892e510fa8b0341ee332788
+ENCRYPTION_KEY=paste-your-generated-key-from-step-4-here
+
+# Optional - Cloud AI providers (leave empty to use local Ollama only)
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GOOGLE_API_KEY=
+COHERE_API_KEY=
+```
+
+**Notes:**
+- Replace `ENCRYPTION_KEY` value with the key you generated in Step 4
+- Cloud AI provider keys are optional - the app works with local Ollama models
+- If you add cloud provider keys later, you can configure them in the app's Manager panel
+
+### Step 6: Start Docker Services
+
+**Important:** Make sure you are in the `backend` folder!
+
+```bash
+# If not already there:
+cd backend
+
+# Start all services:
 docker-compose up --build
 ```
-**This starts all services including the backend with OCR support built-in. No manual Tesseract installation needed!**
 
-### 6. Download AI Models
+**What this does:**
+- Starts PostgreSQL database (port 5432)
+- Starts Ollama AI service (port 11434)  
+- Starts backend API server with OCR support (port 8000)
+- First run takes 2-3 minutes to download Docker images
+
+**Wait for this message:** `Application startup complete`
+
+**Keep this terminal running!** Don't close it - the services need to stay active.
+
+### Step 7: Verify Services Are Running
+
+Open a **new terminal** and check:
+
 ```bash
+cd backend
+docker-compose ps
+```
+
+**Expected output:** All services should show "Up" status:
+```
+NAME                   STATUS
+backend-backend-1      Up
+backend-postgres-1     Up
+backend-ollama-1       Up
+```
+
+**Quick test:** Open http://localhost:8000/docs in your browser
+- You should see the Swagger API documentation page
+- If it shows a connection error, wait 30 seconds and try again
+
+### Step 8: Download AI Models (Optional but Recommended)
+
+These models enable offline AI tutoring. Each model is ~5GB and takes 5-10 minutes to download.
+
+Open a **new terminal**:
+
+```bash
+# Download main English model (recommended):
 docker exec backend-ollama-1 ollama pull llama3.1:8b
+
+# Download Hebrew model (optional):
 docker exec backend-ollama-1 ollama pull aya-expanse:8b
 ```
 
-### 7. Backend Server
-**Option A - Docker Backend (Easiest):** Already running at `http://localhost:8000` ✅
-- ✅ OCR image upload works automatically
-
-**Option B - Local Development:**
+**Verify download:**
 ```bash
-# Stop Docker backend container
-docker stop backend-backend-1
-
-# Run locally for development
-cd backend
-venv\Scripts\activate.ps1
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+docker exec backend-ollama-1 ollama list
 ```
-- ⚠️ **OCR image upload won't work** (requires manual Tesseract installation)
-- ✅ All other features work (manual text input, AI chat, etc.)
 
-### 8. Start Frontend
+You should see the downloaded models listed.
+
+### Step 9: Start Flutter App
+
+Open a **new terminal** (keep Docker running in the other):
+
 ```bash
-# In another terminal, go back to project root
-cd .. 
+# Go back to project root:
+cd ..
+
+# Start Flutter:
 flutter run
 ```
 
-### 9. Create Admin User
-- Go to `http://localhost:8000/docs` (Swagger UI)
-- Find the `POST /api/v1/auth/register` endpoint
-- Click "Try it out" and use this body template:
+**Select your platform:**
+- Press **1** for Chrome (web)
+- Press **2** for Windows
+- Or select another available platform
+
+**Verify:** App should show splash screen, then the login screen.
+
+### Step 10: Create Admin User
+
+1. Open your web browser
+2. Go to http://localhost:8000/docs
+3. Scroll down to find **"POST /api/v1/auth/register"**
+4. Click **"Try it out"**
+5. Replace the example JSON with:
 
 ```json
 {
@@ -102,12 +178,27 @@ flutter run
 }
 ```
 
-**Important Notes:**
+6. Click **"Execute"**
+7. Look for **Response Code 200** - success!
 
-- Fill the first 4 feild as you like, but the role MUST BE "admin"
-- Only create **one** admin user manually
-- All other users (students, teachers) should be created through the app interface
-- The admin user will have full access to all system features
+**Important Notes:**
+- The `"role"` field MUST be exactly `"admin"` (lowercase, with quotes)
+- Create **only ONE** admin user this way
+- Create students and teachers through the app interface
+- Login credentials: username `admin`, password `admin123`
+
+## ✅ Verify Everything Works
+
+Check that all components are running:
+
+1. **Backend API:** http://localhost:8000/docs should show Swagger UI
+2. **Docker Services:** `docker-compose ps` should show all services "Up"
+3. **Flutter App:** Should show login screen
+4. **Admin Login:** Use username "admin" and password "admin123"
+
+If all four work, you're ready to go! 🎉
+
+If any don't work, see Troubleshooting below.
 
 ## 📁 Project Structure
 
@@ -118,13 +209,10 @@ learnobot-backend-Cursor/
 │   │   ├── auth/                  # Authentication screens
 │   │   ├── manager/               # Manager/Admin screens
 │   │   ├── student/               # Student screens
-│   │   ├── teacher/               # Teacher screens
-│   │   └── splash_screen.dart     # App startup screen
+│   │   └── teacher/               # Teacher screens
 │   ├── services/                  # API services & business logic
 │   ├── models/                    # Data models
 │   ├── widgets/                   # Reusable UI components
-│   ├── constants/                 # App constants & strings
-│   ├── utils/                     # Utility functions
 │   └── main.dart                  # App entry point
 ├── backend/                       # FastAPI backend
 │   ├── app/                       # Main application
@@ -142,17 +230,8 @@ learnobot-backend-Cursor/
 │   ├── tests/                     # Backend tests
 │   ├── alembic/                   # Database migrations
 │   └── requirements.txt           # Python dependencies
-├── assets/                        # Flutter assets
-│   ├── fonts/                     # Custom fonts (Heebo)
-│   ├── images/                    # App images
-│   └── animations/                # Animation files
-├── android/                       # Android platform files
-├── ios/                          # iOS platform files
-├── web/                          # Web platform files
-├── windows/                      # Windows platform files
-├── linux/                        # Linux platform files
-├── macos/                        # macOS platform files
-└── pubspec.yaml                  # Flutter dependencies
+├── assets/                        # Flutter assets (fonts, images)
+└── pubspec.yaml                   # Flutter dependencies
 ```
 
 ## 👨‍💼 Manager/Admin Features
@@ -173,8 +252,8 @@ The most important feature for managers is the **analytics and CSV export system
 - **Conversation Analytics**: View detailed chat logs and interaction patterns
 - **Time Tracking**: Track total conversation time and average session duration
 - **CSV Export**: Two types of data export available
-  - **Research Data Export**: Detailed interaction logs for research purposes (`/export/csv`) - **Download button in Research Analytics screen**
-  - **Student Analytics Export**: Complete student profiles with performance metrics (`/export/students/csv`) - **Available via API endpoint**
+  - **Research Data Export**: Detailed interaction logs for research purposes - available in Research Analytics screen
+  - **Student Analytics Export**: Complete student profiles with performance metrics - available via API endpoint
 - **Usage Statistics**: Monitor system usage and identify trends
 
 ### Access Control
@@ -195,19 +274,32 @@ The most important feature for managers is the **analytics and CSV export system
 ## 📚 API Documentation
 
 Once running, visit:
-- **Swagger UI**: `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
 
 ## 🛠️ Development
 
-### Backend Development
+### Backend Development (without Docker)
+
+If you want to run the backend locally for development (with hot-reload):
+
 ```bash
+# Stop Docker backend container:
+docker stop backend-backend-1
+
+# Run locally:
 cd backend
-venv\Scripts\activate.ps1
+venv\Scripts\activate.ps1  # Windows
+# or
+source venv/bin/activate   # Mac/Linux
+
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+**Note:** OCR image upload won't work without Docker (requires Tesseract). All other features work normally.
+
 ### Frontend Development
+
 ```bash
 flutter run
 ```
@@ -217,39 +309,171 @@ flutter run
 - Data persists in `backend/data/postgres/`
 - Models persist in `backend/data/ollama/`
 
-### Docker Commands
+### Useful Docker Commands
+
 ```bash
-# Start all services (first time or after changes)
+# Start all services (first time or after changes):
 docker-compose up --build
 
-# Start services (subsequent runs)
+# Start services in background (subsequent runs):
 docker-compose up -d
 
-# Stop all services
+# Stop all services:
 docker-compose down
 
-# View logs
+# View logs:
 docker-compose logs -f
 
-# Rebuild only backend with OCR updates
-docker-compose up --build backend
+# View logs for specific service:
+docker-compose logs -f backend
+
+# Restart a specific service:
+docker-compose restart backend
 ```
 
-## 📝 Notes
+## 📝 Important Notes
 
-- **No Python Scripts**: User creation is done via Swagger UI or app interface
 - **Data Persistence**: Docker volumes ensure data survives container restarts
 - **Model Downloads**: AI models are ~5GB each, download as needed
-- **Environment**: Always activate virtual environment before running backend
-- **Ignored Files**: `.env`, `venv/`, `backend/data/`, and model files are gitignored (created automatically)
+- **Environment Files**: `.env` files are gitignored and must be created locally
+- **Virtual Environment**: Always activate `venv` before running backend locally
+- **Admin Access**: Only create ONE admin user manually via Swagger UI
+- **User Creation**: Create students and teachers through the app interface
 
 ## 🆘 Troubleshooting
 
-1. **Docker Issues**: Ensure Docker Desktop is running
-2. **Port Conflicts**: Check if ports 8000, 5432, 11434 are available
-3. **Model Downloads**: Models can take 10-15 minutes to download
-4. **OCR Not Working**:
-   - If using Docker: Rebuild backend container with `docker-compose up --build`
-   - If running backend locally (without Docker): Install Tesseract OCR manually
-5. **Virtual Environment**: Always activate `venv` before running backend
+### "Docker not found" or Docker not running
+**Problem:** Docker Desktop is not installed or not running.
 
+**Solution:**
+- Install Docker Desktop from https://www.docker.com/products/docker-desktop
+- Make sure Docker Desktop is running (check system tray/menu bar)
+- Restart terminal after installation
+
+### "Port already in use" (8000, 5432, or 11434)
+**Problem:** Another service is using the required port.
+
+**Solution:**
+```bash
+# Windows - Find what's using the port:
+netstat -ano | findstr :8000
+
+# Mac/Linux:
+lsof -i :8000
+
+# Then stop the conflicting service, or change ports in docker-compose.yml
+```
+
+### "Python not found" or wrong Python version
+**Problem:** Python is not installed or wrong version.
+
+**Solution:**
+```bash
+# Check version (should be 3.8+):
+python --version
+
+# If using python3 command instead:
+python3 -m venv venv
+python3 -m pip install -r requirements.txt
+```
+
+### "Flutter not found"
+**Problem:** Flutter is not installed or not in PATH.
+
+**Solution:**
+- Make sure Flutter is in your system PATH
+- Restart terminal after installation
+- Run `flutter doctor` to check setup and fix any issues
+
+### "Virtual environment not activating" (Windows)
+**Problem:** PowerShell execution policy prevents running scripts.
+
+**Solution:**
+```bash
+# Run this once:
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Then try activating again:
+venv\Scripts\activate.ps1
+```
+
+### "Encryption key error" or API keys not working
+**Problem:** ENCRYPTION_KEY missing or incorrect in .env file.
+
+**Solution:**
+- Make sure you ran: `python scripts/generate_encryption_key.py`
+- Copy the ENTIRE key output to `.env` file
+- Key format should be: `ENCRYPTION_KEY=long-base64-string-here`
+- No spaces around the `=` sign
+
+### "Models not downloading"
+**Problem:** Network issues or Ollama service not running.
+
+**Solution:**
+- Check internet connection
+- Models are large (5GB each) - download takes 5-10 minutes
+- Verify Ollama is running: `docker-compose ps` (backend-ollama-1 should be "Up")
+- Try again: `docker exec backend-ollama-1 ollama pull llama3.1:8b`
+- Check progress: `docker exec backend-ollama-1 ollama list`
+
+### "Flutter app won't start" or build errors
+**Problem:** Flutter dependencies not installed or cache issues.
+
+**Solution:**
+```bash
+# Clean and rebuild:
+flutter clean
+flutter pub get
+flutter run
+```
+
+### "Admin user creation fails"
+**Problem:** Backend not running, wrong JSON format, or user already exists.
+
+**Solution:**
+- Check backend is running: http://localhost:8000/docs should load
+- Make sure `"role"` is exactly `"admin"` (lowercase, with quotes)
+- Check the response in Swagger UI for error details
+- View backend logs: `docker-compose logs backend`
+- If user exists, you can login with those credentials
+
+### "Can't access http://localhost:8000"
+**Problem:** Backend service not running or failed to start.
+
+**Solution:**
+```bash
+# Check service status:
+docker-compose ps
+
+# If backend shows "Exit" status, check logs:
+docker-compose logs backend
+
+# Try restarting:
+docker-compose down
+docker-compose up --build
+```
+
+### Still having issues?
+
+```bash
+# Check all Docker logs:
+docker-compose logs -f
+
+# Restart everything from scratch:
+docker-compose down
+docker-compose up --build
+
+# If database issues, remove volumes and restart (WARNING: deletes all data):
+docker-compose down -v
+docker-compose up --build
+```
+
+## 🎉 You're Ready!
+
+Once everything is running:
+- **Flutter App**: Should open automatically and show login screen
+- **Backend API**: Available at http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+- **Admin Panel**: Login with username `admin` and password `admin123`
+
+Enjoy using LearnoBot! 🚀
