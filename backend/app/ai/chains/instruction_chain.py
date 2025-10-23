@@ -167,7 +167,28 @@ class InstructionProcessor:
             else:
                 # Continuing conversation - NO greeting, just help
                 if has_task:
-                    default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
+                    # Check if context was recently provided (student sent text after being asked)
+                    context_was_provided = len(instruction_interpretation) > 50 or any(
+                        keyword in conversation_history.lower() 
+                        for keyword in ['אני צריך לראות', 'אפשר לשלוח', 'תמונה או להקליד']
+                    )
+                    
+                    if context_was_provided:
+                        # Context was provided - give actual help
+                        default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
+
+היסטוריה: {conversation_history}
+
+חוקים:
+- תן תשובה מועילה ומפורטת
+- אל תמציא מידע
+- עזור לתלמיד להבין את המשימה
+
+עכשיו תן עזרה אמיתית לתלמיד. אם הוא שיתף טקסט או הסביר את המשימה, עזור לו עכשיו:
+🔍 הסבר 📝 פירוק לשלבים 💡 דוגמה"""
+                    else:
+                        # No context yet
+                        default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
 
 היסטוריה: {conversation_history}
 
@@ -216,6 +237,11 @@ class InstructionProcessor:
         
         # Use multi_llm_manager to generate response
         result = multi_llm_manager.generate(prompt_text, provider=provider)
+        
+        # Validate that response is not empty
+        if not result or not result.strip():
+            logger.warning("Empty response from LLM, using fallback")
+            result = "אני כאן לעזור לך! איך תרצה שאעזור?\n\n🔍 הסבר - הסבר מה זה אומר\n📝 פירוק לשלבים - לחלק למשימות קטנות\n💡 דוגמה - לתת דוגמה מהחיים"
         
         return {"analysis": result}
     

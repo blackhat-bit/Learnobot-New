@@ -20,7 +20,8 @@ class ChatMessage {
   final SenderType sender;
   final MessageType type;
   final Map<String, dynamic>? metadata; // For additional data like feedback rating
-  final Uint8List? imageBytes; // Store image in memory for immediate display
+  final Uint8List? imageBytes; // Store image in memory for immediate display (single image - backward compat)
+  final List<Uint8List>? imageBytesList; // Store multiple images
   
   ChatMessage({
     required this.id,
@@ -30,6 +31,7 @@ class ChatMessage {
     this.type = MessageType.text,
     this.metadata,
     this.imageBytes,
+    this.imageBytesList,
   });
   
   Map<String, dynamic> toMap() {

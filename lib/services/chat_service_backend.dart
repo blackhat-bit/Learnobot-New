@@ -189,12 +189,15 @@ class ChatServiceBackend {
     }
   }
 
-  // Upload and process an image/task
+  // Upload and process one or more images with optional text description
   static Future<Map<String, dynamic>> uploadTask({
     required int sessionId,
     required List<int> imageBytes,
     required String fileName,
     String? provider,
+    List<List<int>>? additionalImageBytes,
+    List<String>? additionalFileNames,
+    String? textDescription,
   }) async {
     // Create a new HTTP client for this request
     final client = http.Client();
@@ -210,16 +213,35 @@ class ChatServiceBackend {
       );
 
       request.headers.addAll(ApiConfig.getHeaders(token: token));
+      
+      // Add primary image
       request.files.add(http.MultipartFile.fromBytes(
-        'file',
+        'files',
         imageBytes,
         filename: fileName,
         contentType: MediaType('image', fileName.toLowerCase().endsWith('.png') ? 'png' : 'jpeg'),
       ));
+      
+      // Add additional images if provided
+      if (additionalImageBytes != null && additionalFileNames != null) {
+        for (int i = 0; i < additionalImageBytes.length; i++) {
+          request.files.add(http.MultipartFile.fromBytes(
+            'files',
+            additionalImageBytes[i],
+            filename: additionalFileNames[i],
+            contentType: MediaType('image', additionalFileNames[i].toLowerCase().endsWith('.png') ? 'png' : 'jpeg'),
+          ));
+        }
+      }
 
       // Add provider if specified
       if (provider != null) {
         request.fields['provider'] = provider;
+      }
+      
+      // Add text description if provided
+      if (textDescription != null && textDescription.isNotEmpty) {
+        request.fields['text_description'] = textDescription;
       }
 
       final streamedResponse = await client.send(request).timeout(ApiConfig.uploadTimeout);

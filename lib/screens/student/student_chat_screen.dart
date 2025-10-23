@@ -8,6 +8,7 @@ import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/chat_message.dart';
 import '../../widgets/chat_bubble.dart';
+import '../../widgets/image_composer_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/chat_service_backend.dart';
 import '../../services/speech_service.dart';
@@ -58,6 +59,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   // Profile picture
   String? _profileImageUrl;
+
+  // Image composer state
+  bool _showImageComposer = false;
+  List<XFile> _pendingImages = [];
 
   @override
   void initState() {
@@ -286,7 +291,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('העלאת משימה'),
-            content: const Text('איך תרצה להעלות את המשימה?'),
+            content: const Text('איך תרצה להעלות תמונות?'),
             actions: [
               TextButton.icon(
                 icon: const Icon(Icons.camera_alt),
@@ -310,127 +315,181 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (result == null) return;
 
       final ImagePicker picker = ImagePicker();
-      final ImageSource source = result == 'camera' ? ImageSource.camera : ImageSource.gallery;
-      final XFile? image = await picker.pickImage(source: source);
-
-      if (image != null) {
-        print('Image captured: ${image.path}');
-
-        // Read image bytes for immediate display
-        final imageBytes = await image.readAsBytes();
-
-        _addUserMessage(
-          'תמונת משימה',
-          type: MessageType.taskCapture,
-          imageBytes: imageBytes,
-          metadata: {'image_path': image.path},
-        );
-
-        _addBotMessage('אני מעבד את המשימה שצילמת...');
-
-        try {
-          // Use already read image bytes
-          print('Image size: ${imageBytes.length} bytes, filename: ${image.name}');
-          
-          // Upload and process with OCR
-          final result = await ChatServiceBackend.uploadTask(
-            sessionId: _currentSessionId!,
-            imageBytes: imageBytes,
-            fileName: image.name,
-            provider: _selectedModel,
-          );
-          
-          print('Upload result: $result');
-          
-          final extractedText = result['extracted_text'] ?? '';
-          final response = result['ai_response'] ?? '';
-          final message = result['message'] ?? '';
-          final method = result['method'] ?? 'ocr'; // 'vision' or 'ocr'
-          final imageUrl = result['image_url']; // Get server URL
-          
-          // Update the message with server image URL
-          if (imageUrl != null) {
-            setState(() {
-              // Find the task capture message and update it with server URL
-              for (int i = _messages.length - 1; i >= 0; i--) {
-                if (_messages[i].type == MessageType.taskCapture && 
-                    _messages[i].metadata?['image_path'] == image.path) {
-                  final msg = _messages[i];
-                  final newMetadata = Map<String, dynamic>.from(msg.metadata ?? {});
-                  newMetadata['image_url'] = imageUrl;
-                  _messages[i] = ChatMessage(
-                    id: msg.id,
-                    content: msg.content,
-                    timestamp: msg.timestamp,
-                    sender: msg.sender,
-                    type: msg.type,
-                    metadata: newMetadata,
-                    imageBytes: null, // Clear bytes, use URL now
-                  );
-                  break;
-                }
-              }
-            });
-          }
-          
-          // Check if OCR was successful
-          if (extractedText.isNotEmpty && 
-              !extractedText.contains('לא הצלחתי') && 
-              !extractedText.contains('שגיאה')) {
-            _lastTaskText = extractedText;
-            
-            // Only show OCR text if NOT using vision (vision AI already saw the image)
-            if (method != 'vision') {
-              _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
-            }
-            
-            // Show AI response (for both vision and OCR methods)
-            if (response.isNotEmpty) {
-              if (method == 'vision') {
-                // For vision, show immediately (no delay)
-                _addBotMessage(response);
-              } else {
-                // For OCR, show after delay (after OCR text message)
-                Future.delayed(const Duration(seconds: 1), () {
-                  _addBotMessage(response);
-                });
-              }
-            }
-            
-            Future.delayed(const Duration(seconds: 1), () {
-              setState(() {
-                _showAssistanceOptions = true;
-              });
-            });
-          } else {
-            // OCR failed or returned error message
-            String errorMessage = message.isNotEmpty ? message : extractedText;
-            if (errorMessage.isEmpty) {
-              errorMessage = 'מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.';
-            }
-            _addBotMessage(errorMessage);
-          }
-        } catch (e) {
-          print('Upload task error: $e');
-          String errorMessage = 'מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.';
-          
-          // Provide more specific error messages
-          if (e.toString().contains('TimeoutException')) {
-            errorMessage = 'העיבוד לוקח יותר מדי זמן. אנא נסה תמונה קטנה יותר או כתב את השאלה ידנית.';
-          } else if (e.toString().contains('Connection')) {
-            errorMessage = 'בעיית חיבור לשרת. אנא בדוק את החיבור לאינטרנט ונסה שוב.';
-          } else if (e.toString().contains('400')) {
-            errorMessage = 'התמונה לא תקינה. אנא נסה תמונה אחרת (JPG, PNG).';
-          } else if (e.toString().contains('413')) {
-            errorMessage = 'התמונה גדולה מדי. אנא נסה תמונה קטנה יותר (מתחת ל-5MB).';
-          }
-          
-          _addBotMessage(errorMessage);
+      
+      if (result == 'camera') {
+        // Take single photo with camera
+        final XFile? image = await picker.pickImage(source: ImageSource.camera);
+        if (image != null) {
+          setState(() {
+            _pendingImages = [image];
+            _showImageComposer = true;
+          });
+        }
+      } else {
+        // Pick multiple images from gallery
+        final List<XFile> images = await picker.pickMultiImage();
+        if (images.isNotEmpty) {
+          setState(() {
+            _pendingImages = images;
+            _showImageComposer = true;
+          });
         }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('שגיאה בצילום המשימה: $e')),
+        SnackBar(content: Text('שגיאה בהוספת תמונות: $e')),
+      );
+    }
+  }
+
+  // New method to handle sending images with text
+  Future<void> _sendImagesWithText(List<XFile> images, String text) async {
+    setState(() {
+      _showImageComposer = false;
+      _pendingImages = [];
+    });
+
+    if (images.isEmpty) {
+      // Just text, no images
+      if (text.isNotEmpty) {
+        _messageController.text = text;
+        _sendMessage();
+      }
+      return;
+    }
+
+    try {
+      // Read all image bytes
+      final List<Uint8List> imageBytesList = [];
+      for (final image in images) {
+        final bytes = await image.readAsBytes();
+        imageBytesList.add(bytes);
+      }
+
+      // Add user message with images
+      final content = text.isNotEmpty ? text : 'תמונות משימה';
+      _addUserMessage(
+        content,
+        type: MessageType.taskCapture,
+        imageBytes: imageBytesList.isNotEmpty ? imageBytesList[0] : null,
+        metadata: {
+          'image_count': images.length,
+          'image_paths': images.map((img) => img.path).toList(),
+        },
+      );
+
+      _addBotMessage('אני מעבד את התמונות שצילמת...');
+
+      // Process all images
+      try {
+        print('Processing ${images.length} images');
+        
+        // Prepare additional images (all except first)
+        List<List<int>>? additionalBytes;
+        List<String>? additionalNames;
+        if (images.length > 1) {
+          additionalBytes = imageBytesList.skip(1).map((b) => b.toList()).toList();
+          additionalNames = images.skip(1).map((img) => img.name).toList();
+        }
+        
+        // Upload and process with all images and text description
+        final result = await ChatServiceBackend.uploadTask(
+          sessionId: _currentSessionId!,
+          imageBytes: imageBytesList[0],
+          fileName: images[0].name,
+          provider: _selectedModel,
+          additionalImageBytes: additionalBytes,
+          additionalFileNames: additionalNames,
+          textDescription: text.isNotEmpty ? text : null,
+        );
+        
+        print('Upload result: $result');
+        
+        final extractedText = result['extracted_text'] ?? '';
+        final response = result['ai_response'] ?? '';
+        final message = result['message'] ?? '';
+        final method = result['method'] ?? 'ocr';
+        final imageUrl = result['image_url'];
+        final imageUrls = result['image_urls'] as List<dynamic>?;
+        
+        // Update the message with server image URLs
+        if (imageUrl != null || (imageUrls != null && imageUrls.isNotEmpty)) {
+          setState(() {
+            for (int i = _messages.length - 1; i >= 0; i--) {
+              if (_messages[i].type == MessageType.taskCapture && 
+                  _messages[i].metadata?['image_count'] == images.length) {
+                final msg = _messages[i];
+                final newMetadata = Map<String, dynamic>.from(msg.metadata ?? {});
+                newMetadata['image_url'] = imageUrl;
+                if (imageUrls != null) {
+                  newMetadata['image_urls'] = imageUrls.map((url) => url.toString()).toList();
+                }
+                _messages[i] = ChatMessage(
+                  id: msg.id,
+                  content: msg.content,
+                  timestamp: msg.timestamp,
+                  sender: msg.sender,
+                  type: msg.type,
+                  metadata: newMetadata,
+                  imageBytes: null,
+                );
+                break;
+              }
+            }
+          });
+        }
+        
+        // Check if OCR was successful
+        if (extractedText.isNotEmpty && 
+            !extractedText.contains('לא הצלחתי') && 
+            !extractedText.contains('שגיאה')) {
+          _lastTaskText = extractedText;
+          
+          if (method != 'vision') {
+            _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
+          }
+          
+          if (response.isNotEmpty) {
+            if (method == 'vision') {
+              _addBotMessage(response);
+            } else {
+              Future.delayed(const Duration(seconds: 1), () {
+                _addBotMessage(response);
+              });
+            }
+          }
+          
+          Future.delayed(const Duration(seconds: 1), () {
+            setState(() {
+              _showAssistanceOptions = true;
+            });
+          });
+        } else {
+          String errorMessage = message.isNotEmpty ? message : extractedText;
+          if (errorMessage.isEmpty) {
+            errorMessage = 'מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.';
+          }
+          _addBotMessage(errorMessage);
+        }
+      } catch (e) {
+        print('Upload task error: $e');
+        String errorMessage = 'מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.';
+        
+        if (e.toString().contains('TimeoutException')) {
+          errorMessage = 'העיבוד לוקח יותר מדי זמן. אנא נסה תמונה קטנה יותר או כתב את השאלה ידנית.';
+        } else if (e.toString().contains('Connection')) {
+          errorMessage = 'בעיית חיבור לשרת. אנא בדוק את החיבור לאינטרנט ונסה שוב.';
+        } else if (e.toString().contains('400')) {
+          errorMessage = 'התמונה לא תקינה. אנא נסה תמונה אחרת (JPG, PNG).';
+        } else if (e.toString().contains('413')) {
+          errorMessage = 'התמונה גדולה מדי. אנא נסה תמונה קטנה יותר (מתחת ל-5MB).';
+        }
+        
+        _addBotMessage(errorMessage);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('שגיאה בעיבוד תמונות: $e')),
       );
     }
   }
@@ -1327,6 +1386,24 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 child: Center(
                   child: _buildModelSelector(),
                 ),
+              ),
+            ),
+          
+          // Image composer overlay
+          if (_showImageComposer)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: ImageComposerWidget(
+                initialImages: _pendingImages,
+                onSend: _sendImagesWithText,
+                onCancel: () {
+                  setState(() {
+                    _showImageComposer = false;
+                    _pendingImages = [];
+                  });
+                },
               ),
             ),
         ],
