@@ -183,7 +183,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _scrollToBottom();
   }
 
-  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata, Uint8List? imageBytes}) {
+  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata, Uint8List? imageBytes, List<Uint8List>? imageBytesList}) {
     setState(() {
       _messages.add(
         ChatMessage(
@@ -194,6 +194,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           type: type,
           metadata: metadata,
           imageBytes: imageBytes,
+          imageBytesList: imageBytesList,
         ),
       );
     });
@@ -371,7 +372,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       _addUserMessage(
         content,
         type: MessageType.taskCapture,
-        imageBytes: imageBytesList.isNotEmpty ? imageBytesList[0] : null,
+        imageBytesList: imageBytesList,
         metadata: {
           'image_count': images.length,
           'image_paths': images.map((img) => img.path).toList(),
@@ -627,6 +628,79 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
   }
   // === END SATISFACTION BAR LOGIC ===
+
+  // === IMAGE DISPLAY LOGIC ===
+  Widget _buildImageDisplay(ChatMessage message) {
+    // Check for multiple images first
+    if (message.imageBytesList != null && message.imageBytesList!.isNotEmpty) {
+      // Multiple images - show horizontal scrollable list
+      return SizedBox(
+        height: 200,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: message.imageBytesList!.length,
+          itemBuilder: (context, index) {
+            final imageBytes = message.imageBytesList![index];
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: GestureDetector(
+                onTap: () => _showFullScreenImage(imageBytes: imageBytes),
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 150,
+                    maxWidth: 250,
+                    minHeight: 150,
+                    maxHeight: 200,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: Image.memory(
+                      imageBytes,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    
+    // Single image or network image
+    if (message.imageBytes != null) {
+      return GestureDetector(
+        onTap: () => _showFullScreenImage(imageBytes: message.imageBytes),
+        child: Image.memory(
+          message.imageBytes!,
+          fit: BoxFit.contain,
+        ),
+      );
+    }
+    
+    if (message.metadata?['image_url'] != null) {
+      return GestureDetector(
+        onTap: () => _showFullScreenImage(imageUrl: message.metadata!['image_url']),
+        child: Image.network(
+          '${ApiConfig.baseUrl}${message.metadata!['image_url']}',
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return const Center(
+              child: Icon(Icons.error, color: Colors.red),
+            );
+          },
+        ),
+      );
+    }
+    
+    return const Center(child: CircularProgressIndicator());
+  }
 
   // === FULL-SCREEN IMAGE VIEWER ===
   void _showFullScreenImage({
@@ -1178,28 +1252,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   children: [
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(12),
-                                      child: message.imageBytes != null
-                                          ? Image.memory(
-                                              message.imageBytes!,
-                                              fit: BoxFit.contain,
-                                            )
-                                          : message.metadata?['image_url'] != null
-                                              ? Image.network(
-                                                  '${ApiConfig.baseUrl}${message.metadata!['image_url']}',
-                                                  fit: BoxFit.contain,
-                                                  loadingBuilder: (context, child, loadingProgress) {
-                                                    if (loadingProgress == null) return child;
-                                                    return const Center(
-                                                      child: CircularProgressIndicator(),
-                                                    );
-                                                  },
-                                                  errorBuilder: (context, error, stackTrace) {
-                                                    return const Center(
-                                                      child: Icon(Icons.error, color: Colors.red),
-                                                    );
-                                                  },
-                                                )
-                                              : const Center(child: CircularProgressIndicator()),
+                                      child: _buildImageDisplay(message),
                                     ),
                                     // Tap hint icon
                                     Positioned(

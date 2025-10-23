@@ -222,14 +222,37 @@ async def upload_task(
             multiple=multiple_text
         )
         
-        # Process with vision (fast!)
+        # Process with vision (fast!) - process ALL images
         vision_start = time.time()
         try:
-            vision_result = await vision_service.process_image_with_vision(
-                image_data=content,
-                prompt=vision_prompt,
-                provider=provider
-            )
+            # For multiple images, we'll process them one by one and combine results
+            if len(image_contents) > 1:
+                all_responses = []
+                for i, img_content in enumerate(image_contents):
+                    logger.info(f"Processing image {i+1}/{len(image_contents)} with vision API")
+                    vision_result = await vision_service.process_image_with_vision(
+                        image_data=img_content,
+                        prompt=vision_prompt,
+                        provider=provider
+                    )
+                    if vision_result.get("success"):
+                        all_responses.append(f"תמונה {i+1}: {vision_result['response']}")
+                    else:
+                        all_responses.append(f"תמונה {i+1}: שגיאה - {vision_result.get('error', 'Unknown error')}")
+                
+                # Combine all responses
+                combined_response = "\n\n".join(all_responses)
+                vision_result = {
+                    "success": True,
+                    "response": combined_response
+                }
+            else:
+                # Single image - use original logic
+                vision_result = await vision_service.process_image_with_vision(
+                    image_data=content,
+                    prompt=vision_prompt,
+                    provider=provider
+                )
             vision_time = time.time() - vision_start
             
             if not vision_result.get("success"):
@@ -288,9 +311,20 @@ async def upload_task(
         logger.info(f"Using OCR path for provider: {provider or 'default'}")
         
         ocr_start = time.time()
-        extracted_text = await ocr_service.extract_text(content)
+        # Process ALL images with OCR
+        all_extracted_texts = []
+        for i, img_content in enumerate(image_contents):
+            logger.info(f"Processing image {i+1}/{len(image_contents)} with OCR")
+            img_extracted = await ocr_service.extract_text(img_content)
+            if img_extracted and not img_extracted.startswith("לא הצלחתי") and not img_extracted.startswith("שגיאה"):
+                all_extracted_texts.append(f"תמונה {i+1}:\n{img_extracted}")
+            else:
+                all_extracted_texts.append(f"תמונה {i+1}: לא הצלחתי לקרוא את הטקסט")
+        
+        # Combine all extracted texts
+        extracted_text = "\n\n".join(all_extracted_texts)
         ocr_time = time.time() - ocr_start
-        logger.info(f"OCR completed in {ocr_time:.2f}s")
+        logger.info(f"OCR completed in {ocr_time:.2f}s for {len(image_contents)} images")
         
         # Process with Hebrew mediation if text was extracted successfully
         if extracted_text and not extracted_text.startswith("לא הצלחתי") and not extracted_text.startswith("שגיאה"):

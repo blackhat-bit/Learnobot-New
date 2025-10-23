@@ -98,10 +98,7 @@ async def startup_event():
     else:
         print("⚠️  No ENCRYPTION_KEY - API keys will be stored in plain text (dev mode)")
     
-    # Sync local providers to database
-    sync_providers_to_database()
-    
-    # Load encrypted API keys from database and initialize providers
+    # Enforce DB precedence FIRST (before any provider initialization)
     from app.core.encryption import get_encryption_service
     from app.ai.multi_llm_manager import OpenAIProvider, AnthropicProvider, GoogleProvider, CohereProvider
     
@@ -126,6 +123,15 @@ async def startup_event():
                 elif name == "cohere": 
                     settings.COHERE_API_KEY = None
                 print(f"🚫 Enforced DB precedence: {name} provider disabled (api_key=NULL or is_deactivated=True)")
+    finally:
+        db.close()
+    
+    # NOW sync providers (they'll use the cleared settings)
+    sync_providers_to_database()
+    
+    # Load encrypted API keys from database and initialize providers
+    db = SessionLocal()
+    try:
 
         providers_with_keys = db.query(LLMProvider).filter(
             LLMProvider.api_key.isnot(None),
