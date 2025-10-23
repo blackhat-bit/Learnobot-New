@@ -50,6 +50,29 @@ class InstructionProcessor:
         except Exception as e:
             logger.error(f"Error loading custom prompt: {e}")
             return None
+    
+    def _has_task(self, instruction: str, student_context: dict) -> bool:
+        """Detect if message contains a task (question/image) vs pure emotional expression"""
+        # Has uploaded image
+        if student_context.get('has_image'):
+            return True
+        
+        # Contains question marks or task keywords
+        task_keywords = ['עזרה', 'שאלה', 'לא מבין', 'איך', 'מה', 'למה', 'תעזור']
+        if '?' in instruction or any(word in instruction for word in task_keywords):
+            return True
+        
+        # Check for pure emotional expression
+        emotional_phrases = ['עצוב', 'עייף', 'כועס', 'מפחד', 'חרד', 'עצובה', 'עייפה', 
+                           'כועסת', 'מפחדת', 'חרדה', 'נמאס', 'לא בא לי']
+        has_emotion = any(phrase in instruction.lower() for phrase in emotional_phrases)
+        
+        if has_emotion:
+            # If it's emotional but has task content (question or longer message), show suggestions
+            return '?' in instruction or len(instruction.split()) > 5
+        
+        # Default: show suggestions for most messages
+        return True
         
     def _get_llm_for_provider(self, provider: str = None):
         """Get LLM instance for specified provider"""
@@ -117,22 +140,34 @@ class InstructionProcessor:
             # Check if this is first message in conversation
             is_first_message = not conversation_history or conversation_history.strip() == ""
             
+            # Check if message has a task (for showing suggestions)
+            has_task = self._has_task(instruction_interpretation, student_context)
+            
             # Short, efficient prompt - guide student to choose assistance type
             if is_first_message:
                 # First message - include greeting
-                default_prompt = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
+                if has_task:
+                    default_prompt = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
 
 התלמיד שאל: "{instruction_interpretation}"
 
 אני יכול לעזור בשלוש דרכים:
-🔍 **הסבר** - הסבר מה זה אומר
-📝 **פירוק לשלבים** - לחלק למשימות קטנות
-💡 **דוגמה** - לתת דוגמה מהחיים
+🔍 הסבר - הסבר מה זה אומר
+📝 פירוק לשלבים - לחלק למשימות קטנות
+💡 דוגמה - לתת דוגמה מהחיים
 
 איך תרצה שאעזור לך?"""
+                else:
+                    # Pure emotional message - no suggestions
+                    default_prompt = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
+
+התלמיד אמר: "{instruction_interpretation}"
+
+תגיב בחמימות ותמיכה רגשית. אל תציע אפשרויות עזרה."""
             else:
                 # Continuing conversation - NO greeting, just help
-                default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
+                if has_task:
+                    default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
 
 היסטוריה: {conversation_history}
 
@@ -145,7 +180,14 @@ class InstructionProcessor:
 תגיד: "אני צריך לראות את הטקסט. אפשר לשלוח תמונה או להקליד?"
 
 אחרת, שאל איך לעזור:
-🔍 **הסבר** 📝 **פירוק לשלבים** 💡 **דוגמה**"""
+🔍 הסבר 📝 פירוק לשלבים 💡 דוגמה"""
+                else:
+                    # Pure emotional message - no suggestions
+                    default_prompt = f"""התלמיד אמר: "{instruction_interpretation}"
+
+היסטוריה: {conversation_history}
+
+תגיב בחמימות ותמיכה רגשית. אל תציע אפשרויות עזרה."""
             
             # If custom prompt exists, prepend it to the default prompt
             if custom_system_prompt:
