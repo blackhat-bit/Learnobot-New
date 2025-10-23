@@ -379,21 +379,21 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         },
       );
 
-      // Use animated typing indicator instead of plain text
+      // Use the same animated typing indicator as text messages
       setState(() {
         _isBotTyping = true;
-        _messages.add(
-          ChatMessage(
-            id: 'typing',
-            content: 'מעבד תמונות...',
-            timestamp: DateTime.now(),
-            sender: SenderType.bot,
-          ),
-        );
+        _currentTypingMessageIndex = 0;
+        _typingAnimationKey = DateTime.now().millisecondsSinceEpoch;
+        _messages.add(ChatMessage(
+          id: 'typing',
+          content: '...',
+          timestamp: DateTime.now(),
+          sender: SenderType.bot,
+          type: MessageType.systemMessage,
+        ));
       });
 
-      // Start cycling through typing messages
-      _currentTypingMessageIndex = 0;
+      // Start the typing animation timer
       _typingMessageTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
         if (mounted && _isBotTyping) {
           setState(() {
@@ -1276,6 +1276,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             showAvatar: index == 0 ||
                                 _messages[index - 1].sender != message.sender,
                             onSpeakPressed: _speakText,
+                            onAssistanceSelected: (type) => _handleAssistButton(type),
                             studentProfileImageUrl: _profileImageUrl,
                             isTtsSpeaking: _speechService.isSpeaking,
                             isTtsAvailable: _speechService.isTtsInitialized,
@@ -1285,49 +1286,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               message.metadata?['image_urls'] != null ||
                               message.metadata?['image_url'] != null) ...[
                             const SizedBox(height: 5),
-                            GestureDetector(
-                              onTap: () => _showFullScreenImage(
-                                imageBytes: message.imageBytes,
-                                imageUrl: message.metadata?['image_url'],
-                              ),
-                              child: Container(
-                                margin: const EdgeInsets.only(left: 50),
-                                constraints: const BoxConstraints(
-                                  minWidth: 150,
-                                  maxWidth: 250,
-                                  minHeight: 150,
-                                  maxHeight: 350,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.primary, width: 2),
-                                ),
-                                child: Stack(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: _buildImageDisplay(message),
-                                    ),
-                                    // Tap hint icon
-                                    Positioned(
-                                      bottom: 4,
-                                      right: 4,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.5),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Icon(
-                                          Icons.zoom_in,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            Container(
+                              margin: const EdgeInsets.only(left: 50),
+                              child: _buildImageDisplay(message),
                             ),
                           ],
                         ],

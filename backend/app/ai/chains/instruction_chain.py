@@ -238,12 +238,44 @@ class InstructionProcessor:
         # Use multi_llm_manager to generate response
         result = multi_llm_manager.generate(prompt_text, provider=provider)
         
-        # Validate that response is not empty
+        # Validate that response is not empty and makes sense
         if not result or not result.strip():
             logger.warning("Empty response from LLM, using fallback")
             result = "אני כאן לעזור לך! איך תרצה שאעזור?\n\n🔍 הסבר - הסבר מה זה אומר\n📝 פירוק לשלבים - לחלק למשימות קטנות\n💡 דוגמה - לתת דוגמה מהחיים"
+        elif self._is_nonsensical_response(result):
+            logger.warning("Nonsensical response from LLM, using fallback")
+            result = "אני כאן לעזור לך! איך תרצה שאעזור?\n\n🔍 הסבר - הסבר מה זה אומר\n📝 פירוק לשלבים - לחלק למשימות קטנות\n💡 דוגמה - לתת דוגמה מהחיים"
         
         return {"analysis": result}
+    
+    def _is_nonsensical_response(self, response: str) -> bool:
+        """Check if the response is nonsensical or corrupted"""
+        response_lower = response.lower().strip()
+        
+        # Check for repeated characters (like "LLLLLLI")
+        if len(set(response_lower)) <= 3 and len(response_lower) > 10:
+            return True
+            
+        # Check for gibberish patterns
+        gibberish_patterns = [
+            'כל הלידה ערהויך מד החיוך',  # The specific weird response from the image
+            'heh lang',  # Another pattern from the image
+            'havant meycal',  # Another pattern from the image
+        ]
+        
+        for pattern in gibberish_patterns:
+            if pattern in response_lower:
+                return True
+                
+        # Check for too many repeated characters
+        if any(char * 5 in response_lower for char in 'abcdefghijklmnopqrstuvwxyz'):
+            return True
+            
+        # Check for responses that are too short and don't contain Hebrew or meaningful words
+        if len(response.strip()) < 20 and not any(word in response_lower for word in ['אני', 'אתה', 'זה', 'זהו', 'הנה', 'כאן']):
+            return True
+            
+        return False
     
     def breakdown_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
         """Break down instruction into simple steps"""
@@ -293,6 +325,15 @@ class InstructionProcessor:
         
         response = multi_llm_manager.generate(prompt_text, provider=provider)
         logger.info(f"🔧 BREAKDOWN - Response length: {len(response) if response else 0}, Content: {response[:200] if response else 'EMPTY!'}")
+        
+        # Validate that response is not empty and makes sense
+        if not response or not response.strip():
+            logger.warning("Empty response from LLM in breakdown, using fallback")
+            response = "אני אעזור לך לפרק את המשימה לשלבים פשוטים. בואו נתחיל!"
+        elif self._is_nonsensical_response(response):
+            logger.warning("Nonsensical response from LLM in breakdown, using fallback")
+            response = "אני אעזור לך לפרק את המשימה לשלבים פשוטים. בואו נתחיל!"
+        
         return response
     
     def provide_example(self, instruction: str, concept: str, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
@@ -336,7 +377,17 @@ class InstructionProcessor:
                 concept=concept
             )
         
-        return multi_llm_manager.generate(prompt_text, provider=provider)
+        response = multi_llm_manager.generate(prompt_text, provider=provider)
+        
+        # Validate that response is not empty and makes sense
+        if not response or not response.strip():
+            logger.warning("Empty response from LLM in example, using fallback")
+            response = "אני אתן לך דוגמה טובה שתעזור לך להבין את הנושא!"
+        elif self._is_nonsensical_response(response):
+            logger.warning("Nonsensical response from LLM in example, using fallback")
+            response = "אני אתן לך דוגמה טובה שתעזור לך להבין את הנושא!"
+        
+        return response
     
     def explain_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
         """Explain instruction in simple terms"""
@@ -379,4 +430,14 @@ class InstructionProcessor:
                 student_level=student_level
             )
         
-        return multi_llm_manager.generate(prompt_text, provider=provider)
+        response = multi_llm_manager.generate(prompt_text, provider=provider)
+        
+        # Validate that response is not empty and makes sense
+        if not response or not response.strip():
+            logger.warning("Empty response from LLM in explain, using fallback")
+            response = "אני אסביר לך את הנושא בצורה פשוטה וברורה!"
+        elif self._is_nonsensical_response(response):
+            logger.warning("Nonsensical response from LLM in explain, using fallback")
+            response = "אני אסביר לך את הנושא בצורה פשוטה וברורה!"
+        
+        return response
