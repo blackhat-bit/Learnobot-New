@@ -1056,10 +1056,7 @@ class MultiProviderLLMManager:
             finally:
                 db.close()
 
-            # Remove from Secret Manager if enabled
-            from app.config import settings
-            if settings.USE_SECRET_MANAGER:
-                self._remove_secret_from_manager(provider_name)
+            # Note: We use Fernet encryption for API keys in database, not Secret Manager
 
             # Remove from active providers
             if provider_name in self.providers:
@@ -1095,23 +1092,6 @@ class MultiProviderLLMManager:
                 
         except Exception as e:
             print(f"⚠️ Error storing secret in Secret Manager: {e}")
-    
-    def _remove_secret_from_manager(self, provider_name: str):
-        """Remove API key from Google Secret Manager"""
-        try:
-            from app.services.secrets_service import secrets_service
-            
-            secret_name = f"{provider_name}-api-key"
-            # Set secret to empty string to effectively disable it
-            success = secrets_service.update_secret(secret_name, "")
-            
-            if success:
-                print(f"✅ Cleared {provider_name} API key from Secret Manager")
-            else:
-                print(f"⚠️ Failed to clear {provider_name} API key from Secret Manager")
-                
-        except Exception as e:
-            print(f"⚠️ Error clearing secret from Secret Manager: {e}")
     
     def _sync_provider_to_db(self, provider_name: str, provider_instance):
         """Helper to sync individual provider to database"""
