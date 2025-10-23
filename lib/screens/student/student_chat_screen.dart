@@ -1180,6 +1180,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         showAvatar: index == 0 ||
                             _messages[index - 1].sender != message.sender,
                         onSpeakPressed: _speakText,
+                        onAssistanceSelected: (type) => _handleAssistButton(type),
                         studentProfileImageUrl: _profileImageUrl,
                         isTtsSpeaking: _speechService.isSpeaking,
                         isTtsAvailable: _speechService.isTtsInitialized,
