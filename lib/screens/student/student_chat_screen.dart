@@ -457,6 +457,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   type: msg.type,
                   metadata: newMetadata,
                   imageBytes: null,
+                  imageBytesList: null, // Clear local image bytes when using server URLs
                 );
                 break;
               }
