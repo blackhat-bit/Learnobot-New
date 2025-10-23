@@ -26,9 +26,9 @@ def sync_providers_to_database():
     db = SessionLocal()
     try:
         for provider_name, provider_instance in multi_llm_manager.providers.items():
-            # Checkctivae if provider already exists
+            # Check if provider already exists
             existing = db.query(LLMProvider).filter(LLMProvider.name == provider_name).first()
-            
+
             if not existing:
                 # Create new provider entry
                 provider_info = provider_instance.get_info()
@@ -40,10 +40,14 @@ def sync_providers_to_database():
                 )
                 db.add(new_provider)
                 print(f" Added LLM provider: {provider_name}")
-        
+
+        # Note: We no longer delete providers from DB that aren't in memory
+        # This allows providers to persist even when their API keys are removed
+        # The DB is now the source of truth for provider state
+
         db.commit()
         print(f"🔄 Provider sync complete. Total providers: {len(multi_llm_manager.providers)}")
-        
+
     except Exception as e:
         print(f" Failed to sync providers: {e}")
         db.rollback()
@@ -105,20 +109,38 @@ async def startup_event():
     
     db = SessionLocal()
     try:
+        # Build DB map first to enforce DB precedence over env/secret
+        db_providers = db.query(LLMProvider).filter(LLMProvider.type == "cloud").all()
+        db_map = {p.name.lower(): p for p in db_providers}
+
+        # Enforce DB precedence over env/secret
+        for name, row in db_map.items():
+            if row.api_key is None or row.is_deactivated:
+                # Clear env/secret keys if DB says provider should be inactive
+                if name == "openai": 
+                    settings.OPENAI_API_KEY = None
+                elif name == "anthropic": 
+                    settings.ANTHROPIC_API_KEY = None
+                elif name == "google": 
+                    settings.GOOGLE_API_KEY = None
+                elif name == "cohere": 
+                    settings.COHERE_API_KEY = None
+                print(f"🚫 Enforced DB precedence: {name} provider disabled (api_key=NULL or is_deactivated=True)")
+
         providers_with_keys = db.query(LLMProvider).filter(
             LLMProvider.api_key.isnot(None),
             LLMProvider.type == "cloud"  # Only cloud providers need API keys
         ).all()
-        
+
         for provider_db in providers_with_keys:
             # Decrypt the stored API key
             decrypted_key = encryption_service.decrypt(provider_db.api_key)
-            
+
             if decrypted_key and len(decrypted_key) > 0:
                 try:
                     # Initialize provider directly without re-storing (avoid double encryption)
                     provider_name = provider_db.name.lower()
-                    
+
                     # Update in-memory settings
                     if provider_name == "openai":
                         settings.OPENAI_API_KEY = decrypted_key
@@ -135,21 +157,21 @@ async def startup_event():
                     else:
                         print(f"⚠️  Unknown provider: {provider_name}")
                         continue
-                    
+
                     # Initialize provider instance
                     provider_instance = provider_class()
                     provider_instance.initialize({"api_key": decrypted_key})
-                    
+
                     # Add to active providers (in-memory only, no DB write)
                     multi_llm_manager.providers[provider_name] = provider_instance
-                    
+
                     print(f"✅ Loaded and initialized {provider_name} from database")
-                    
+
                 except Exception as e:
                     print(f"⚠️  Failed to initialize {provider_db.name}: {e}")
             else:
                 print(f"⚠️  Could not decrypt API key for {provider_db.name}")
-                
+
     except Exception as e:
         print(f"⚠️  Error loading API keys from database: {e}")
         import traceback

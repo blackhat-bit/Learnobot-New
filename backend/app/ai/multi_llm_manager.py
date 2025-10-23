@@ -1017,10 +1017,10 @@ class MultiProviderLLMManager:
             return False
     
     def remove_api_key(self, provider_name: str) -> bool:
-        """Remove API key and deactivate provider"""
+        """Remove API key but keep provider row in database"""
         try:
             provider_name = provider_name.lower()
-            
+
             # Update settings (in-memory for this session)
             from app.config import settings
             if provider_name == "openai":
@@ -1033,36 +1033,45 @@ class MultiProviderLLMManager:
                 settings.COHERE_API_KEY = None
             else:
                 return False
-            
-            # Remove API key from database
+
+            # Update provider in database - keep row but mark inactive
             from app.core.database import SessionLocal
             from app.models.llm_config import LLMProvider
-            
+
             db = SessionLocal()
             try:
                 provider_db = db.query(LLMProvider).filter(
                     LLMProvider.name == provider_name
                 ).first()
-                
+
                 if provider_db:
+                    # Keep provider row but clear key and mark inactive
                     provider_db.api_key = None
                     provider_db.is_active = False
+                    provider_db.is_deactivated = True
                     db.commit()
-                    print(f"✅ Removed API key for {provider_name} from database")
+                    print(f"✅ Cleared {provider_name} API key and marked inactive")
+                else:
+                    print(f"⚠️ Provider {provider_name} not found in database")
             finally:
                 db.close()
-            
+
+            # Remove from Secret Manager if enabled
+            from app.config import settings
+            if settings.USE_SECRET_MANAGER:
+                self._remove_secret_from_manager(provider_name)
+
             # Remove from active providers
             if provider_name in self.providers:
                 del self.providers[provider_name]
-            
+
             # If this was the active provider, switch to ollama
             if self.active_provider == provider_name:
                 self.active_provider = "ollama"
-            
-            print(f"✅ Removed {provider_name} provider")
+
+            print(f"✅ Deactivated {provider_name} provider (kept in database)")
             return True
-            
+
         except Exception as e:
             print(f"❌ Failed to remove {provider_name} provider: {e}")
             return False
@@ -1086,6 +1095,23 @@ class MultiProviderLLMManager:
                 
         except Exception as e:
             print(f"⚠️ Error storing secret in Secret Manager: {e}")
+    
+    def _remove_secret_from_manager(self, provider_name: str):
+        """Remove API key from Google Secret Manager"""
+        try:
+            from app.services.secrets_service import secrets_service
+            
+            secret_name = f"{provider_name}-api-key"
+            # Set secret to empty string to effectively disable it
+            success = secrets_service.update_secret(secret_name, "")
+            
+            if success:
+                print(f"✅ Cleared {provider_name} API key from Secret Manager")
+            else:
+                print(f"⚠️ Failed to clear {provider_name} API key from Secret Manager")
+                
+        except Exception as e:
+            print(f"⚠️ Error clearing secret from Secret Manager: {e}")
     
     def _sync_provider_to_db(self, provider_name: str, provider_instance):
         """Helper to sync individual provider to database"""
