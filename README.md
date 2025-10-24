@@ -4,6 +4,13 @@ An AI-powered educational platform with Flutter frontend and FastAPI backend, fe
 
 ## 🚀 Quick Start
 
+### Recommended IDE
+For the best development experience, we recommend using (one of the following):
+- **Cursor** - [Download](https://cursor.sh/) (AI-powered code editor)
+- **VS Code** - [Download](https://code.visualstudio.com/) with Flutter and Python extensions
+
+Open the project in your IDE by opening the root folder (`learnobot-backend-Cursor`).
+
 ### Prerequisites
 - **Flutter SDK** - [Installation Guide](https://flutter.dev/docs/get-started/install)
 - **Python 3.8+** - [Download](https://www.python.org/downloads/)
@@ -11,7 +18,7 @@ An AI-powered educational platform with Flutter frontend and FastAPI backend, fe
 - **Git** - [Download](https://git-scm.com/downloads)
 
 ### Step 1: Clone the Repository
-```bash
+```bash (in the IDE's terminal)
 git clone <your-repo-url>
 cd learnobot-backend-Cursor
 ```
@@ -31,6 +38,8 @@ python -m venv venv
 
 # Windows PowerShell:
 venv\Scripts\activate.ps1
+or
+.venv\Scripts\activate.ps1
 
 # Mac/Linux:
 source venv/bin/activate
@@ -43,15 +52,23 @@ Install Python dependencies:
 pip install -r requirements.txt
 ```
 
-### Step 4: Generate Encryption Key
+### Step 4: Generate Security Keys
 
-The system requires an encryption key to securely store API keys in the database.
+The system requires two security keys:
 
+#### 4a. Generate Encryption Key (for API keys)
 ```bash
+cd backend
 python scripts/generate_encryption_key.py
 ```
 
-**Important:** Copy the generated key - you'll need it in the next step!
+#### 4b. Generate Secret Key (for passwords and authentication)
+```bash
+# Generate a secure random secret key
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+**Important:** Copy both generated keys - you'll need them in the next step!
 
 ### Step 5: Environment Configuration
 
@@ -59,13 +76,14 @@ Create a file named `.env` in the `backend` folder with the following content:
 
 ```env
 # Required - Database connection
-DATABASE_URL=postgresql://learnobot:StrongPassword123!@localhost:5432/learnobot_db
+DATABASE_URL=postgresql://learnobot:YOUR_SECURE_PASSWORD@localhost:5432/learnobot_db
 
-# Required - Security keys
-SECRET_KEY=a1ef3997f59da47f4e2bd3feba6bb6a412213d77e892e510fa8b0341ee332788
-ENCRYPTION_KEY=paste-your-generated-key-from-step-4-here
+# Required - Security keys (generate your own!)
+SECRET_KEY=paste-your-secret-key-from-step-4b-here
+ENCRYPTION_KEY=paste-your-encryption-key-from-step-4a-here
 
 # Optional - Cloud AI providers (leave empty to use local Ollama only)
+# Note: It's recommended to add API keys through the Manager Panel instead
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GOOGLE_API_KEY=
@@ -73,9 +91,11 @@ COHERE_API_KEY=
 ```
 
 **Notes:**
-- Replace `ENCRYPTION_KEY` value with the key you generated in Step 4
+- **SECRET_KEY**: Paste the key from Step 4b (used for password hashing and JWT tokens)
+- **ENCRYPTION_KEY**: Paste the key from Step 4a (used for encrypting API keys in database)
+- **Change the database password**: Replace `YOUR_SECURE_PASSWORD` with a strong password
 - Cloud AI provider keys are optional - the app works with local Ollama models
-- If you add cloud provider keys later, you can configure them in the app's Manager panel
+- **Recommended**: Add API keys through the Manager Panel after setup (more secure)
 
 ### Step 6: Start Docker Services
 
@@ -132,6 +152,8 @@ docker exec backend-ollama-1 ollama pull llama3.1:8b
 
 # Download Hebrew model (optional):
 docker exec backend-ollama-1 ollama pull aya-expanse:8b
+
+#if you know any other models that may work better you can experience with those
 ```
 
 **Verify download:**
@@ -233,6 +255,27 @@ learnobot-backend-Cursor/
 ├── assets/                        # Flutter assets (fonts, images)
 └── pubspec.yaml                   # Flutter dependencies
 ```
+
+## ⚠️ Important Notes
+
+### Local Model Stability
+**The app is designed to work primarily with cloud AI providers for stability.** While local Ollama models are supported, they may have limitations:
+
+- **Performance**: Local models may be slower and less reliable than cloud providers
+- **Resource Usage**: Requires significant RAM (8GB+ recommended)
+- **Model Quality**: Cloud providers (OpenAI, Anthropic, Google) generally provide better responses
+- **Recommended Setup**: Use cloud providers for production, local models for development/testing
+
+### API Key Management
+**For security and stability, we recommend adding API keys through the Manager Panel:**
+
+1. **After initial setup**, log in as admin (username: "admin", password: "admin123")
+2. **Go to Manager Panel** → AI Configuration → API Keys
+3. **Add your API keys** through the secure interface
+4. **Keys are encrypted** and stored safely in the database
+5. **No need to edit .env file** for API keys
+
+This approach is more secure than storing keys in environment files.
 
 ## 👨‍💼 Manager/Admin Features
 
@@ -406,8 +449,8 @@ venv\Scripts\activate.ps1
 - Key format should be: `ENCRYPTION_KEY=long-base64-string-here`
 - No spaces around the `=` sign
 
-### "Models not downloading"
-**Problem:** Network issues or Ollama service not running.
+### "Models not downloading" or "Local models not working"
+**Problem:** Network issues, Ollama service not running, or local model instability.
 
 **Solution:**
 - Check internet connection
@@ -415,6 +458,12 @@ venv\Scripts\activate.ps1
 - Verify Ollama is running: `docker-compose ps` (backend-ollama-1 should be "Up")
 - Try again: `docker exec backend-ollama-1 ollama pull llama3.1:8b`
 - Check progress: `docker exec backend-ollama-1 ollama list`
+
+**If local models are unstable:**
+- **Recommended**: Use cloud AI providers instead (OpenAI, Anthropic, Google)
+- Add API keys through Manager Panel → AI Configuration → API Keys
+- Cloud providers are more reliable and provide better responses
+- Local models are mainly for development/testing
 
 ### "Flutter app won't start" or build errors
 **Problem:** Flutter dependencies not installed or cache issues.
