@@ -684,7 +684,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   // === IMAGE DISPLAY LOGIC ===
   Widget _buildImageDisplay(ChatMessage message) {
-    // Check for multiple images first
+    // Check for multiple images first (local preview)
     if (message.imageBytesList != null && message.imageBytesList!.isNotEmpty) {
       // Multiple images - show horizontal scrollable list
       return SizedBox(
@@ -718,6 +718,55 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           },
         ),
       );
+    }
+    
+    // NEW: Check for multiple URLs from server
+    if (message.metadata?['image_urls'] != null) {
+      final imageUrls = message.metadata!['image_urls'] as List<dynamic>;
+      if (imageUrls.isNotEmpty) {
+        return SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: imageUrls.length,
+            itemBuilder: (context, index) {
+              final imageUrl = imageUrls[index].toString();
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: GestureDetector(
+                  onTap: () => _showFullScreenImage(imageUrl: imageUrl),
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 150,
+                      maxWidth: 250,
+                      minHeight: 150,
+                      maxHeight: 200,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Image.network(
+                        '${ApiConfig.baseUrl}$imageUrl',
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(
+                            child: Icon(Icons.error, color: Colors.red),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      }
     }
     
     // Single image or network image
