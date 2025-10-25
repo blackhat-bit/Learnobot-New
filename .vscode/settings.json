@@ -1,5 +1,9 @@
 {
   "java.configuration.updateBuildConfiguration": "interactive",
   "claudeCodeChat.permissions.yoloMode": false,
-  "C_Cpp.default.compilerPath": "C:/MinGW/bin/gcc.exe"
+  "C_Cpp.default.compilerPath": "C:/MinGW/bin/gcc.exe",
+  "C_Cpp.errorSquiggles": "Disabled",
+  "files.associations": {
+    "generated_plugin_registrant.cc": "cpp"
+  }
 }
