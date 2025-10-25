@@ -253,6 +253,55 @@ class OpenAIProvider(BaseLLMProvider):
             logger.error(f"OpenAI Vision error after {response_time:.2f}s: {e}")
             raise ValueError(f"OpenAI Vision API error: {str(e)}")
     
+    def process_multiple_images(self, images_data: list, prompt: str, **kwargs) -> str:
+        """Process multiple images with OpenAI vision"""
+        import time
+        import logging
+        import base64
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            from openai import OpenAI
+            
+            client = OpenAI(
+                api_key=self.api_key,
+                timeout=120.0
+            )
+            
+            # Use GPT-4 Vision model
+            vision_model = "gpt-4-vision-preview" if "gpt-4" in self.model else self.model
+            
+            # Build content array with multiple images
+            content = [{"type": "text", "text": prompt}]
+            
+            for img_data in images_data:
+                base64_image = base64.b64encode(img_data).decode('utf-8')
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                })
+            
+            response = client.chat.completions.create(
+                model=vision_model,
+                messages=[{"role": "user", "content": content}],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            response_text = response.choices[0].message.content
+            response_time = time.time() - start_time
+            
+            logger.info(f"OpenAI {vision_model} Multi-Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"OpenAI Multi-Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"OpenAI Multi-Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "OpenAI",
@@ -397,6 +446,69 @@ class AnthropicProvider(BaseLLMProvider):
             response_time = time.time() - start_time
             logger.error(f"Anthropic Vision error after {response_time:.2f}s: {e}")
             raise ValueError(f"Anthropic Vision API error: {str(e)}")
+    
+    def process_multiple_images(self, images_data: list, prompt: str, **kwargs) -> str:
+        """Process multiple images with Anthropic vision"""
+        import time
+        import logging
+        import base64
+        import anthropic
+        import httpx
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            # Build content array with multiple images
+            content = [{"type": "text", "text": prompt}]
+            
+            for img_data in images_data:
+                image_base64 = base64.b64encode(img_data).decode('utf-8')
+                
+                # Detect image format
+                if img_data.startswith(b'\xff\xd8\xff'):
+                    media_type = "image/jpeg"
+                elif img_data.startswith(b'\x89PNG'):
+                    media_type = "image/png"
+                elif img_data.startswith(b'GIF'):
+                    media_type = "image/gif"
+                elif img_data.startswith(b'WEBP'):
+                    media_type = "image/webp"
+                else:
+                    media_type = "image/jpeg"  # Default fallback
+                
+                content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_base64
+                    }
+                })
+            
+            client = anthropic.Anthropic(
+                api_key=self.api_key,
+                timeout=httpx.Timeout(120.0, connect=10.0)
+            )
+            
+            response = client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                messages=[{"role": "user", "content": content}]
+            )
+            
+            response_text = response.content[0].text
+            response_time = time.time() - start_time
+            
+            logger.info(f"Anthropic {self.model} Multi-Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Anthropic Multi-Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"Anthropic Multi-Vision API error: {str(e)}")
     
     def get_info(self) -> Dict[str, Any]:
         return {
@@ -631,6 +743,59 @@ class GoogleProvider(BaseLLMProvider):
             logger.error(f"Google {actual_model} Vision error after {response_time:.2f}s: {e}")
             raise ValueError(f"Google Vision API error: {str(e)}")
     
+    def process_multiple_images(self, images_data: list, prompt: str, **kwargs) -> str:
+        """Process multiple images with Google vision"""
+        import time
+        import logging
+        import PIL.Image
+        import io
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            import google.generativeai as genai
+            
+            # Convert images to PIL Images
+            pil_images = []
+            for img_data in images_data:
+                pil_images.append(PIL.Image.open(io.BytesIO(img_data)))
+            
+            # Build content with text and multiple images
+            content = [prompt] + pil_images
+            
+            generation_config = genai.types.GenerationConfig(
+                temperature=self.temperature,
+                max_output_tokens=self.max_tokens,
+            )
+            
+            response = self.client.generate_content(
+                content,
+                generation_config=generation_config
+            )
+            
+            # Handle multi-part responses (structured content)
+            try:
+                response_text = response.text
+            except ValueError:
+                # Response has multiple parts, concatenate them
+                response_text = ""
+                for candidate in response.candidates:
+                    for part in candidate.content.parts:
+                        response_text += part.text
+            
+            response_time = time.time() - start_time
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.info(f"Google {actual_model} Multi-Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.error(f"Google {actual_model} Multi-Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"Google Multi-Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "Google",
@@ -656,12 +821,27 @@ class MultiProviderLLMManager:
         self._initialize_providers()
         
     def _initialize_providers(self):
-        """Initialize all configured providers"""
-        # Initialize Ollama providers dynamically for each available model
+        """Initialize all configured providers - DATABASE FIRST, then .env fallback for first-time setup"""
+        from app.config import settings  # Import here to avoid circular imports
+        from app.core.database import SessionLocal
+        from app.models.llm_config import LLMProvider as LLMProviderDB
+
+        # Step 1: Load DB state FIRST to check which providers should be active
+        db = SessionLocal()
+        db_providers_map = {}
         try:
-            from app.config import settings  # Import here to avoid circular imports
+            db_providers = db.query(LLMProviderDB).filter(LLMProviderDB.type == "cloud").all()
+            db_providers_map = {p.name.lower(): p for p in db_providers}
+            print(f"🔍 Loaded {len(db_providers_map)} cloud providers from database")
+        except Exception as e:
+            print(f"⚠️  Could not load providers from database: {e}")
+        finally:
+            db.close()
+
+        # Step 2: Initialize Ollama providers (always available, no API key needed)
+        try:
             available_models = OllamaProvider.get_available_models()
-            
+
             if available_models:
                 # Initialize each available model as a separate provider
                 for model_name in available_models:
@@ -670,7 +850,7 @@ class MultiProviderLLMManager:
                         ollama_provider.initialize({"model": model_name})
                         provider_key = f"ollama-{model_name.replace(':', '_').replace('.', '_')}"
                         self.providers[provider_key] = ollama_provider
-                        
+
                         # Set default active provider to the configured model or first available
                         if model_name == settings.LLM_MODEL_NAME:
                             self.active_provider = provider_key
@@ -687,62 +867,145 @@ class MultiProviderLLMManager:
                 self.active_provider = provider_key
         except Exception as e:
             print(f"Failed to initialize Ollama providers: {e}")
-            
-        # Initialize online providers if API keys are available
-        from app.config import settings
-        
+
+        # Step 3: Initialize cloud providers - DATABASE PRECEDENCE ENFORCED
+        # Only initialize if:
+        # 1. DB has NO record (first time setup from .env)
+        # 2. DB has record WITH api_key AND is_active=True AND is_deactivated=False
+
+        # OpenAI
         if settings.OPENAI_API_KEY:
-            try:
-                openai_provider = OpenAIProvider()
-                openai_provider.initialize({"api_key": settings.OPENAI_API_KEY})
-                self.providers["openai"] = openai_provider
-            except Exception as e:
-                print(f"Failed to initialize OpenAI: {e}")
-                
-        if settings.ANTHROPIC_API_KEY:
-            try:
-                anthropic_provider = AnthropicProvider()
-                anthropic_provider.initialize({"api_key": settings.ANTHROPIC_API_KEY})
-                self.providers["anthropic"] = anthropic_provider
-            except Exception as e:
-                print(f"Failed to initialize Anthropic: {e}")
-                
-        if settings.GOOGLE_API_KEY:
-            # Initialize multiple Google models (like Ollama does)
-            google_models = [
-                ("gemini-2.5-flash", "Google Gemini 2.5 Flash"),
-                ("gemini-2.5-pro", "Google Gemini 2.5 Pro"),
-                ("gemini-2.0-flash", "Google Gemini 2.0 Flash"),
-            ]
-            
-            for model_key, display_name in google_models:
+            db_provider = db_providers_map.get("openai")
+            should_initialize = False
+
+            if db_provider is None:
+                # First time setup - .env takes precedence
+                print(f"🆕 OpenAI: No DB record found, initializing from .env (first-time setup)")
+                should_initialize = True
+            elif db_provider.api_key is None or db_provider.is_deactivated:
+                # DB says "deleted" - IGNORE .env
+                print(f"🚫 OpenAI: DB says deactivated/deleted, ignoring .env key")
+                settings.OPENAI_API_KEY = None  # Clear from settings
+                should_initialize = False
+            else:
+                # DB has key - it will be loaded in main.py startup
+                print(f"✅ OpenAI: Will be loaded from database")
+                should_initialize = False
+
+            if should_initialize:
                 try:
-                    google_provider = GoogleProvider()
-                    google_provider.initialize({
-                        "api_key": settings.GOOGLE_API_KEY,
-                        "model": model_key
-                    })
-                    provider_key = f"google-{model_key.replace('.', '_').replace('-', '_')}"
-                    self.providers[provider_key] = google_provider
-                    print(f"✅ Initialized {display_name}")
+                    openai_provider = OpenAIProvider()
+                    openai_provider.initialize({"api_key": settings.OPENAI_API_KEY})
+                    self.providers["openai"] = openai_provider
                 except Exception as e:
-                    print(f"Failed to initialize {display_name}: {e}")
-            
-            # Also keep "google" key for backward compatibility (points to flash)
-            try:
-                google_default = GoogleProvider()
-                google_default.initialize({"api_key": settings.GOOGLE_API_KEY, "model": "gemini-2.5-flash"})
-                self.providers["google"] = google_default
-            except Exception as e:
-                print(f"Failed to initialize Google default: {e}")
-                
+                    print(f"Failed to initialize OpenAI: {e}")
+
+        # Anthropic
+        if settings.ANTHROPIC_API_KEY:
+            db_provider = db_providers_map.get("anthropic")
+            should_initialize = False
+
+            if db_provider is None:
+                print(f"🆕 Anthropic: No DB record found, initializing from .env (first-time setup)")
+                should_initialize = True
+            elif db_provider.api_key is None or db_provider.is_deactivated:
+                print(f"🚫 Anthropic: DB says deactivated/deleted, ignoring .env key")
+                settings.ANTHROPIC_API_KEY = None
+                should_initialize = False
+            else:
+                print(f"✅ Anthropic: Will be loaded from database")
+                should_initialize = False
+
+            if should_initialize:
+                try:
+                    anthropic_provider = AnthropicProvider()
+                    anthropic_provider.initialize({"api_key": settings.ANTHROPIC_API_KEY})
+                    self.providers["anthropic"] = anthropic_provider
+                except Exception as e:
+                    print(f"Failed to initialize Anthropic: {e}")
+
+        # Google - handle multiple model variants with DB precedence
+        if settings.GOOGLE_API_KEY:
+            # Check DB for ANY Google model variant
+            google_model_keys = [
+                "google-gemini_2_5_flash",
+                "google-gemini_2_5_pro",
+                "google-gemini_2_0_flash",
+            ]
+
+            # Check if any Google model exists in DB
+            any_google_in_db = any(key in db_providers_map for key in google_model_keys)
+            any_google_deactivated = False
+
+            if any_google_in_db:
+                # Check if ALL are deactivated
+                any_google_deactivated = all(
+                    db_providers_map.get(key) and
+                    (db_providers_map[key].api_key is None or db_providers_map[key].is_deactivated)
+                    for key in google_model_keys
+                    if key in db_providers_map
+                )
+
+            should_initialize = False
+
+            if not any_google_in_db:
+                # First time setup
+                print(f"🆕 Google: No DB records found, initializing from .env (first-time setup)")
+                should_initialize = True
+            elif any_google_deactivated:
+                # All Google models deactivated
+                print(f"🚫 Google: DB says all models deactivated/deleted, ignoring .env key")
+                settings.GOOGLE_API_KEY = None
+                should_initialize = False
+            else:
+                # Google models will be loaded from DB
+                print(f"✅ Google: Will be loaded from database")
+                should_initialize = False
+
+            if should_initialize:
+                # Initialize multiple Google models (like Ollama does)
+                google_models = [
+                    ("gemini-2.5-flash", "Google Gemini 2.5 Flash"),
+                    ("gemini-2.5-pro", "Google Gemini 2.5 Pro"),
+                    ("gemini-2.0-flash", "Google Gemini 2.0 Flash"),
+                ]
+
+                for model_key, display_name in google_models:
+                    try:
+                        google_provider = GoogleProvider()
+                        google_provider.initialize({
+                            "api_key": settings.GOOGLE_API_KEY,
+                            "model": model_key
+                        })
+                        provider_key = f"google-{model_key.replace('.', '_').replace('-', '_')}"
+                        self.providers[provider_key] = google_provider
+                        print(f"✅ Initialized {display_name}")
+                    except Exception as e:
+                        print(f"Failed to initialize {display_name}: {e}")
+
+        # Cohere
         if settings.COHERE_API_KEY:
-            try:
-                cohere_provider = CohereProvider()
-                cohere_provider.initialize({"api_key": settings.COHERE_API_KEY})
-                self.providers["cohere"] = cohere_provider
-            except Exception as e:
-                print(f"Failed to initialize Cohere: {e}")
+            db_provider = db_providers_map.get("cohere")
+            should_initialize = False
+
+            if db_provider is None:
+                print(f"🆕 Cohere: No DB record found, initializing from .env (first-time setup)")
+                should_initialize = True
+            elif db_provider.api_key is None or db_provider.is_deactivated:
+                print(f"🚫 Cohere: DB says deactivated/deleted, ignoring .env key")
+                settings.COHERE_API_KEY = None
+                should_initialize = False
+            else:
+                print(f"✅ Cohere: Will be loaded from database")
+                should_initialize = False
+
+            if should_initialize:
+                try:
+                    cohere_provider = CohereProvider()
+                    cohere_provider.initialize({"api_key": settings.COHERE_API_KEY})
+                    self.providers["cohere"] = cohere_provider
+                except Exception as e:
+                    print(f"Failed to initialize Cohere: {e}")
     
     def set_active_provider(self, provider_name: str):
         """Switch to a different provider"""
@@ -931,7 +1194,7 @@ class MultiProviderLLMManager:
         """Dynamically add API key and initialize provider"""
         try:
             provider_name = provider_name.lower()
-            
+
             # Update settings (in-memory for this session)
             from app.config import settings
             if provider_name == "openai":
@@ -948,7 +1211,7 @@ class MultiProviderLLMManager:
                 provider_class = CohereProvider
             else:
                 return False
-            
+
             # Encrypt API key before storing in database
             from app.core.encryption import get_encryption_service
             try:
@@ -958,58 +1221,120 @@ class MultiProviderLLMManager:
                 # Encryption service not initialized - store plain text (dev mode)
                 print("⚠️  Encryption service not available - storing API key in plain text")
                 encrypted_key = api_key
-            
+
             # Store encrypted API key in database
             from app.core.database import SessionLocal
             from app.models.llm_config import LLMProvider
-            
+
             db = SessionLocal()
             try:
-                provider_db = db.query(LLMProvider).filter(
-                    LLMProvider.name == provider_name
-                ).first()
-                
-                if provider_db:
-                    # Update existing provider
-                    provider_db.api_key = encrypted_key
-                    provider_db.is_active = True
+                # For Google provider, we need to handle multiple model variants
+                if provider_name == "google":
+                    # Store all Google model variants in DB
+                    google_models = [
+                        "google-gemini_2_5_flash",
+                        "google-gemini_2_5_pro",
+                        "google-gemini_2_0_flash",
+                    ]
+
+                    for model_key in google_models:
+                        provider_db = db.query(LLMProvider).filter(
+                            LLMProvider.name == model_key
+                        ).first()
+
+                        if provider_db:
+                            # Update existing provider
+                            provider_db.api_key = encrypted_key
+                            provider_db.is_active = True
+                            provider_db.is_deactivated = False
+                        else:
+                            # Create new provider entry
+                            provider_db = LLMProvider(
+                                name=model_key,
+                                type="cloud",
+                                is_active=True,
+                                is_deactivated=False,
+                                api_key=encrypted_key
+                            )
+                            db.add(provider_db)
+
+                    db.commit()
+                    print(f"✅ Stored encrypted API key for all Google models in database")
                 else:
-                    # Create new provider entry
-                    provider_db = LLMProvider(
-                        name=provider_name,
-                        type="cloud",
-                        is_active=True,
-                        api_key=encrypted_key
-                    )
-                    db.add(provider_db)
-                
-                db.commit()
-                print(f"✅ Stored encrypted API key for {provider_name} in database")
+                    # Single provider (OpenAI, Anthropic, Cohere)
+                    provider_db = db.query(LLMProvider).filter(
+                        LLMProvider.name == provider_name
+                    ).first()
+
+                    if provider_db:
+                        # Update existing provider
+                        provider_db.api_key = encrypted_key
+                        provider_db.is_active = True
+                        provider_db.is_deactivated = False
+                    else:
+                        # Create new provider entry
+                        provider_db = LLMProvider(
+                            name=provider_name,
+                            type="cloud",
+                            is_active=True,
+                            is_deactivated=False,
+                            api_key=encrypted_key
+                        )
+                        db.add(provider_db)
+
+                    db.commit()
+                    print(f"✅ Stored encrypted API key for {provider_name} in database")
             finally:
                 db.close()
-            
+
             # Store in Secret Manager if enabled
             if settings.USE_SECRET_MANAGER:
                 self._store_secret_in_manager(provider_name, api_key)
-            
-            # Initialize the provider with plain API key (in-memory only)
-            print(f"🔍 Creating provider instance: {provider_class}")
-            provider_instance = provider_class()
-            print(f"🔍 Provider instance created: {type(provider_instance)}")
-            print(f"🔍 Initializing with API key...")
-            provider_instance.initialize({"api_key": api_key})
-            # Check if provider has llm attribute (some use lazy loading)
-            if hasattr(provider_instance, 'llm'):
-                print(f"🔍 Provider initialized. LLM type: {type(provider_instance.llm)}")
+
+            # Initialize provider instances (in-memory only)
+            if provider_name == "google":
+                # Initialize multiple Google models (like startup does)
+                google_models = [
+                    ("gemini-2.5-flash", "Google Gemini 2.5 Flash"),
+                    ("gemini-2.5-pro", "Google Gemini 2.5 Pro"),
+                    ("gemini-2.0-flash", "Google Gemini 2.0 Flash"),
+                ]
+
+                for model_key, display_name in google_models:
+                    try:
+                        google_provider = GoogleProvider()
+                        google_provider.initialize({
+                            "api_key": api_key,
+                            "model": model_key
+                        })
+                        provider_key = f"google-{model_key.replace('.', '_').replace('-', '_')}"
+                        self.providers[provider_key] = google_provider
+                        print(f"✅ Initialized {display_name}")
+                    except Exception as e:
+                        print(f"⚠️  Failed to initialize {display_name}: {e}")
+
+                print(f"✅ Added Google provider with {len(google_models)} model variants")
             else:
-                print(f"🔍 Provider initialized. Using lazy loading for LLM.")
-            
-            # Add to active providers
-            self.providers[provider_name] = provider_instance
-            
-            print(f"✅ Added {provider_name} provider with API key")
+                # Single provider initialization
+                print(f"🔍 Creating provider instance: {provider_class}")
+                provider_instance = provider_class()
+                print(f"🔍 Provider instance created: {type(provider_instance)}")
+                print(f"🔍 Initializing with API key...")
+                provider_instance.initialize({"api_key": api_key})
+
+                # Check if provider has llm attribute (some use lazy loading)
+                if hasattr(provider_instance, 'llm'):
+                    print(f"🔍 Provider initialized. LLM type: {type(provider_instance.llm)}")
+                else:
+                    print(f"🔍 Provider initialized. Using lazy loading for LLM.")
+
+                # Add to active providers
+                self.providers[provider_name] = provider_instance
+
+                print(f"✅ Added {provider_name} provider with API key")
+
             return True
-            
+
         except Exception as e:
             print(f"❌ Failed to add {provider_name} provider: {e}")
             import traceback
@@ -1017,10 +1342,10 @@ class MultiProviderLLMManager:
             return False
     
     def remove_api_key(self, provider_name: str) -> bool:
-        """Remove API key and deactivate provider"""
+        """Remove API key but keep provider row in database"""
         try:
             provider_name = provider_name.lower()
-            
+
             # Update settings (in-memory for this session)
             from app.config import settings
             if provider_name == "openai":
@@ -1033,36 +1358,84 @@ class MultiProviderLLMManager:
                 settings.COHERE_API_KEY = None
             else:
                 return False
-            
-            # Remove API key from database
+
+            # Update provider in database - keep row but mark inactive
             from app.core.database import SessionLocal
             from app.models.llm_config import LLMProvider
-            
+
             db = SessionLocal()
             try:
-                provider_db = db.query(LLMProvider).filter(
-                    LLMProvider.name == provider_name
-                ).first()
-                
-                if provider_db:
-                    provider_db.api_key = None
-                    provider_db.is_active = False
+                if provider_name == "google":
+                    # Handle all Google model variants
+                    google_models = [
+                        "google-gemini_2_5_flash",
+                        "google-gemini_2_5_pro",
+                        "google-gemini_2_0_flash",
+                    ]
+
+                    for model_key in google_models:
+                        provider_db = db.query(LLMProvider).filter(
+                            LLMProvider.name == model_key
+                        ).first()
+
+                        if provider_db:
+                            # Keep provider row but clear key and mark inactive
+                            provider_db.api_key = None
+                            provider_db.is_active = False
+                            provider_db.is_deactivated = True
+
+                        # Remove from active providers (in-memory)
+                        if model_key in self.providers:
+                            del self.providers[model_key]
+
+                        # If this was the active provider, switch to a non-deactivated one
+                        if self.active_provider == model_key:
+                            for provider_key in self.providers.keys():
+                                if not self.deactivated_models.get(provider_key, False):
+                                    self.active_provider = provider_key
+                                    break
+                            else:
+                                self.active_provider = None
+
                     db.commit()
-                    print(f"✅ Removed API key for {provider_name} from database")
+                    print(f"✅ Cleared API key for all Google models and marked inactive")
+                else:
+                    # Single provider
+                    provider_db = db.query(LLMProvider).filter(
+                        LLMProvider.name == provider_name
+                    ).first()
+
+                    if provider_db:
+                        # Keep provider row but clear key and mark inactive
+                        provider_db.api_key = None
+                        provider_db.is_active = False
+                        provider_db.is_deactivated = True
+                        db.commit()
+                        print(f"✅ Cleared {provider_name} API key and marked inactive")
+                    else:
+                        print(f"⚠️ Provider {provider_name} not found in database")
+
+                    # Remove from active providers
+                    if provider_name in self.providers:
+                        del self.providers[provider_name]
+
+                    # If this was the active provider, switch to a non-deactivated one
+                    if self.active_provider == provider_name:
+                        for provider_key in self.providers.keys():
+                            if not self.deactivated_models.get(provider_key, False):
+                                self.active_provider = provider_key
+                                break
+                        else:
+                            self.active_provider = None
+
             finally:
                 db.close()
-            
-            # Remove from active providers
-            if provider_name in self.providers:
-                del self.providers[provider_name]
-            
-            # If this was the active provider, switch to ollama
-            if self.active_provider == provider_name:
-                self.active_provider = "ollama"
-            
-            print(f"✅ Removed {provider_name} provider")
+
+            # Note: We use Fernet encryption for API keys in database, not Secret Manager
+
+            print(f"✅ Deactivated {provider_name} provider (kept in database)")
             return True
-            
+
         except Exception as e:
             print(f"❌ Failed to remove {provider_name} provider: {e}")
             return False

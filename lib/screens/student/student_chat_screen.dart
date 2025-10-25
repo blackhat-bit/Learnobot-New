@@ -8,6 +8,7 @@ import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/chat_message.dart';
 import '../../widgets/chat_bubble.dart';
+import '../../widgets/image_composer_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/chat_service_backend.dart';
 import '../../services/speech_service.dart';
@@ -58,6 +59,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   // Profile picture
   String? _profileImageUrl;
+
+  // Image composer state
+  bool _showImageComposer = false;
+  List<XFile> _pendingImages = [];
 
   @override
   void initState() {
@@ -178,7 +183,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _scrollToBottom();
   }
 
-  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata, Uint8List? imageBytes}) {
+  void _addUserMessage(String content, {MessageType type = MessageType.text, Map<String, dynamic>? metadata, Uint8List? imageBytes, List<Uint8List>? imageBytesList}) {
     setState(() {
       _messages.add(
         ChatMessage(
@@ -189,6 +194,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           type: type,
           metadata: metadata,
           imageBytes: imageBytes,
+          imageBytesList: imageBytesList,
         ),
       );
     });
@@ -286,7 +292,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('העלאת משימה'),
-            content: const Text('איך תרצה להעלות את המשימה?'),
+            content: const Text('איך תרצה להעלות תמונות?'),
             actions: [
               TextButton.icon(
                 icon: const Icon(Icons.camera_alt),
@@ -310,127 +316,234 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (result == null) return;
 
       final ImagePicker picker = ImagePicker();
-      final ImageSource source = result == 'camera' ? ImageSource.camera : ImageSource.gallery;
-      final XFile? image = await picker.pickImage(source: source);
-
-      if (image != null) {
-        print('Image captured: ${image.path}');
-
-        // Read image bytes for immediate display
-        final imageBytes = await image.readAsBytes();
-
-        _addUserMessage(
-          'תמונת משימה',
-          type: MessageType.taskCapture,
-          imageBytes: imageBytes,
-          metadata: {'image_path': image.path},
-        );
-
-        _addBotMessage('אני מעבד את המשימה שצילמת...');
-
-        try {
-          // Use already read image bytes
-          print('Image size: ${imageBytes.length} bytes, filename: ${image.name}');
-          
-          // Upload and process with OCR
-          final result = await ChatServiceBackend.uploadTask(
-            sessionId: _currentSessionId!,
-            imageBytes: imageBytes,
-            fileName: image.name,
-            provider: _selectedModel,
-          );
-          
-          print('Upload result: $result');
-          
-          final extractedText = result['extracted_text'] ?? '';
-          final response = result['ai_response'] ?? '';
-          final message = result['message'] ?? '';
-          final method = result['method'] ?? 'ocr'; // 'vision' or 'ocr'
-          final imageUrl = result['image_url']; // Get server URL
-          
-          // Update the message with server image URL
-          if (imageUrl != null) {
-            setState(() {
-              // Find the task capture message and update it with server URL
-              for (int i = _messages.length - 1; i >= 0; i--) {
-                if (_messages[i].type == MessageType.taskCapture && 
-                    _messages[i].metadata?['image_path'] == image.path) {
-                  final msg = _messages[i];
-                  final newMetadata = Map<String, dynamic>.from(msg.metadata ?? {});
-                  newMetadata['image_url'] = imageUrl;
-                  _messages[i] = ChatMessage(
-                    id: msg.id,
-                    content: msg.content,
-                    timestamp: msg.timestamp,
-                    sender: msg.sender,
-                    type: msg.type,
-                    metadata: newMetadata,
-                    imageBytes: null, // Clear bytes, use URL now
-                  );
-                  break;
-                }
-              }
-            });
-          }
-          
-          // Check if OCR was successful
-          if (extractedText.isNotEmpty && 
-              !extractedText.contains('לא הצלחתי') && 
-              !extractedText.contains('שגיאה')) {
-            _lastTaskText = extractedText;
-            
-            // Only show OCR text if NOT using vision (vision AI already saw the image)
-            if (method != 'vision') {
-              _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
-            }
-            
-            // Show AI response (for both vision and OCR methods)
-            if (response.isNotEmpty) {
-              if (method == 'vision') {
-                // For vision, show immediately (no delay)
-                _addBotMessage(response);
-              } else {
-                // For OCR, show after delay (after OCR text message)
-                Future.delayed(const Duration(seconds: 1), () {
-                  _addBotMessage(response);
-                });
-              }
-            }
-            
-            Future.delayed(const Duration(seconds: 1), () {
-              setState(() {
-                _showAssistanceOptions = true;
-              });
-            });
-          } else {
-            // OCR failed or returned error message
-            String errorMessage = message.isNotEmpty ? message : extractedText;
-            if (errorMessage.isEmpty) {
-              errorMessage = 'מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.';
-            }
-            _addBotMessage(errorMessage);
-          }
-        } catch (e) {
-          print('Upload task error: $e');
-          String errorMessage = 'מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.';
-          
-          // Provide more specific error messages
-          if (e.toString().contains('TimeoutException')) {
-            errorMessage = 'העיבוד לוקח יותר מדי זמן. אנא נסה תמונה קטנה יותר או כתב את השאלה ידנית.';
-          } else if (e.toString().contains('Connection')) {
-            errorMessage = 'בעיית חיבור לשרת. אנא בדוק את החיבור לאינטרנט ונסה שוב.';
-          } else if (e.toString().contains('400')) {
-            errorMessage = 'התמונה לא תקינה. אנא נסה תמונה אחרת (JPG, PNG).';
-          } else if (e.toString().contains('413')) {
-            errorMessage = 'התמונה גדולה מדי. אנא נסה תמונה קטנה יותר (מתחת ל-5MB).';
-          }
-          
-          _addBotMessage(errorMessage);
+      
+      if (result == 'camera') {
+        // Take single photo with camera
+        final XFile? image = await picker.pickImage(source: ImageSource.camera);
+        if (image != null) {
+          setState(() {
+            _pendingImages = [image];
+            _showImageComposer = true;
+          });
+        }
+      } else {
+        // Pick multiple images from gallery
+        final List<XFile> images = await picker.pickMultiImage();
+        if (images.isNotEmpty) {
+          setState(() {
+            _pendingImages = images;
+            _showImageComposer = true;
+          });
         }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('שגיאה בצילום המשימה: $e')),
+        SnackBar(content: Text('שגיאה בהוספת תמונות: $e')),
+      );
+    }
+  }
+
+  // New method to handle sending images with text
+  Future<void> _sendImagesWithText(List<XFile> images, String text) async {
+    setState(() {
+      _showImageComposer = false;
+      _pendingImages = [];
+    });
+
+    if (images.isEmpty) {
+      // Just text, no images
+      if (text.isNotEmpty) {
+        _messageController.text = text;
+        _sendMessage();
+      }
+      return;
+    }
+
+    try {
+      // Read all image bytes
+      final List<Uint8List> imageBytesList = [];
+      for (final image in images) {
+        final bytes = await image.readAsBytes();
+        imageBytesList.add(bytes);
+      }
+
+      // Add user message with images
+      final content = text.isNotEmpty ? text : 'תמונות משימה';
+      _addUserMessage(
+        content,
+        type: MessageType.taskCapture,
+        imageBytesList: imageBytesList,
+        metadata: {
+          'image_count': images.length,
+          'image_paths': images.map((img) => img.path).toList(),
+        },
+      );
+
+      // Use the same animated typing indicator as text messages
+      setState(() {
+        _isBotTyping = true;
+        _currentTypingMessageIndex = 0;
+        _typingAnimationKey = DateTime.now().millisecondsSinceEpoch;
+        _messages.add(ChatMessage(
+          id: 'typing',
+          content: '...',
+          timestamp: DateTime.now(),
+          sender: SenderType.bot,
+          type: MessageType.systemMessage,
+        ));
+      });
+
+      // Start the typing animation timer
+      _typingMessageTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+        if (mounted && _isBotTyping) {
+          setState(() {
+            _currentTypingMessageIndex = (_currentTypingMessageIndex + 1) % _typingMessages.length;
+          });
+        }
+      });
+
+      // Process all images
+      try {
+        print('Processing ${images.length} images');
+        
+        // Prepare additional images (all except first)
+        List<List<int>>? additionalBytes;
+        List<String>? additionalNames;
+        if (images.length > 1) {
+          additionalBytes = imageBytesList.skip(1).map((b) => b.toList()).toList();
+          additionalNames = images.skip(1).map((img) => img.name).toList();
+        }
+        
+        // Upload and process with all images and text description
+        final result = await ChatServiceBackend.uploadTask(
+          sessionId: _currentSessionId!,
+          imageBytes: imageBytesList[0],
+          fileName: images[0].name,
+          provider: _selectedModel,
+          additionalImageBytes: additionalBytes,
+          additionalFileNames: additionalNames,
+          textDescription: text.isNotEmpty ? text : null,
+        );
+        
+        print('Upload result: $result');
+        
+        final extractedText = result['extracted_text'] ?? '';
+        final response = result['ai_response'] ?? '';
+        final message = result['message'] ?? '';
+        final method = result['method'] ?? 'ocr';
+        final imageUrl = result['image_url'];
+        final imageUrls = result['image_urls'] as List<dynamic>?;
+        
+        // Update the message with server image URLs
+        if (imageUrl != null || (imageUrls != null && imageUrls.isNotEmpty)) {
+          setState(() {
+            for (int i = _messages.length - 1; i >= 0; i--) {
+              if (_messages[i].type == MessageType.taskCapture && 
+                  _messages[i].metadata?['image_count'] == images.length) {
+                final msg = _messages[i];
+                final newMetadata = Map<String, dynamic>.from(msg.metadata ?? {});
+                newMetadata['image_url'] = imageUrl;
+                if (imageUrl != null) {
+                  newMetadata['image_path'] = imageUrl; // Add for backward compatibility
+                }
+                if (imageUrls != null) {
+                  newMetadata['image_urls'] = imageUrls.map((url) => url.toString()).toList();
+                }
+                _messages[i] = ChatMessage(
+                  id: msg.id,
+                  content: msg.content,
+                  timestamp: msg.timestamp,
+                  sender: msg.sender,
+                  type: msg.type,
+                  metadata: newMetadata,
+                  imageBytes: null,
+                  imageBytesList: null, // Clear local image bytes when using server URLs
+                );
+                break;
+              }
+            }
+          });
+        }
+        
+        // Remove typing indicator
+        if (mounted) {
+          _typingMessageTimer?.cancel();
+          setState(() {
+            _messages.removeWhere((m) => m.id == 'typing');
+            _isBotTyping = false;
+          });
+        }
+        
+        // Check if OCR was successful
+        if (extractedText.isNotEmpty && 
+            !extractedText.contains('לא הצלחתי') && 
+            !extractedText.contains('שגיאה')) {
+          _lastTaskText = extractedText;
+          
+          if (method != 'vision') {
+            _addBotMessage('זיהיתי את המשימה הבאה: \n\n$extractedText');
+          }
+          
+          if (response.isNotEmpty) {
+            if (method == 'vision') {
+              _addBotMessage(response);
+            } else {
+              Future.delayed(const Duration(seconds: 1), () {
+                _addBotMessage(response);
+              });
+            }
+          }
+          
+          Future.delayed(const Duration(seconds: 1), () {
+            setState(() {
+              _showAssistanceOptions = true;
+            });
+          });
+        } else {
+          String errorMessage = message.isNotEmpty ? message : extractedText;
+          if (errorMessage.isEmpty) {
+            errorMessage = 'מצטער, לא הצלחתי לזהות טקסט בתמונה. אנא נסה שוב עם תמונה ברורה יותר.';
+        }
+        
+        // Remove typing indicator on error
+        if (mounted) {
+          _typingMessageTimer?.cancel();
+          setState(() {
+            _messages.removeWhere((m) => m.id == 'typing');
+            _isBotTyping = false;
+          });
+        }
+        
+        _addBotMessage(errorMessage);
+      }
+    } catch (e) {
+        print('Upload task error: $e');
+        String errorMessage = 'מצטער, נתקלתי בבעיה בעיבוד התמונה. אנא נסה שוב.';
+        
+        if (e.toString().contains('TimeoutException')) {
+          errorMessage = 'העיבוד לוקח יותר מדי זמן. אנא נסה תמונה קטנה יותר או כתב את השאלה ידנית.';
+        } else if (e.toString().contains('Connection')) {
+          errorMessage = 'בעיית חיבור לשרת. אנא בדוק את החיבור לאינטרנט ונסה שוב.';
+        } else if (e.toString().contains('400')) {
+          errorMessage = 'התמונה לא תקינה. אנא נסה תמונה אחרת (JPG, PNG).';
+        } else if (e.toString().contains('413')) {
+          errorMessage = 'התמונה גדולה מדי. אנא נסה תמונה קטנה יותר (מתחת ל-5MB).';
+        }
+        
+        _addBotMessage(errorMessage);
+      }
+    } catch (e) {
+      // Remove typing indicator on outer error
+      if (mounted) {
+        _typingMessageTimer?.cancel();
+        setState(() {
+          _messages.removeWhere((m) => m.id == 'typing');
+          _isBotTyping = false;
+        });
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('שגיאה בעיבוד תמונות: $e')),
       );
     }
   }
@@ -568,6 +681,128 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
   }
   // === END SATISFACTION BAR LOGIC ===
+
+  // === IMAGE DISPLAY LOGIC ===
+  Widget _buildImageDisplay(ChatMessage message) {
+    // Check for multiple images first (local preview)
+    if (message.imageBytesList != null && message.imageBytesList!.isNotEmpty) {
+      // Multiple images - show horizontal scrollable list
+      return SizedBox(
+        height: 200,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: message.imageBytesList!.length,
+          itemBuilder: (context, index) {
+            final imageBytes = message.imageBytesList![index];
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: GestureDetector(
+                onTap: () => _showFullScreenImage(imageBytes: imageBytes),
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 150,
+                    maxWidth: 250,
+                    minHeight: 150,
+                    maxHeight: 200,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: Image.memory(
+                      imageBytes,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    
+    // NEW: Check for multiple URLs from server
+    if (message.metadata?['image_urls'] != null) {
+      final imageUrls = message.metadata!['image_urls'] as List<dynamic>;
+      if (imageUrls.isNotEmpty) {
+        return SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: imageUrls.length,
+            itemBuilder: (context, index) {
+              final imageUrl = imageUrls[index].toString();
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: GestureDetector(
+                  onTap: () => _showFullScreenImage(imageUrl: imageUrl),
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 150,
+                      maxWidth: 250,
+                      minHeight: 150,
+                      maxHeight: 200,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Image.network(
+                        '${ApiConfig.baseUrl}$imageUrl',
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(
+                            child: Icon(Icons.error, color: Colors.red),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      }
+    }
+    
+    // Single image or network image
+    if (message.imageBytes != null) {
+      return GestureDetector(
+        onTap: () => _showFullScreenImage(imageBytes: message.imageBytes),
+        child: Image.memory(
+          message.imageBytes!,
+          fit: BoxFit.contain,
+        ),
+      );
+    }
+    
+    if (message.metadata?['image_url'] != null) {
+      return GestureDetector(
+        onTap: () => _showFullScreenImage(imageUrl: message.metadata!['image_url']),
+        child: Image.network(
+          '${ApiConfig.baseUrl}${message.metadata!['image_url']}',
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return const Center(
+              child: Icon(Icons.error, color: Colors.red),
+            );
+          },
+        ),
+      );
+    }
+    
+    return const Center(child: CircularProgressIndicator());
+  }
 
   // === FULL-SCREEN IMAGE VIEWER ===
   void _showFullScreenImage({
@@ -1091,77 +1326,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             showAvatar: index == 0 ||
                                 _messages[index - 1].sender != message.sender,
                             onSpeakPressed: _speakText,
+                            onAssistanceSelected: (type) => _handleAssistButton(type),
                             studentProfileImageUrl: _profileImageUrl,
                             isTtsSpeaking: _speechService.isSpeaking,
                             isTtsAvailable: _speechService.isTtsInitialized,
                             ttsError: _speechService.lastError.isNotEmpty ? _speechService.lastError : null,
                           ),
-                          if (message.metadata?['image_path'] != null) ...[
+                          if (message.imageBytesList != null && message.imageBytesList!.isNotEmpty ||
+                              message.metadata?['image_urls'] != null ||
+                              message.metadata?['image_url'] != null) ...[
                             const SizedBox(height: 5),
-                            GestureDetector(
-                              onTap: () => _showFullScreenImage(
-                                imageBytes: message.imageBytes,
-                                imageUrl: message.metadata?['image_url'],
-                              ),
-                              child: Container(
-                                margin: const EdgeInsets.only(left: 50),
-                                constraints: const BoxConstraints(
-                                  minWidth: 150,
-                                  maxWidth: 250,
-                                  minHeight: 150,
-                                  maxHeight: 350,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.primary, width: 2),
-                                ),
-                                child: Stack(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: message.imageBytes != null
-                                          ? Image.memory(
-                                              message.imageBytes!,
-                                              fit: BoxFit.contain,
-                                            )
-                                          : message.metadata?['image_url'] != null
-                                              ? Image.network(
-                                                  '${ApiConfig.baseUrl}${message.metadata!['image_url']}',
-                                                  fit: BoxFit.contain,
-                                                  loadingBuilder: (context, child, loadingProgress) {
-                                                    if (loadingProgress == null) return child;
-                                                    return const Center(
-                                                      child: CircularProgressIndicator(),
-                                                    );
-                                                  },
-                                                  errorBuilder: (context, error, stackTrace) {
-                                                    return const Center(
-                                                      child: Icon(Icons.error, color: Colors.red),
-                                                    );
-                                                  },
-                                                )
-                                              : const Center(child: CircularProgressIndicator()),
-                                    ),
-                                    // Tap hint icon
-                                    Positioned(
-                                      bottom: 4,
-                                      right: 4,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.5),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Icon(
-                                          Icons.zoom_in,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            Container(
+                              margin: const EdgeInsets.only(left: 50),
+                              child: _buildImageDisplay(message),
                             ),
                           ],
                         ],
@@ -1180,6 +1357,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         showAvatar: index == 0 ||
                             _messages[index - 1].sender != message.sender,
                         onSpeakPressed: _speakText,
+                        onAssistanceSelected: (type) => _handleAssistButton(type),
                         studentProfileImageUrl: _profileImageUrl,
                         isTtsSpeaking: _speechService.isSpeaking,
                         isTtsAvailable: _speechService.isTtsInitialized,
@@ -1326,6 +1504,24 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 child: Center(
                   child: _buildModelSelector(),
                 ),
+              ),
+            ),
+          
+          // Image composer overlay
+          if (_showImageComposer)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: ImageComposerWidget(
+                initialImages: _pendingImages,
+                onSend: _sendImagesWithText,
+                onCancel: () {
+                  setState(() {
+                    _showImageComposer = false;
+                    _pendingImages = [];
+                  });
+                },
               ),
             ),
         ],

@@ -127,52 +127,62 @@ async def test_vision(
 @router.post("/sessions/{session_id}/upload-task")
 async def upload_task(
     session_id: int,
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     provider: str = Form(None),
+    text_description: str = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload an image of a task - uses Vision API for cloud models, OCR for local models"""
+    """Upload one or more images of a task with optional text description - uses Vision API for cloud models, OCR for local models"""
     import time
     import asyncio
     from app.services.vision_service import vision_service
     from pathlib import Path
     import uuid
     
-    logger.info(f"=== UPLOAD REQUEST RECEIVED === Session: {session_id}, Provider: {provider}, File: {file.filename}")
+    logger.info(f"=== UPLOAD REQUEST RECEIVED === Session: {session_id}, Provider: {provider}, Files: {len(files)}, Description: {text_description}")
     
     start_time = time.time()
     
-    # Check content type or file extension
-    is_image = (
-        file.content_type and file.content_type.startswith("image/")
-    ) or (
-        file.filename and file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
-    )
-
-    if not is_image:
-        raise HTTPException(status_code=400, detail="File must be an image")
-    
-    # Read file content
-    content = await file.read()
-    logger.info(f"Image received: {len(content)} bytes, {file.filename}")
-    
-    # Save image to disk
+    # Process all images
+    image_contents = []
+    image_urls = []
     upload_dir = Path("uploads/task_images")
     upload_dir.mkdir(parents=True, exist_ok=True)
     
-    # Generate unique filename
-    file_ext = Path(file.filename).suffix if file.filename else '.jpg'
-    unique_filename = f"{uuid.uuid4()}{file_ext}"
-    file_path = upload_dir / unique_filename
+    for file in files:
+        # Check content type or file extension
+        is_image = (
+            file.content_type and file.content_type.startswith("image/")
+        ) or (
+            file.filename and file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
+        )
+
+        if not is_image:
+            raise HTTPException(status_code=400, detail=f"File {file.filename} must be an image")
+        
+        # Read file content
+        content = await file.read()
+        logger.info(f"Image received: {len(content)} bytes, {file.filename}")
+        image_contents.append(content)
+        
+        # Generate unique filename
+        file_ext = Path(file.filename).suffix if file.filename else '.jpg'
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = upload_dir / unique_filename
+        
+        # Write image to disk
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        # Generate URL path
+        image_url = f"/uploads/task_images/{unique_filename}"
+        image_urls.append(image_url)
+        logger.info(f"Image saved to: {file_path}, URL: {image_url}")
     
-    # Write image to disk
-    with open(file_path, "wb") as f:
-        f.write(content)
-    
-    # Generate URL path
-    image_url = f"/uploads/task_images/{unique_filename}"
-    logger.info(f"Image saved to: {file_path}, URL: {image_url}")
+    # Use first image as primary image for backward compatibility
+    content = image_contents[0]
+    image_url = image_urls[0]
     
     # Check if provider supports vision
     is_cloud_model = provider and vision_service.supports_vision(provider)
@@ -183,28 +193,55 @@ async def upload_task(
         logger.info(f"Using Vision API with provider: {provider} (OCR disabled)")
         
         # Create Hebrew prompt for vision model
-        vision_prompt = """קרא את הטקסט בתמונה הזו ועזור לתלמיד להבין את המשימה.
+        base_prompt = """קרא את הטקסט בתמונה{multiple} ועזור לתלמיד להבין את המשימה.
 
-**חשוב: כתוב בתשובה שלך את הטקסט המדויק שרשום בתמונה** (בשורות..., כתוב...).
+{description}
 
 אם יש טקסט בתמונה:
-1. תאר מה רשום בתמונה (כלול את הטקסט המדויק)
+1. תאר מה רשום בתמונה (רק הטקסט הרלוונטי למשימה)
 2. הסבר במילים פשוטות מה צריך לעשות
-3. שאל את התלמיד איך תרצה שאעזור (הסבר, פירוק לשלבים, או דוגמה)
+3. הצע לתלמיד עזרה נוספת עם האפשרויות הבאות (כלול את האימוג'ים בדיוק כפי שמופיע):
+   🔍 הסבר
+   📝 פירוק לשלבים
+   💡 דוגמה
 
 אם אין טקסט ברור:
 תגיד לתלמיד שלא הצלחת לקרוא את התמונה בבירור ותבקש להעלות תמונה ברורה יותר.
 
 תענה בעברית פשוטה וברורה. אל תתחיל בברכה או הצגה - תתחיל ישירות עם התשובה."""
         
-        # Process with vision (fast!)
+        # Add context from text description if provided
+        description_text = ""
+        if text_description:
+            description_text = f"התלמיד אמר: \"{text_description}\"\n"
+        
+        # Indicate if multiple images
+        multiple_text = "" if len(files) == 1 else " (יש מספר תמונות)"
+        
+        vision_prompt = base_prompt.format(
+            description=description_text,
+            multiple=multiple_text
+        )
+        
+        # Process with vision (fast!) - process ALL images
         vision_start = time.time()
         try:
-            vision_result = await vision_service.process_image_with_vision(
-                image_data=content,
-                prompt=vision_prompt,
-                provider=provider
-            )
+            if len(image_contents) > 1:
+                # Send all images together for coherent understanding
+                logger.info(f"Processing {len(image_contents)} images together with vision API")
+                
+                vision_result = await vision_service.process_multiple_images_with_vision(
+                    images_data=image_contents,
+                    prompt=vision_prompt,
+                    provider=provider
+                )
+            else:
+                # Single image - use original logic
+                vision_result = await vision_service.process_image_with_vision(
+                    image_data=image_contents[0],
+                    prompt=vision_prompt,
+                    provider=provider
+                )
             vision_time = time.time() - vision_start
             
             if not vision_result.get("success"):
@@ -249,7 +286,8 @@ async def upload_task(
                 "message": "קראתי את התמונה בהצלחה!",
                 "processing_time_seconds": round(total_time, 2),
                 "method": "vision",
-                "image_url": image_url
+                "image_url": image_url,  # Primary image (backward compat)
+                "image_urls": image_urls  # All images
             }
             
         except Exception as e:
@@ -262,9 +300,20 @@ async def upload_task(
         logger.info(f"Using OCR path for provider: {provider or 'default'}")
         
         ocr_start = time.time()
-        extracted_text = await ocr_service.extract_text(content)
+        # Process ALL images with OCR
+        all_extracted_texts = []
+        for i, img_content in enumerate(image_contents):
+            logger.info(f"Processing image {i+1}/{len(image_contents)} with OCR")
+            img_extracted = await ocr_service.extract_text(img_content)
+            if img_extracted and not img_extracted.startswith("לא הצלחתי") and not img_extracted.startswith("שגיאה"):
+                all_extracted_texts.append(f"תמונה {i+1}:\n{img_extracted}")
+            else:
+                all_extracted_texts.append(f"תמונה {i+1}: לא הצלחתי לקרוא את הטקסט")
+        
+        # Combine all extracted texts
+        extracted_text = "\n\n".join(all_extracted_texts)
         ocr_time = time.time() - ocr_start
-        logger.info(f"OCR completed in {ocr_time:.2f}s")
+        logger.info(f"OCR completed in {ocr_time:.2f}s for {len(image_contents)} images")
         
         # Process with Hebrew mediation if text was extracted successfully
         if extracted_text and not extracted_text.startswith("לא הצלחתי") and not extracted_text.startswith("שגיאה"):
@@ -316,7 +365,8 @@ async def upload_task(
                 "message": "קראתי את התמונה בהצלחה!",
                 "processing_time_seconds": round(total_time, 2),
                 "method": "ocr",
-                "image_url": image_url
+                "image_url": image_url,  # Primary image (backward compat)
+                "image_urls": image_urls  # All images
             }
         else:
             # OCR failed, return error message  
@@ -325,7 +375,9 @@ async def upload_task(
                 "extracted_text": extracted_text,
                 "ai_response": None,
                 "message": extracted_text,
-                "method": "ocr"
+                "method": "ocr",
+                "image_url": image_url if image_urls else None,  # Primary image
+                "image_urls": image_urls  # All images
             }
 
 @router.put("/messages/{message_id}/rate")

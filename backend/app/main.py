@@ -22,30 +22,47 @@ llm_config.Base.metadata.create_all(bind=engine)
 notification.Base.metadata.create_all(bind=engine)
 
 def sync_providers_to_database():
-    """Sync detected LLM providers to database"""
+    """Sync detected LLM providers to database - ONLY for first-time Ollama/Local models"""
     db = SessionLocal()
     try:
+        synced_count = 0
         for provider_name, provider_instance in multi_llm_manager.providers.items():
-            # Checkctivae if provider already exists
+            # Only sync LOCAL providers (Ollama) - never cloud providers from .env
+            provider_info = provider_instance.get_info()
+            provider_type = provider_info.get("type", "unknown")
+
+            # Skip cloud providers - they should only be managed via add_api_key()
+            if provider_type != "local":
+                continue
+
+            # Check if provider already exists
             existing = db.query(LLMProvider).filter(LLMProvider.name == provider_name).first()
-            
+
             if not existing:
-                # Create new provider entry
-                provider_info = provider_instance.get_info()
+                # Create new provider entry for local models only
                 new_provider = LLMProvider(
                     name=provider_name,
-                    type=provider_info.get("type", "unknown"),
+                    type=provider_type,
                     is_active=True,
                     config=provider_info
                 )
                 db.add(new_provider)
-                print(f" Added LLM provider: {provider_name}")
-        
+                synced_count += 1
+                print(f"📝 Added local LLM provider: {provider_name}")
+
+        # Note: We no longer delete providers from DB that aren't in memory
+        # Note: We no longer sync cloud providers from .env to DB
+        # Cloud providers are ONLY added via Manager Panel (add_api_key endpoint)
+        # The DB is the single source of truth for cloud provider state
+
         db.commit()
-        print(f"🔄 Provider sync complete. Total providers: {len(multi_llm_manager.providers)}")
-        
+        if synced_count > 0:
+            print(f"🔄 Synced {synced_count} local providers to database")
+        else:
+            print(f"✅ No new local providers to sync")
+
     except Exception as e:
-        print(f" Failed to sync providers: {e}")
+        print(f"❌ Failed to sync providers: {e}")
         db.rollback()
     finally:
         db.close()
@@ -93,32 +110,79 @@ async def startup_event():
         print("✅ Encryption service initialized with key")
     else:
         print("⚠️  No ENCRYPTION_KEY - API keys will be stored in plain text (dev mode)")
-    
-    # Sync local providers to database
+
+    # Note: DB precedence is now enforced in multi_llm_manager._initialize_providers()
+    # No need for separate enforcement here - providers check DB before initializing from .env
+
+    # Sync local providers (Ollama) to database (cloud providers are never synced from .env)
     sync_providers_to_database()
     
     # Load encrypted API keys from database and initialize providers
     from app.core.encryption import get_encryption_service
     from app.ai.multi_llm_manager import OpenAIProvider, AnthropicProvider, GoogleProvider, CohereProvider
-    
+
     encryption_service = get_encryption_service()
-    
     db = SessionLocal()
     try:
         providers_with_keys = db.query(LLMProvider).filter(
             LLMProvider.api_key.isnot(None),
             LLMProvider.type == "cloud"  # Only cloud providers need API keys
         ).all()
-        
+
+        # Group Google models together (they share same API key)
+        google_providers = []
+        other_providers = []
+
         for provider_db in providers_with_keys:
+            if provider_db.name.startswith("google-"):
+                google_providers.append(provider_db)
+            else:
+                other_providers.append(provider_db)
+
+        # Handle Google providers (all variants use same key)
+        if google_providers:
+            # Take first Google provider's key (they all have the same key)
+            first_google = google_providers[0]
+            decrypted_key = encryption_service.decrypt(first_google.api_key)
+
+            if decrypted_key and len(decrypted_key) > 0:
+                try:
+                    settings.GOOGLE_API_KEY = decrypted_key
+
+                    # Initialize all Google model variants
+                    google_models = [
+                        ("gemini-2.5-flash", "Google Gemini 2.5 Flash", "google-gemini_2_5_flash"),
+                        ("gemini-2.5-pro", "Google Gemini 2.5 Pro", "google-gemini_2_5_pro"),
+                        ("gemini-2.0-flash", "Google Gemini 2.0 Flash", "google-gemini_2_0_flash"),
+                    ]
+
+                    for model_key, display_name, provider_key in google_models:
+                        try:
+                            google_provider = GoogleProvider()
+                            google_provider.initialize({
+                                "api_key": decrypted_key,
+                                "model": model_key
+                            })
+                            multi_llm_manager.providers[provider_key] = google_provider
+                            print(f"✅ Loaded {display_name} from database")
+                        except Exception as e:
+                            print(f"⚠️  Failed to initialize {display_name}: {e}")
+
+                except Exception as e:
+                    print(f"⚠️  Failed to load Google providers: {e}")
+            else:
+                print(f"⚠️  Could not decrypt Google API key")
+
+        # Handle other cloud providers
+        for provider_db in other_providers:
             # Decrypt the stored API key
             decrypted_key = encryption_service.decrypt(provider_db.api_key)
-            
+
             if decrypted_key and len(decrypted_key) > 0:
                 try:
                     # Initialize provider directly without re-storing (avoid double encryption)
                     provider_name = provider_db.name.lower()
-                    
+
                     # Update in-memory settings
                     if provider_name == "openai":
                         settings.OPENAI_API_KEY = decrypted_key
@@ -126,30 +190,27 @@ async def startup_event():
                     elif provider_name == "anthropic":
                         settings.ANTHROPIC_API_KEY = decrypted_key
                         provider_class = AnthropicProvider
-                    elif provider_name == "google":
-                        settings.GOOGLE_API_KEY = decrypted_key
-                        provider_class = GoogleProvider
                     elif provider_name == "cohere":
                         settings.COHERE_API_KEY = decrypted_key
                         provider_class = CohereProvider
                     else:
                         print(f"⚠️  Unknown provider: {provider_name}")
                         continue
-                    
+
                     # Initialize provider instance
                     provider_instance = provider_class()
                     provider_instance.initialize({"api_key": decrypted_key})
-                    
+
                     # Add to active providers (in-memory only, no DB write)
                     multi_llm_manager.providers[provider_name] = provider_instance
-                    
+
                     print(f"✅ Loaded and initialized {provider_name} from database")
-                    
+
                 except Exception as e:
                     print(f"⚠️  Failed to initialize {provider_db.name}: {e}")
             else:
                 print(f"⚠️  Could not decrypt API key for {provider_db.name}")
-                
+
     except Exception as e:
         print(f"⚠️  Error loading API keys from database: {e}")
         import traceback

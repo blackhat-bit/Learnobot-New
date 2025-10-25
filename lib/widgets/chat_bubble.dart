@@ -4,10 +4,20 @@ import 'package:intl/intl.dart' hide TextDirection;
 import '../constants/app_colors.dart';
 import '../models/chat_message.dart';
 
+// Simple suggestion model for assistance options
+class AssistanceSuggestion {
+  final String type; // 'explain', 'breakdown', 'example'
+  final IconData icon;
+  final String label;
+  
+  AssistanceSuggestion(this.type, this.icon, this.label);
+}
+
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final bool showAvatar;
   final Function(String)? onSpeakPressed;
+  final Function(String)? onAssistanceSelected;
   final String? studentProfileImageUrl;
   final bool isTtsSpeaking;
   final bool isTtsAvailable;
@@ -18,6 +28,7 @@ class ChatBubble extends StatelessWidget {
     required this.message,
     this.showAvatar = true,
     this.onSpeakPressed,
+    this.onAssistanceSelected,
     this.studentProfileImageUrl,
     this.isTtsSpeaking = false,
     this.isTtsAvailable = true,
@@ -77,6 +88,10 @@ class ChatBubble extends StatelessWidget {
                 children: [
                   // Message text with proper RTL/LTR handling for mixed content
                   _buildMessageText(message.content, isStudent),
+                  
+                  // Assistance suggestion buttons (for bot messages only)
+                  if (!isStudent && onAssistanceSelected != null)
+                    _buildSuggestionButtons(),
                   
                   const SizedBox(height: 5),
                   
@@ -302,5 +317,57 @@ class ChatBubble extends StatelessWidget {
   // Format timestamp to display time
   String _formatTime(DateTime time) {
     return DateFormat('HH:mm').format(time);
+  }
+  
+  // Parse suggestions from message content
+  List<AssistanceSuggestion> _parseSuggestions(String content) {
+    final suggestions = <AssistanceSuggestion>[];
+    
+    // Check for suggestion patterns (without ** **)
+    if (content.contains('🔍 הסבר')) {
+      suggestions.add(AssistanceSuggestion('explain', Icons.search, 'הסבר'));
+    }
+    if (content.contains('📝 פירוק לשלבים')) {
+      suggestions.add(AssistanceSuggestion('breakdown', Icons.list, 'פירוק לשלבים'));
+    }
+    if (content.contains('💡 דוגמה')) {
+      suggestions.add(AssistanceSuggestion('example', Icons.lightbulb_outline, 'דוגמה'));
+    }
+    
+    return suggestions;
+  }
+  
+  // Build clickable suggestion buttons
+  Widget _buildSuggestionButtons() {
+    final suggestions = _parseSuggestions(message.content);
+    
+    if (suggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.start,
+        children: suggestions.map((suggestion) {
+          return ElevatedButton.icon(
+            onPressed: () => onAssistanceSelected?.call(suggestion.type),
+            icon: Icon(suggestion.icon, size: 16),
+            label: Text(suggestion.label),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryLight,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 2,
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }

@@ -50,6 +50,29 @@ class InstructionProcessor:
         except Exception as e:
             logger.error(f"Error loading custom prompt: {e}")
             return None
+    
+    def _has_task(self, instruction: str, student_context: dict) -> bool:
+        """Detect if message contains a task (question/image) vs pure emotional expression"""
+        # Has uploaded image
+        if student_context.get('has_image'):
+            return True
+        
+        # Contains question marks or task keywords
+        task_keywords = ['עזרה', 'שאלה', 'לא מבין', 'איך', 'מה', 'למה', 'תעזור']
+        if '?' in instruction or any(word in instruction for word in task_keywords):
+            return True
+        
+        # Check for pure emotional expression
+        emotional_phrases = ['עצוב', 'עייף', 'כועס', 'מפחד', 'חרד', 'עצובה', 'עייפה', 
+                           'כועסת', 'מפחדת', 'חרדה', 'נמאס', 'לא בא לי']
+        has_emotion = any(phrase in instruction.lower() for phrase in emotional_phrases)
+        
+        if has_emotion:
+            # If it's emotional but has task content (question or longer message), show suggestions
+            return '?' in instruction or len(instruction.split()) > 5
+        
+        # Default: show suggestions for most messages
+        return True
         
     def _get_llm_for_provider(self, provider: str = None):
         """Get LLM instance for specified provider"""
@@ -117,22 +140,55 @@ class InstructionProcessor:
             # Check if this is first message in conversation
             is_first_message = not conversation_history or conversation_history.strip() == ""
             
+            # Check if message has a task (for showing suggestions)
+            has_task = self._has_task(instruction_interpretation, student_context)
+            
             # Short, efficient prompt - guide student to choose assistance type
             if is_first_message:
                 # First message - include greeting
-                default_prompt = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
+                if has_task:
+                    default_prompt = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
 
 התלמיד שאל: "{instruction_interpretation}"
 
 אני יכול לעזור בשלוש דרכים:
-🔍 **הסבר** - הסבר מה זה אומר
-📝 **פירוק לשלבים** - לחלק למשימות קטנות
-💡 **דוגמה** - לתת דוגמה מהחיים
+🔍 הסבר - הסבר מה זה אומר
+📝 פירוק לשלבים - לחלק למשימות קטנות
+💡 דוגמה - לתת דוגמה מהחיים
 
 איך תרצה שאעזור לך?"""
+                else:
+                    # Pure emotional message - no suggestions
+                    default_prompt = f"""אתה לרנובוט, עוזר AI שעוזר לתלמידים. תענה ישירות לתלמיד.
+
+התלמיד אמר: "{instruction_interpretation}"
+
+תגיב בחמימות ותמיכה רגשית. אל תציע אפשרויות עזרה."""
             else:
                 # Continuing conversation - NO greeting, just help
-                default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
+                if has_task:
+                    # Check if context was recently provided (student sent text after being asked)
+                    context_was_provided = len(instruction_interpretation) > 50 or any(
+                        keyword in conversation_history.lower() 
+                        for keyword in ['אני צריך לראות', 'אפשר לשלוח', 'תמונה או להקליד']
+                    )
+                    
+                    if context_was_provided:
+                        # Context was provided - give actual help
+                        default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
+
+היסטוריה: {conversation_history}
+
+חוקים:
+- תן תשובה מועילה ומפורטת
+- אל תמציא מידע
+- עזור לתלמיד להבין את המשימה
+
+עכשיו תן עזרה אמיתית לתלמיד. אם הוא שיתף טקסט או הסביר את המשימה, עזור לו עכשיו:
+🔍 הסבר 📝 פירוק לשלבים 💡 דוגמה"""
+                    else:
+                        # No context yet
+                        default_prompt = f"""התלמיד שאל: "{instruction_interpretation}"
 
 היסטוריה: {conversation_history}
 
@@ -145,7 +201,14 @@ class InstructionProcessor:
 תגיד: "אני צריך לראות את הטקסט. אפשר לשלוח תמונה או להקליד?"
 
 אחרת, שאל איך לעזור:
-🔍 **הסבר** 📝 **פירוק לשלבים** 💡 **דוגמה**"""
+🔍 הסבר 📝 פירוק לשלבים 💡 דוגמה"""
+                else:
+                    # Pure emotional message - no suggestions
+                    default_prompt = f"""התלמיד אמר: "{instruction_interpretation}"
+
+היסטוריה: {conversation_history}
+
+תגיב בחמימות ותמיכה רגשית. אל תציע אפשרויות עזרה."""
             
             # If custom prompt exists, prepend it to the default prompt
             if custom_system_prompt:
@@ -175,7 +238,44 @@ class InstructionProcessor:
         # Use multi_llm_manager to generate response
         result = multi_llm_manager.generate(prompt_text, provider=provider)
         
+        # Validate that response is not empty and makes sense
+        if not result or not result.strip():
+            logger.warning("Empty response from LLM, using fallback")
+            result = "אני כאן לעזור לך! איך תרצה שאעזור?\n\n🔍 הסבר - הסבר מה זה אומר\n📝 פירוק לשלבים - לחלק למשימות קטנות\n💡 דוגמה - לתת דוגמה מהחיים"
+        elif self._is_nonsensical_response(result):
+            logger.warning("Nonsensical response from LLM, using fallback")
+            result = "אני כאן לעזור לך! איך תרצה שאעזור?\n\n🔍 הסבר - הסבר מה זה אומר\n📝 פירוק לשלבים - לחלק למשימות קטנות\n💡 דוגמה - לתת דוגמה מהחיים"
+        
         return {"analysis": result}
+    
+    def _is_nonsensical_response(self, response: str) -> bool:
+        """Check if the response is nonsensical or corrupted"""
+        response_lower = response.lower().strip()
+        
+        # Check for repeated characters (like "LLLLLLI")
+        if len(set(response_lower)) <= 3 and len(response_lower) > 10:
+            return True
+            
+        # Check for gibberish patterns
+        gibberish_patterns = [
+            'כל הלידה ערהויך מד החיוך',  # The specific weird response from the image
+            'heh lang',  # Another pattern from the image
+            'havant meycal',  # Another pattern from the image
+        ]
+        
+        for pattern in gibberish_patterns:
+            if pattern in response_lower:
+                return True
+                
+        # Check for too many repeated characters
+        if any(char * 5 in response_lower for char in 'abcdefghijklmnopqrstuvwxyz'):
+            return True
+            
+        # Check for responses that are too short and don't contain Hebrew or meaningful words
+        if len(response.strip()) < 20 and not any(word in response_lower for word in ['אני', 'אתה', 'זה', 'זהו', 'הנה', 'כאן']):
+            return True
+            
+        return False
     
     def breakdown_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
         """Break down instruction into simple steps"""
@@ -225,6 +325,15 @@ class InstructionProcessor:
         
         response = multi_llm_manager.generate(prompt_text, provider=provider)
         logger.info(f"🔧 BREAKDOWN - Response length: {len(response) if response else 0}, Content: {response[:200] if response else 'EMPTY!'}")
+        
+        # Validate that response is not empty and makes sense
+        if not response or not response.strip():
+            logger.warning("Empty response from LLM in breakdown, using fallback")
+            response = "אני אעזור לך לפרק את המשימה לשלבים פשוטים. בואו נתחיל!"
+        elif self._is_nonsensical_response(response):
+            logger.warning("Nonsensical response from LLM in breakdown, using fallback")
+            response = "אני אעזור לך לפרק את המשימה לשלבים פשוטים. בואו נתחיל!"
+        
         return response
     
     def provide_example(self, instruction: str, concept: str, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
@@ -268,7 +377,17 @@ class InstructionProcessor:
                 concept=concept
             )
         
-        return multi_llm_manager.generate(prompt_text, provider=provider)
+        response = multi_llm_manager.generate(prompt_text, provider=provider)
+        
+        # Validate that response is not empty and makes sense
+        if not response or not response.strip():
+            logger.warning("Empty response from LLM in example, using fallback")
+            response = "אני אתן לך דוגמה טובה שתעזור לך להבין את הנושא!"
+        elif self._is_nonsensical_response(response):
+            logger.warning("Nonsensical response from LLM in example, using fallback")
+            response = "אני אתן לך דוגמה טובה שתעזור לך להבין את הנושא!"
+        
+        return response
     
     def explain_instruction(self, instruction: str, student_level: int, language_preference: str = "he", provider: str = None, student_context: dict = None) -> str:
         """Explain instruction in simple terms"""
@@ -311,4 +430,14 @@ class InstructionProcessor:
                 student_level=student_level
             )
         
-        return multi_llm_manager.generate(prompt_text, provider=provider)
+        response = multi_llm_manager.generate(prompt_text, provider=provider)
+        
+        # Validate that response is not empty and makes sense
+        if not response or not response.strip():
+            logger.warning("Empty response from LLM in explain, using fallback")
+            response = "אני אסביר לך את הנושא בצורה פשוטה וברורה!"
+        elif self._is_nonsensical_response(response):
+            logger.warning("Nonsensical response from LLM in explain, using fallback")
+            response = "אני אסביר לך את הנושא בצורה פשוטה וברורה!"
+        
+        return response
