@@ -371,6 +371,10 @@ docker-compose up -d
 docker-compose down
 
 # View logs:
+#Restart the backend in case of a problomatic request
+ docker restart  backend-1 #(backend container name)
+
+# View logs
 docker-compose logs -f
 
 # View logs for specific service:
