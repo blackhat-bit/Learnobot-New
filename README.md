@@ -82,8 +82,9 @@ DATABASE_URL=postgresql://learnobot:YOUR_SECURE_PASSWORD@localhost:5432/learnobo
 SECRET_KEY=paste-your-secret-key-from-step-4b-here
 ENCRYPTION_KEY=paste-your-encryption-key-from-step-4a-here
 
-# Optional - Cloud AI providers (leave empty to use local Ollama only)
-# Note: It's recommended to add API keys through the Manager Panel instead
+# Optional - Cloud AI providers (for FIRST-TIME SETUP only)
+# IMPORTANT: After first setup, remove these keys from .env and manage via Manager Panel
+# Database is the single source of truth - .env keys are only used on first run
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GOOGLE_API_KEY=
@@ -95,7 +96,12 @@ COHERE_API_KEY=
 - **ENCRYPTION_KEY**: Paste the key from Step 4a (used for encrypting API keys in database)
 - **Change the database password**: Replace `YOUR_SECURE_PASSWORD` with a strong password
 - Cloud AI provider keys are optional - the app works with local Ollama models
-- **Recommended**: Add API keys through the Manager Panel after setup (more secure)
+- **IMPORTANT API Key Management**:
+  - `.env` keys are ONLY used for first-time initialization
+  - After adding keys via Manager Panel, **remove them from .env**
+  - Database is the single source of truth for API keys
+  - If keys remain in .env, they'll be re-added on first startup (one-time only)
+  - **Recommended**: Leave .env empty and add all keys via Manager Panel
 
 ### Step 6: Start Docker Services
 
