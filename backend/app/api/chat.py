@@ -200,7 +200,10 @@ async def upload_task(
 אם יש טקסט בתמונה:
 1. תאר מה רשום בתמונה (רק הטקסט הרלוונטי למשימה)
 2. הסבר במילים פשוטות מה צריך לעשות
-3. שאל את התלמיד איך תרצה שאעזור (הסבר, פירוק לשלבים, או דוגמה)
+3. הצע לתלמיד עזרה נוספת עם האפשרויות הבאות (כלול את האימוג'ים בדיוק כפי שמופיע):
+   🔍 הסבר
+   📝 פירוק לשלבים
+   💡 דוגמה
 
 אם אין טקסט ברור:
 תגיד לתלמיד שלא הצלחת לקרוא את התמונה בבירור ותבקש להעלות תמונה ברורה יותר.
@@ -223,31 +226,19 @@ async def upload_task(
         # Process with vision (fast!) - process ALL images
         vision_start = time.time()
         try:
-            # For multiple images, we'll process them one by one and combine results
             if len(image_contents) > 1:
-                all_responses = []
-                for i, img_content in enumerate(image_contents):
-                    logger.info(f"Processing image {i+1}/{len(image_contents)} with vision API")
-                    vision_result = await vision_service.process_image_with_vision(
-                        image_data=img_content,
-                        prompt=vision_prompt,
-                        provider=provider
-                    )
-                    if vision_result.get("success"):
-                        all_responses.append(f"תמונה {i+1}: {vision_result['response']}")
-                    else:
-                        all_responses.append(f"תמונה {i+1}: שגיאה - {vision_result.get('error', 'Unknown error')}")
+                # Send all images together for coherent understanding
+                logger.info(f"Processing {len(image_contents)} images together with vision API")
                 
-                # Combine all responses
-                combined_response = "\n\n".join(all_responses)
-                vision_result = {
-                    "success": True,
-                    "response": combined_response
-                }
+                vision_result = await vision_service.process_multiple_images_with_vision(
+                    images_data=image_contents,
+                    prompt=vision_prompt,
+                    provider=provider
+                )
             else:
                 # Single image - use original logic
                 vision_result = await vision_service.process_image_with_vision(
-                    image_data=content,
+                    image_data=image_contents[0],
                     prompt=vision_prompt,
                     provider=provider
                 )

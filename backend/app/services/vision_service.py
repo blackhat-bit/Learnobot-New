@@ -81,6 +81,75 @@ class VisionService:
             }
     
     @staticmethod
+    async def process_multiple_images_with_vision(
+        images_data: list,
+        prompt: str,
+        provider: str
+    ) -> Dict[str, Any]:
+        """
+        Process multiple images together using vision API
+        
+        Args:
+            images_data: List of raw image bytes
+            prompt: Text prompt/question about the images
+            provider: Provider key (e.g., "google-gemini_2_5_flash", "openai", "anthropic")
+        
+        Returns:
+            Dictionary with:
+                - response: AI's response about the images
+                - provider: Provider used
+                - success: Whether processing succeeded
+        """
+        import time
+        
+        start_time = time.time()
+        
+        try:
+            if not VisionService.supports_vision(provider):
+                raise ValueError(f"Provider {provider} does not support vision API")
+            
+            provider_instance = multi_llm_manager.providers[provider]
+            
+            logger.info(f"Processing {len(images_data)} images together with vision provider: {provider}")
+            
+            # Check if provider supports multiple images
+            if hasattr(provider_instance, 'process_multiple_images'):
+                # Use dedicated multi-image method
+                response_text = provider_instance.process_multiple_images(
+                    images_data=images_data,
+                    prompt=prompt
+                )
+            else:
+                # Fallback: process first image only
+                logger.warning(f"Provider {provider} doesn't support multiple images, using first image only")
+                response_text = provider_instance.process_image(
+                    image_data=images_data[0],
+                    prompt=prompt
+                )
+            
+            processing_time = time.time() - start_time
+            logger.info(f"Multi-image vision processing completed in {processing_time:.2f}s")
+            
+            return {
+                "response": response_text,
+                "provider": provider,
+                "success": True,
+                "processing_time": processing_time
+            }
+            
+        except Exception as e:
+            processing_time = time.time() - start_time
+            logger.error(f"Multi-image vision processing failed after {processing_time:.2f}s: {str(e)}")
+            
+            return {
+                "response": None,
+                "provider": provider,
+                "success": False,
+                "error": str(e),
+                "processing_time": processing_time
+            }
+    
+    @staticmethod
     def get_vision_capable_providers() -> list:
         """Get list of all providers that support vision"""
         vision_providers = []

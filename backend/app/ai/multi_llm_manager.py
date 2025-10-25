@@ -253,6 +253,55 @@ class OpenAIProvider(BaseLLMProvider):
             logger.error(f"OpenAI Vision error after {response_time:.2f}s: {e}")
             raise ValueError(f"OpenAI Vision API error: {str(e)}")
     
+    def process_multiple_images(self, images_data: list, prompt: str, **kwargs) -> str:
+        """Process multiple images with OpenAI vision"""
+        import time
+        import logging
+        import base64
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            from openai import OpenAI
+            
+            client = OpenAI(
+                api_key=self.api_key,
+                timeout=120.0
+            )
+            
+            # Use GPT-4 Vision model
+            vision_model = "gpt-4-vision-preview" if "gpt-4" in self.model else self.model
+            
+            # Build content array with multiple images
+            content = [{"type": "text", "text": prompt}]
+            
+            for img_data in images_data:
+                base64_image = base64.b64encode(img_data).decode('utf-8')
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                })
+            
+            response = client.chat.completions.create(
+                model=vision_model,
+                messages=[{"role": "user", "content": content}],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            
+            response_text = response.choices[0].message.content
+            response_time = time.time() - start_time
+            
+            logger.info(f"OpenAI {vision_model} Multi-Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"OpenAI Multi-Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"OpenAI Multi-Vision API error: {str(e)}")
+    
     def get_info(self) -> Dict[str, Any]:
         return {
             "provider": "OpenAI",
@@ -397,6 +446,69 @@ class AnthropicProvider(BaseLLMProvider):
             response_time = time.time() - start_time
             logger.error(f"Anthropic Vision error after {response_time:.2f}s: {e}")
             raise ValueError(f"Anthropic Vision API error: {str(e)}")
+    
+    def process_multiple_images(self, images_data: list, prompt: str, **kwargs) -> str:
+        """Process multiple images with Anthropic vision"""
+        import time
+        import logging
+        import base64
+        import anthropic
+        import httpx
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            # Build content array with multiple images
+            content = [{"type": "text", "text": prompt}]
+            
+            for img_data in images_data:
+                image_base64 = base64.b64encode(img_data).decode('utf-8')
+                
+                # Detect image format
+                if img_data.startswith(b'\xff\xd8\xff'):
+                    media_type = "image/jpeg"
+                elif img_data.startswith(b'\x89PNG'):
+                    media_type = "image/png"
+                elif img_data.startswith(b'GIF'):
+                    media_type = "image/gif"
+                elif img_data.startswith(b'WEBP'):
+                    media_type = "image/webp"
+                else:
+                    media_type = "image/jpeg"  # Default fallback
+                
+                content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_base64
+                    }
+                })
+            
+            client = anthropic.Anthropic(
+                api_key=self.api_key,
+                timeout=httpx.Timeout(120.0, connect=10.0)
+            )
+            
+            response = client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                messages=[{"role": "user", "content": content}]
+            )
+            
+            response_text = response.content[0].text
+            response_time = time.time() - start_time
+            
+            logger.info(f"Anthropic {self.model} Multi-Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            logger.error(f"Anthropic Multi-Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"Anthropic Multi-Vision API error: {str(e)}")
     
     def get_info(self) -> Dict[str, Any]:
         return {
@@ -630,6 +742,59 @@ class GoogleProvider(BaseLLMProvider):
             actual_model = getattr(self, 'actual_model', self.model)
             logger.error(f"Google {actual_model} Vision error after {response_time:.2f}s: {e}")
             raise ValueError(f"Google Vision API error: {str(e)}")
+    
+    def process_multiple_images(self, images_data: list, prompt: str, **kwargs) -> str:
+        """Process multiple images with Google vision"""
+        import time
+        import logging
+        import PIL.Image
+        import io
+        
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+        
+        try:
+            import google.generativeai as genai
+            
+            # Convert images to PIL Images
+            pil_images = []
+            for img_data in images_data:
+                pil_images.append(PIL.Image.open(io.BytesIO(img_data)))
+            
+            # Build content with text and multiple images
+            content = [prompt] + pil_images
+            
+            generation_config = genai.types.GenerationConfig(
+                temperature=self.temperature,
+                max_output_tokens=self.max_tokens,
+            )
+            
+            response = self.client.generate_content(
+                content,
+                generation_config=generation_config
+            )
+            
+            # Handle multi-part responses (structured content)
+            try:
+                response_text = response.text
+            except ValueError:
+                # Response has multiple parts, concatenate them
+                response_text = ""
+                for candidate in response.candidates:
+                    for part in candidate.content.parts:
+                        response_text += part.text
+            
+            response_time = time.time() - start_time
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.info(f"Google {actual_model} Multi-Vision - Response: {response_time:.2f}s")
+            
+            return response_text
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            actual_model = getattr(self, 'actual_model', self.model)
+            logger.error(f"Google {actual_model} Multi-Vision error after {response_time:.2f}s: {e}")
+            raise ValueError(f"Google Multi-Vision API error: {str(e)}")
     
     def get_info(self) -> Dict[str, Any]:
         return {
